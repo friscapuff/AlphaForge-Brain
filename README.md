@@ -1,254 +1,303 @@
-# Project A Backend
+# AlphaForge Brain – Deterministic Single-User Trading Lab Backend
 
-<!-- Badges -->
-![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)
-![Python](https://img.shields.io/badge/python-3.11.x-blue.svg)
-![Coverage](https://img.shields.io/badge/coverage-available%20in%20CI-lightgrey.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Benchmarks](https://img.shields.io/badge/bench-risk_slippage%20&%20perf_run-informational.svg)
+![Version](https://img.shields.io/badge/version-0.2.1-blue.svg) ![Python](https://img.shields.io/badge/python-3.11.x-blue.svg) ![Coverage](https://img.shields.io/badge/coverage-available%20in%20CI-lightgrey.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Benchmarks](https://img.shields.io/badge/bench-risk_slippage%20&%20perf_run-informational.svg)
 
-Single-user deterministic backtesting & validation engine.
+AlphaForge Brain is a deterministic, modular backend for running strategy backtests, risk-adjusted simulations, and statistical validations. It targets a single power user who wants **repeatable experiments**, **artifact integrity**, and **low-friction iteration** without premature multi-user overhead. A future UI (out of scope here) will sit on top of these APIs.
 
-## Features
-- FastAPI + Pydantic v2 backend
-- Deterministic run hashing & idempotent submission
-- SQLite (local) persistence (extensible to Postgres later)
-- Structured logging (structlog + rich)
-- Artifact manifest with SHA-256 integrity
-- SSE event stream for run lifecycle
-- Preset persistence (idempotent create by hash)
-- Extensible feature engineering & indicator calculation pipeline
-- Microbenchmark harness (performance profiling)
+---
+## 1. Executive Overview
+AlphaForge Brain executes an orchestrated pipeline: load candles → compute indicators/features → derive strategy signals → size positions (risk models) → simulate fills (slippage, fees, T+1) → compute metrics → perform validation (permutation, bootstrap, Monte Carlo, walk-forward) → assemble artifacts → emit ordered events (SSE) → persist manifest with integrity hash + chain linkage. Every run is **idempotent**: submitting the same canonical configuration returns the same `run_hash` and reuses existing artifacts.
 
-## Tech Stack
-Python 3.11, FastAPI, Pydantic v2, SQLite, pandas/numpy, structlog, pytest, ruff, mypy, Poetry.
+**Why it exists:** To provide a trustworthy sandbox for researching and iterating on systematic strategies with strict reproducibility and transparent state transitions. It favors correctness, clarity, and traceable transformations over opaque monolith logic.
 
-## Getting Started
-### 1. Prerequisites
-- Python 3.11.x
-- Poetry >= 1.8
+---
+## 2. Core Value Principles
+| Principle | Meaning | Implementation Hooks |
+|-----------|---------|----------------------|
+| Determinism | Same input → same output (hash & artifacts) | Canonical JSON hashing, seeded validation, pure data transforms |
+| Integrity | Artifacts tamper-evident | `manifest.json` + `manifest_hash` + `chain_prev` |
+| Modularity | Swap / extend components easily | Registries (indicator, strategy, risk, slippage) |
+| Observability | Understand progress & status | Ordered event buffer + SSE (flush & streaming) |
+| Reproducibility | Full rerun without guessing | Config payload stored + lockfile + seed |
+| Performance Insight | Measure, don’t assume | Microbenchmarks (`perf_run`, `risk_slippage`) |
+| Safety & Clarity | No hidden randomness / side effects | Explicit seeds, no global mutable singletons (beyond controlled caches) |
 
-### 2. Install Dependencies
-```powershell
-poetry install --with dev
+---
+## 3. High-Level Architecture
 ```
-(Add extras as needed, e.g. `--extras "polars performance distributed"`)
+                +--------------------+
+                |   Run Submission   |
+                | (POST /runs)       |
+                +---------+----------+
+                          |
+                    Hash & Idempotency
+                          |
+                  +-------v--------+
+                  |  Orchestrator  |
+                  +---+---+---+----+
+                      |   |   |
+        Data Layer <--+   |   +--> Event Buffer (ordered)
+                      |   |         ^
+      Feature / Indicators |         | SSE Flush / Stream
+                      |   |         |
+                 Strategy Runner     |
+                      |             |
+                  Risk Engine        |
+                      |             |
+               Execution Simulator   |
+                      |             |
+                   Metrics Calc      |
+                      |             |
+                  Validation Suite   |
+                      |             |
+                  Artifact Writer ---+
+                      |
+                 Manifest (hashed)
+```
+The orchestrator is a state machine that drives each stage deterministically. Each stage produces structured outputs that later phases consume, minimizing hidden coupling.
 
-### 3. Activate Shell
-```powershell
-poetry shell
+---
+## 4. Full End-to-End Data Flow (Narrative Guide)
+This section is your always-current mental model. Every run moves through the following exact phases. Each bullet contains 2–4 sentences to reinforce understanding.
+
+1. Submission & Hashing: A client sends a `RunConfig` payload to `POST /runs`. The system canonicalizes (stable key ordering, normalized types) and hashes it with metadata (code version, seed). If a previous run with the same hash exists, the existing artifacts are reused and no recalculation occurs. This enables stateless retries and instant cache hits for deterministic experimentation.
+2. Candle Loading & Caching: The data provider (currently local CSV/Parquet) loads the candle range, normalizes schema (timestamp, open/high/low/close/volume), and stores a cached Parquet slice keyed by its content hash. Subsequent identical data requests avoid re-loading overhead. Data immutability ensures downstream determinism.
+3. Indicator & Feature Computation: Indicators (e.g., dual SMA) are computed over the candle frame with explicit lookback windows and no forward fill that causes lookahead bias. Features are cached similarly, keyed by both raw data hash and indicator parameters. This layer produces a feature matrix consumed by strategies.
+4. Strategy Signal Generation: The strategy runner aligns indicator values and produces discrete position or signal states (e.g., long/flat toggles when fast/slow SMA cross). It deliberately avoids sizing decisions, producing only intent. This isolation allows reuse of signals across multiple risk model experiments.
+5. Risk Sizing: Risk engine converts signals into position sizes via the selected model (`fixed_fraction`, `volatility_target`, `kelly_fraction`). Each implementation clamps output and uses stable historical statistics (e.g., realized volatility) for scaling. The result is a position series (desired target size per bar) ready for execution simulation.
+6. Execution Simulation: The simulator walks through bars applying T+1 fills (signal at bar N executed at bar N+1 open or chosen price proxy). Slippage models (none, `spread_pct`, `participation_rate`) and fee/slippage basis points adjust fill prices deterministically. Edge cases like zero volume or end-of-range flattening are handled explicitly to avoid orphaned state.
+7. Trade & State Tracking: As fills occur, trades are instantiated, and portfolio state (cash, position, equity curve) is updated. The engine ensures chronological consistency and prevents impossible negative fill conditions. Intermediate states are not mutated retroactively, preserving auditability.
+8. Metrics Computation: Returns, drawdowns, Sharpe-like ratio, and other summary statistics derive from the equity curve and trade list. All metrics functions are pure: they accept immutable structures and return new aggregates. This encourages independent revalidation or extension.
+9. Validation Suite: Statistical modules (permutation, bootstrap, Monte Carlo, walk-forward) run using deterministic seeds derived from the base seed plus indexed offsets. Outputs (p-values, confidence intervals, partition summaries) become structured validation artifacts. This phase does not alter prior artifacts—only appends results.
+10. Artifact Assembly & Manifest: The artifact writer compiles metrics, trades, validation outputs, and run configuration references. A `manifest.json` with `manifest_hash` plus `chain_prev` (linking to the prior run’s manifest hash) provides integrity chaining. Any tampering or partial deletion becomes detectable when reconstructing the chain.
+11. Event Buffering & Emission: Each phase emits events (e.g., `started`, `data_loaded`, `features_ready`, `strategy_done`, `risk_done`, `execution_done`, `metrics_done`, `validation_done`, `artifacts_finalized`, `completed`). These are stored in an ordered in-memory buffer with stable incremental IDs. Clients either poll via flush endpoint (with `ETag` caching) or attach a long-lived streaming SSE connection for incremental push.
+12. Completion & Reuse: Once the terminal event is emitted, the run enters a stable state. Re-submitting identical configuration yields the same hash and returns immediately referencing existing artifacts (no recomputation). This drastically shortens iterative parameter tuning cycles.
+
+### ASCII Sequence (Abbreviated)
+```
+Client -> API (/runs) -> Orchestrator
+Orchestrator -> Data Provider -> Cache
+Orchestrator -> Indicator Engine -> Feature Cache
+Orchestrator -> Strategy Runner
+Orchestrator -> Risk Engine
+Orchestrator -> Execution Simulator
+Orchestrator -> Metrics Calculator
+Orchestrator -> Validation Suite
+Orchestrator -> Artifact Writer -> Manifest
+Orchestrator -> Event Buffer -> (SSE Stream / Flush)
+Client <- SSE: progress ... terminal
 ```
 
-### 4. Run App (Dev)
-```powershell
-poetry run uvicorn api.app:app --reload --host 0.0.0.0 --port 8000
+---
+## 5. Domain Components
+### Indicators
+Each indicator registers via a decorator into the indicator registry. Parameters are validated and serialized for caching keys. Adding a new indicator requires a pure function returning a pandas Series/DataFrame aligned to input index.
+
+### Strategies
+Strategies transform aligned indicator outputs into target exposure signals. They do not execute trades or size positions. This keeps them testable and cheap to iterate.
+
+### Risk Models
+Risk models translate exposure intent into position sizing. `volatility_target` scales the base fraction inversely with realized volatility; `kelly_fraction` applies a conservative Kelly sizing formula dampened by a base fraction. All models clamp sizes to valid ranges and are side-effect free.
+
+### Slippage Models
+Slippage adapters transform theoretical execution price before costs: `spread_pct` shifts by half-spread; `participation_rate` applies impact proportional to order participation in bar volume. They run before fee and generic BPS slippage adjustment, keeping ordering explicit and auditable.
+
+### Execution Simulator
+Applies T+1 logic, zero-volume guards, and produces trade records and state deltas. Determinism is maintained by avoiding random partial fills or latency modeling in this scope.
+
+### Metrics & Validation
+Metrics compute time-series and aggregate performance figures. Validation modules assess robustness: permutation tests re-randomize signal structure; bootstrap resamples segments; Monte Carlo perturbs distributions; walk-forward splits evaluate temporal generalization.
+
+### Artifacts & Manifest
+Artifacts (metrics, trades, validation summaries) are written to disk. A manifest consolidates pointers, sizes, and hashes. `chain_prev` links prior manifest to build a verifiable lineage.
+
+---
+## 6. Events & Streaming
+Two modes:
+1. Flush Endpoint: `GET /runs/{run_hash}/events` returns all events (optionally filtered with `after_id`). ETag header `<run_hash>:<last_event_id>` allows 304 responses if no new events.
+2. Streaming Endpoint: `GET /runs/{run_hash}/events/stream` replays backlog then waits for new events, sending periodic heartbeat events (~15s) until terminal.
+
+Event Schema (conceptual):
+```json
+{
+  "run_hash": "string",
+  "id": 7,
+  "ts": "2025-09-20T12:34:56.789Z",
+  "type": "metrics_done",
+  "payload": {"metrics": {"sharpe": 1.23}}
+}
+```
+Clients can recover from disconnect by supplying `Last-Event-ID` (stream) or `after_id` (flush).
+
+---
+## 7. Determinism & Reproducibility
+Determinism rests on canonical configuration serialization, stable seeded flows, and absence of nondeterministic IO. Run hash = SHA-256 over canonical JSON (sorted keys, normalized types) plus version metadata. Validation modules derive sub-seeds from the base seed using indexed offsets (ensuring independence yet reproducibility). Manifest chaining allows verifying no retroactive mutation across historical runs.
+
+Reproduce Checklist:
+1. Same code & `poetry.lock`.
+2. Original JSON payload (include `seed`).
+3. Same environment variables (if any feature flags introduced later).
+4. Submit via `/runs`; identical `run_hash` indicates reuse.
+5. Fetch artifacts; verify manifest hash & `chain_prev` alignment.
+
+---
+## 8. Risk & Slippage Model Usage
+Example risk config (volatility target):
+```json
+"risk": {"model": "volatility_target", "params": {"base_fraction": 0.2, "target_vol": 0.15, "lookback": 30}}
+```
+Kelly variant:
+```json
+"risk": {"model": "kelly_fraction", "params": {"base_fraction": 0.1, "win_prob": 0.55, "reward_risk": 1.4}}
+```
+Slippage example:
+```json
+"execution": {"slippage_model": "participation_rate", "params": {"participation_pct": 0.1}, "slippage_bps": 4, "fee_bps": 1.2}
 ```
 
-### 4a. (Option C) Convenience Dev Script
-Instead of remembering the uvicorn flags, use the helper script:
+---
+## 9. API Guide (Practical Quickstart)
+| Action | Endpoint | Method | Notes |
+|--------|----------|--------|-------|
+| Create run | `/runs` | POST | Returns `run_hash` (idempotent) |
+| List runs | `/runs` | GET | Sorted recent (retention window) |
+| Run detail | `/runs/{run_hash}` | GET | Includes status & manifest link |
+| Artifacts | `/runs/{run_hash}/artifacts` | GET | Manifest, metrics, validation references |
+| Events (flush) | `/runs/{run_hash}/events` | GET | ETag + `after_id` support |
+| Events (stream) | `/runs/{run_hash}/events/stream` | GET | SSE incremental |
+| Presets CRUD | `/presets` | POST/GET/DELETE | Idempotent create by (name, config) |
+
+Minimal run creation (PowerShell):
 ```powershell
-pwsh scripts/dev/run_api.ps1 -Port 8000 -Reload -Workers 1
-```
-Parameters:
-- `-Port` (default 8000)
-- `-Reload` (enable code reload)
-- `-Workers` (process count; omit with `-Reload` for single process reload reliability)
-- `-BindHost` (default 0.0.0.0)
-
-If you're already inside `poetry shell` it uses the active venv; otherwise it prefixes with `poetry run` automatically.
-
-### 5. Run Tests
-```powershell
-poetry run pytest
-```
-
-### 6. Lint & Type Check
-```powershell
-poetry run ruff check .
-poetry run mypy src
-```
-
-## Dependency Groups & Extras
-- Dev group: pytest, hypothesis, coverage, ruff, mypy, pre-commit
-- Extras:
-  - polars: Polars dataframe engine
-  - performance: numba acceleration
-  - distributed: celery + redis + flower
-  - storage: boto3 for S3-compatible artifact storage
-  - integrity: hashlib-py (optional hashing variations)
-
-Install with selected extras:
-```powershell
-poetry install --with dev --extras "polars performance"
-```
-
-## Data & Artifacts
-Runs limited to last 100 (retention). Each run stores:
-- Config (canonical JSON)
-- Metrics summary
-- Artifact manifest (filename, size, sha256)
-- Optional feature matrices
-- Validation summaries / detail (permutation, bootstrap, monte carlo, walk-forward)
-
-## Presets
-Reusable parameter sets for interactive UI workflows. Create:
-```powershell
-curl -X POST http://localhost:8000/presets -H "Content-Type: application/json" -d '{
-  "name": "dual_sma_default",
-  "config": {
-    "symbol": "TEST",
-    "timeframe": "1m",
-    "start": "2024-01-01",
-    "end": "2024-01-02",
-    "indicators": [{"name": "dual_sma", "params": {"fast": 5, "slow": 20}}],
-    "strategy": {"name": "dual_sma", "params": {}},
-    "risk": {"model": "fixed_fraction", "params": {"fraction": 0.1}},
-    "execution": {"slippage_bps": 5, "fee_bps": 0},
-    "validation": {},
-    "seed": 42
-  }
+$body = '{
+  "symbol": "TEST", "timeframe": "1m", "start": "2024-01-01", "end": "2024-01-02",
+  "indicators": [{"name":"sma","params":{"window":5}},{"name":"sma","params":{"window":15}}],
+  "strategy": {"name":"dual_sma","params":{"fast":5,"slow":15}},
+  "risk": {"model":"fixed_fraction","params":{"fraction":0.1}},
+  "execution": {"slippage_bps":0,"fee_bps":0},
+  "validation": {"permutation": {"trials": 3}},
+  "seed": 42
 }'
+Invoke-RestMethod -Method POST -Uri http://localhost:8000/runs -ContentType 'application/json' -Body $body
 ```
-List:
-```powershell
-curl http://localhost:8000/presets
-```
-Get:
-```powershell
-curl http://localhost:8000/presets/<preset_id>
-```
-Delete:
-```powershell
-curl -X DELETE http://localhost:8000/presets/<preset_id>
-```
-Re-posting identical payload returns the same `preset_id` (idempotent).
 
-## Microbenchmarks
+---
+## 10. Presets Workflow
+Presets wrap frequently used configurations. Creating identical (name, config) returns the existing `preset_id` (no duplication or conflict errors). Backed by JSON file or SQLite index depending on environment variable selection. This optimizes iterative UI flows where a user tweaks only one parameter between runs.
 
-End-to-end orchestration latency:
+---
+## 11. Benchmarks & Performance Instrumentation
+Two complementary harnesses:
+- End-to-End (`scripts/bench/perf_run.py`): Measures orchestration latency, trade counts, summary stats.
+- Micro (`scripts/bench/risk_slippage.py`): Isolates per-model call overhead for risk sizing & slippage transforms.
+
+Run examples:
 ```powershell
 poetry run python scripts/bench/perf_run.py --iterations 5 --warmup 1
-```
-Sample output (abridged):
-```json
-{
-  "runs": {
-    "iterations": 5,
-    "mean_sec": 0.18,
-    "median_sec": 0.17,
-    "p95_sec": 0.20
-  }
-}
-```
-Risk & slippage model micro timings:
-```powershell
 poetry run python scripts/bench/risk_slippage.py --iterations 300 --risk-models fixed_fraction,volatility_target,kelly_fraction --slippage none,spread_pct,participation_rate
 ```
-Outputs JSON keyed by `risk:<model>` and `slippage:<model>` with microsecond stats.
 
-Makefile shortcuts:
-```powershell
-make bench
-```
-
-## OpenAPI & Contracts
-See `specs/001-initial-dual-tier/contracts/openapi.yaml` for REST & SSE schema.
-
-## Project Layout
+---
+## 12. Repository Layout
 ```
 src/
-  api/            # FastAPI app, routers, error handlers
-  domain/         # Core domain logic (entities, services)
-  infra/          # DB, config, logging, utils, migrations
-specs/            # Design + research artifacts
+  api/                # FastAPI app & routes
+  domain/             # Core domain logic (strategy, risk, execution, validation, artifacts)
+  infra/              # Config, logging, db, utilities
+scripts/
+  bench/              # Performance & microbench harnesses
+  dev/                # Developer helpers
+specs/                # Architecture, plan, openapi, research
+presets/              # Stored presets (if not overridden)
 ```
 
-## Common Tasks
+---
+## 13. Extensibility Guide
+### Add an Indicator
+1. Implement a pure function returning a pandas Series.
+2. Decorate with the registry decorator specifying name & parameter schema.
+3. Add unit test ensuring no lookahead (shift checks) and window correctness.
+
+### Add a Strategy
+1. Define parameter schema.
+2. Consume indicator outputs → produce discrete signal states (e.g., -1/0/1 or boolean transitions).
+3. Test over a small synthetic frame with deterministic expectations.
+
+### Add a Risk Model
+1. Implement sizing function taking position intent and price history (if needed).
+2. Enforce clamping & deterministic math (no random draws).
+3. Register in risk engine switch; add tests for monotonic scaling.
+
+### Add a Slippage Adapter
+1. Accept trade direction, quantity, bar volume/price context.
+2. Produce adjusted price; keep side-effect free.
+3. Register & test impact vs baseline.
+
+### Add Validation Method
+1. Accept deterministic seeds; derive sub-seeds from base.
+2. Return structured result schema (summary + any detail arrays).
+3. Add reproducibility test ensuring identical outputs with same config.
+
+---
+## 14. Local Development & Quality Gates
+Install & Run:
 ```powershell
-# Add a new dependency
-poetry add some-package
-
-# Add a dev-only dependency
-poetry add --group dev pytest-xdist
-
-# Add an optional extra dep (edit pyproject then lock)
-poetry lock
-
-# Update all
-poetry update
+poetry install --with dev
+poetry run uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
 ```
-
-## Reproducibility
-`poetry.lock` ensures exact versions. Commit it. Hashes ensure run determinism; changing config or code producing features will alter the run hash.
-
-### Reproducibility Addendum (Deterministic Reruns)
-Each run hash = SHA-256 of a canonical JSON serialization of the submitted `RunConfig` (plus fixed ordering). To precisely reproduce a past run:
-
-1. Capture original POST body (the exact JSON you sent to `/runs`).
-2. Ensure identical code + dependency set (sync your branch & `poetry install --no-root` using the same `poetry.lock`).
-3. Ensure the `seed` field is present (if omitted originally, the orchestrator default may differ across versions; always include it for strict reproducibility).
-4. POST the identical JSON again. If the hash matches an existing run you'll get a 200 with the same `run_hash` (idempotent reuse) and artifacts will not be recomputed.
-5. Fetch artifacts and events identically (e.g. `/runs/{run_hash}/artifacts`, `/runs/{run_hash}/events`).
-
-Sample minimal payload (dual SMA):
-```json
-{
-  "symbol": "TEST",
-  "timeframe": "1m",
-  "start": "2024-01-01",
-  "end": "2024-01-02",
-  "indicators": [
-    {"name": "sma", "params": {"window": 5}},
-    {"name": "sma", "params": {"window": 15}}
-  ],
-  "strategy": {"name": "dual_sma", "params": {"fast": 5, "slow": 15}},
-  "risk": {"model": "fixed_fraction", "params": {"fraction": 0.1}},
-  "execution": {"slippage_bps": 0, "fee_bps": 0, "borrow_cost_bps": 0},
-  "validation": {"permutation": {"trials": 3}},
-  "seed": 42
-}
-```
-
-Quick verification loop (PowerShell):
+Quality Gates:
 ```powershell
-$payload = '{
-  "symbol": "TEST", "timeframe": "1m", "start": "2024-01-01", "end": "2024-01-02",
-  "indicators": [ {"name": "sma", "params": {"window": 5}}, {"name": "sma", "params": {"window": 15}} ],
-  "strategy": {"name": "dual_sma", "params": {"fast": 5, "slow": 15}},
-  "risk": {"model": "fixed_fraction", "params": {"fraction": 0.1}},
-  "execution": {"slippage_bps": 0, "fee_bps": 0, "borrow_cost_bps": 0},
-  "validation": {"permutation": {"trials": 3}},
-  "seed": 42
-}'
-1..2 | ForEach-Object {
-  $resp = curl -Method POST -Uri http://localhost:8000/runs -H @{"Content-Type"="application/json"} -Body $payload
-  $json = $resp.Content | ConvertFrom-Json
-  Write-Host "Attempt $_ -> run_hash: $($json.run_hash)"
-}
+poetry run pytest --disable-warnings -q
+poetry run mypy src
+poetry run ruff check .
 ```
-Both attempts should display the same `run_hash`.
+Zero warnings are tolerated (CI treats warnings as errors). Type & lint gates must be green before merging changes.
 
-Artifacts integrity: `manifest.json` includes `manifest_hash` (hash of manifest contents) and `chain_prev` linking to the previous run's manifest hash (linear chain for provenance).
+Dev Script Helper:
+```powershell
+pwsh scripts/dev/run_api.ps1 -Port 8000 -Reload
+```
 
-## Docker & Virtualization Troubleshooting
-If Docker Desktop reports "Virtualization support not detected" or engine stopped:
+---
+## 15. Troubleshooting & FAQ
+| Symptom | Cause | Resolution |
+|---------|-------|-----------|
+| Docker build slow | Cold dependency layer | Re-run; subsequent builds leverage cache layers |
+| Re-run not recomputing | Idempotent hash hit | Change a config field (e.g., seed) to force recompute |
+| Streaming idle | No new events | Heartbeats every ~15s confirm liveness |
+| Different hash after pull | Dependency drift | Reinstall with lockfile; ensure no uncommitted changes |
+| Validation timing large | High trials count | Reduce `permutation.trials` or bootstrap sample size |
 
-1. Run the diagnostic script:
+Virtualization Checks (Windows):
 ```powershell
 pwsh scripts/env/check_virtualization.ps1 -Json virt_report.json
 ```
-2. Open `virt_report.json` and look at `evaluation.overall_ready`.
-3. Remediation mapping:
-  - `firmware_virtualization = FAIL` → Enable VT-x / SVM in BIOS/UEFI.
-  - `wsl2_distro_present = NO` → `wsl --install -d Ubuntu` (then reboot) or convert existing: `wsl --set-version <Name> 2`.
-  - `feature_status.VirtualMachinePlatform != Enabled` → Enable Windows feature (see script hints).
-  - `bcd_hypervisorlaunchtype = NOT_AUTO` → `bcdedit /set hypervisorlaunchtype auto` then reboot.
-
-You can develop without Docker (use the dev run script) until ready.
-
-## Next Steps
-- Refine OpenAPI examples for advanced validation configs
-- Add container packaging & optional production tuning docs
+Inspect `virt_report.json` for readiness flags.
 
 ---
-Generated initially via automated architecture scaffolding. Iterate with discipline: test-first, small commits, contract fidelity.
+## 16. Roadmap (Indicative)
+- Additional indicators (momentum, volatility clustering)
+- Portfolio-level multi-symbol extension
+- Advanced execution (queue modeling, partial fills)
+- Coverage badge publication (Codecov)
+- WebSocket multiplex (evaluation vs SSE)
+- Enhanced validation visualization support
+
+---
+## 17. License
+MIT License – see `LICENSE` (if not present, add before external distribution).
+
+---
+## 18. Acknowledgements
+Developed with a focus on small, test-first increments and explicit contracts. Inspired by practical needs of systematic strategy research and reproducibility discipline.
+
+---
+**Quick Start Recap**
+```powershell
+poetry install --with dev
+poetry run uvicorn api.app:app --reload
+# Submit a run
+curl -X POST http://localhost:8000/runs -H "Content-Type: application/json" -d '{"symbol":"TEST","timeframe":"1m","start":"2024-01-01","end":"2024-01-02","indicators":[{"name":"sma","params":{"window":5}},{"name":"sma","params":{"window":15}}],"strategy":{"name":"dual_sma","params":{"fast":5,"slow":15}},"risk":{"model":"fixed_fraction","params":{"fraction":0.1}},"execution":{"slippage_bps":0,"fee_bps":0},"validation":{},"seed":42}'
+```
+
+> Keep this README as a living contract: update Data Flow & Extensibility sections first when architecture evolves.
