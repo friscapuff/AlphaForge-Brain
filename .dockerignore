@@ -1,0 +1,22 @@
+# Docker build context exclusions
+.git
+.gitignore
+.github
+pytest_cache/
+__pycache__/
+.dist/
+build/
+.env
+*.pyc
+*.pyo
+*.pyd
+*.sqlite
+*.db
+.cache/
+.mypy_cache/
+.ruff_cache/
+poetry.lock # keep? include for reproducibility decision
+scripts/bench/
+.tests/
+.coverage
+htmlcov/

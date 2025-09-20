@@ -1,0 +1,70 @@
+# --- Core API & runtime ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+starlette==0.38.5
+orjson==3.10.7              # fast JSON responses
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# --- Logging & utilities ---
+structlog==24.4.0
+rich==13.9.2
+python-dotenv==1.0.1
+typing-extensions==4.12.2
+
+# --- Data & compute ---
+numpy==2.1.1
+pandas==2.2.3
+pyarrow==17.0.0             # Parquet/Arrow for artifacts
+matplotlib==3.9.2
+
+# Optional: faster / alternative dataframe backend
+polars==1.9.0               # (optional) keep APIs behind a FrameLike adapter
+
+# --- Stats & validation ---
+scipy==1.14.1
+statsmodels==0.14.3
+numba==0.60.0               # (optional) jit speed-ups for heavy loops
+
+# --- Indicators ---
+# Preferred pure-Python TA library (easy install):
+pandas-ta==0.3.14b0
+
+
+# --- Market data providers & time ---
+yfinance==0.2.44
+requests==2.32.3
+aiohttp==3.10.8
+tenacity==9.0.0              # retries with backoff
+exchange-calendars==4.5.5    # exchange trading sessions
+python-dateutil==2.9.0.post0
+pytz==2024.2
+
+# --- Persistence (SQLite now, Postgres later) ---
+SQLAlchemy==2.0.35
+alembic==1.13.3
+
+# --- Background execution (v1 can skip; keep ready) ---
+celery==5.4.0                # (optional) queue for parallel runs
+redis==5.0.8                 # (optional) broker/backing store
+flower==2.0.1                # (optional) celery monitoring UI
+
+# --- SSE / streaming helpers ---
+sse-starlette==2.1.0
+
+# --- Artifact integrity & storage helpers ---
+hashlib-py==1.0              # (optional; stdlib hashlib usually enough)
+boto3==1.35.36               # (optional) S3/MinIO if you later offload artifacts
+
+# --- CLI & tooling ---
+click==8.1.7
+
+# --- Testing (you can move to requirements-dev.txt if you prefer) ---
+pytest==8.3.2
+pytest-cov==5.0.0
+hypothesis==6.112.2          # property-based tests for causality/T+1 rules
+
+# --- Linting/typing (dev) ---
+ruff==0.6.8
+mypy==1.11.2
+pre-commit==3.8.0

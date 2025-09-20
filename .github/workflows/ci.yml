@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.x'
+          cache: 'poetry'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Poetry install
+        run: |
+          poetry install --no-interaction --no-root
+
+      - name: Lock checksum verify
+        run: |
+          python scripts/env/check_env.py --strict --dev | tee env_check.json
+        env:
+          POETRY_ACTIVE: '1'
+
+      - name: Run tests (fail on warnings + coverage)
+        env:
+          PYTHONWARNINGS: error::UserWarning
+        run: |
+          poetry run pytest --cov=src --cov-report=xml --cov-report=term-missing -q --disable-warnings
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+      - name: Type check
+        run: |
+          poetry run mypy src
+
+      - name: Lint & format check
+        run: |
+          poetry run ruff check .
+          poetry run ruff format --check . || (echo "Run 'ruff format .' locally" && exit 1)
+
+      - name: Upload env check artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: env-check
+          path: env_check.json
+
+  benchmark:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.x'
+          cache: 'poetry'
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install deps
+        run: poetry install --no-interaction --no-root
+      - name: Run micro benchmark
+        run: |
+          poetry run python scripts/bench/perf_run.py --iterations 3 --json benchmark.json || echo "Benchmark non-blocking failure"
+      - name: Upload benchmark
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-benchmark
+          path: benchmark.json

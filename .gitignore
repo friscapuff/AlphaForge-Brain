@@ -1,0 +1,88 @@
+# Core Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.venv
+venv/
+ENV/
+env/
+
+# Distribution / packaging
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+wheelhouse/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/
+.junit/
+
+# Mypy / Ruff / static analysis
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# Jupyter / IPython
+.ipynb_checkpoints
+*.ipynb
+
+# C extensions
+*.so
+
+# Logs / temp / artifacts
+*.log
+logs/
+/tmp/
+.tmp_cache/
+artifacts/
+zz_artifacts/
+virt_report.json
+scripts/reports/
+
+# Caches
+cache/
+**/__pycache__/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+*.code-workspace
+
+# Wheel / lock alt
+poetry.lock.backup
+
+# Parquet / data cache
+*.parquet
+
+# Local data / presets (allow committed preset templates if needed)
+presets/*.json
+!presets/README.md
+
+# Docker
+*.tar
+
+# Environment config override
+.env.local
+.env.*.local
+
+# Misc
+*.swp
+*~
