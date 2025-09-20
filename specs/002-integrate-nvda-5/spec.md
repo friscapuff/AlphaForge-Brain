@@ -50,7 +50,7 @@ As a research user, I want the system to load and prepare a 5‑year historical 
 - **FR-001**: System MUST ingest a provided NVDA 5‑year historical price CSV file as the default data source when symbol="NVDA" is specified.
 - **FR-002**: System MUST normalize raw columns into a canonical candle schema (timestamp, open, high, low, close, volume, and optionally adjusted close if present).
 - **FR-003**: System MUST validate chronological ordering and either sort or reject the dataset if out-of-order rows exist (with a validation note on resolution).
-- **FR-004**: System MUST detect duplicate timestamps and handle them deterministically. [NEEDS CLARIFICATION: policy on duplicate handling]
+- **FR-004**: System MUST detect duplicate timestamps and drop subsequent duplicates, retaining the first occurrence deterministically (no aggregation of OHLC).
 - **FR-005**: System MUST detect and report missing or null critical fields (timestamp, open, high, low, close, volume) prior to strategy execution.
 - **FR-006**: System MUST allow configurable start/end date slicing against the loaded NVDA dataset without altering original stored data.
 - **FR-007**: System MUST provide a validation summary enumerating anomalies (duplicates, missing rows, out-of-range timestamps, zero-volume spans).
@@ -60,12 +60,13 @@ As a research user, I want the system to load and prepare a 5‑year historical 
 - **FR-011**: System MUST allow future registration of additional symbols without requiring refactors to NVDA-specific logic (extensible design requirement).
 - **FR-012**: System MUST expose anomalies count metrics for potential later UI visualization (e.g., anomalous_rows, duplicate_timestamps, rows_dropped).
 - **FR-013**: System MUST allow safe exclusion of rows deemed irreparable (e.g., missing core price fields) with counts documented.
-- **FR-014**: System MUST distinguish between legitimate market closures (weekends/holidays) and unexpected missing intervals (intraday gaps). [NEEDS CLARIFICATION: Source for holiday calendar?]
-- **FR-015**: System MUST NOT silently forward-fill price data; imputation must be explicit and reported if implemented. [NEEDS CLARIFICATION: Is any imputation allowed?]
+- **FR-014**: System MUST distinguish between legitimate market closures (weekends/recognized exchange holidays via exchange calendar) and unexpected missing intraday gaps.
+- **FR-015**: System MUST NOT perform any price or volume imputation; rows with missing core fields are excluded and reported (strict exclusion/reporting policy).
 - **FR-016**: System MUST permit indicator warm-up discard logic (e.g. windows not fully populated) without counting those rows as anomalies.
 - **FR-017**: System MUST version the dataset implicitly via content hash so caching layers remain valid when file contents change.
 - **FR-018**: System MUST include dataset validation outcomes in artifacts for post-run analysis.
-- **FR-019**: System MUST ensure performance remains within acceptable latency for loading 5-year NVDA dataset. [NEEDS CLARIFICATION: Target load time SLA?]
+- **FR-019**: System SHOULD load and normalize the 5-year NVDA dataset fast enough for interactive research (no strict SLA defined; baseline to be recorded in benchmarks).
+-- **FR-021**: System MUST normalize timestamps to UTC while preserving session/date semantics using the exchange calendar (original local session references retained as derived fields if needed).
 - **FR-020**: System MUST log a clear error and abort run creation if the dataset file is entirely unreadable or missing.
 
 ### Key Entities
@@ -100,14 +101,22 @@ As a research user, I want the system to load and prepare a 5‑year historical 
 - [ ] Review checklist passed (pending clarification resolution)
 
 ---
-## Ambiguities & Clarification Needed
-1. Duplicate Handling Policy → Drop first? Last? Aggregate OHLC? (Current spec leaves open.)
-2. Zero-Volume Rows → Retain with flag or drop entirely?
-3. Holiday Calendar Source → Use exchange calendar or treat all non-trading days as implicit? 
-4. Imputation Policy → Are we allowed any numeric interpolation or strictly exclusion/reporting?
-5. Performance Target → Expected maximum acceptable initial load time (seconds) for 5-year dataset?
-6. Adjusted Close Usage → Should adjusted close be required, optional, or ignored if absent?
-7. Timezone Normalization → Should we enforce a canonical timezone (e.g., UTC) in normalized output?
+## Clarification Decisions
+| Topic | Decision | Notes |
+|-------|----------|-------|
+| Duplicate Handling | Keep first, drop subsequent | Deterministic, avoids synthetic aggregation |
+| Zero-Volume Rows | Retain with anomaly flag | Allows downstream analysis of liquidity conditions |
+| Holiday / Closures | Use official exchange calendar | Distinguishes legitimate closures vs gaps |
+| Imputation Policy | Strict exclusion/reporting only | No forward-fill or interpolation for core price/volume |
+| Performance Target | No formal SLA | Document empirical baseline later (benchmark artifact) |
+| Adjusted Close | Optional; ignore if absent | Does not affect core OHLC computations |
+| Timezone | Normalize to UTC, preserve session date | Adds determinism across environments |
+
+## Remaining Open Considerations
+None (all prior ambiguities resolved). Future multi-asset expansion will introduce additional calendar mappings.
+
+## Consistency & Non-Conflict Note
+The chosen policies reinforce determinism (no hidden transformations), integrity (explicit exclusion over silent fill), and extensibility (calendar-backed classification). Retaining zero-volume rows with flags is compatible with execution logic so long as simulator treats zero-volume as non-fillable or flagged; this should be confirmed in planning tasks. No contradictions detected with existing system goals or reproducibility guarantees.
 
 ---
 ## Success Definition (Business Framing)
