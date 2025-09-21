@@ -135,8 +135,8 @@ All T001–T050 marked done; OpenAPI diff shows additive changes only; full CI g
  - [x] G08 API provider stub (future external data source)
 
  # Validation / Tests (functional guarantees before typing lock-in)
- - [ ] G09 Multi-symbol cache isolation test
- - [ ] G10 Missing symbol/timeframe error test
+ - [x] G09 Multi-symbol cache isolation test
+ - [x] G10 Missing symbol/timeframe error test
 
  # Typing & Lint Hardening (performed after interfaces stabilize)
  - [ ] G11 Elevate mypy to strict for src + tests (temporary allowlist only if blocking)
