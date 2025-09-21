@@ -123,29 +123,34 @@ Group 7: T046-T050 (quality gates & release)
 ## Completion Gate
 All T001–T050 marked done; OpenAPI diff shows additive changes only; full CI green including new smoke & regression tests.
 
-### Phase J – Generalization (Multi-Symbol & Data Abstraction)
+### Phase J – Generalization (Multi-Symbol & Data Abstraction + Typing Hardening)
+ # Foundation: remove legacy assumptions & introduce abstraction
  - [ ] G01 Remove synthetic orchestrator candles (always use real dataset slice)
  - [ ] G02 Introduce DataSource protocol + LocalCsvDataSource implementation
  - [ ] G03 Implement dataset registry config (symbol,timeframe -> provider/path/calendar)
  - [ ] G04 Refactor ingestion to generic CSV (remove NVDA hard-coding)
  - [ ] G05 Orchestrator integration with registry/DataSource
- - [ ] G06 Multi-symbol cache isolation test
- - [ ] G07 Missing symbol/timeframe error test
+ - [ ] G06 Manifest enrichment with symbol & timeframe fields (additive)
+ - [ ] G07 Run hash includes dataset snapshot binding (data_hash per (symbol,timeframe))
  - [ ] G08 API provider stub (future external data source)
- - [ ] G09 Manifest enrichment with symbol & timeframe fields
- - [ ] G10 Run hash includes dataset snapshot binding (data_hash)
- - [ ] G11 Elevate mypy to strict for src + tests (introduce per-module allowlist for phased adoption if needed)
- - [ ] G12 Annotate remaining dynamically typed modules (data ingestion, validation summary, feature engine edge paths)
+
+ # Validation / Tests (functional guarantees before typing lock-in)
+ - [ ] G09 Multi-symbol cache isolation test
+ - [ ] G10 Missing symbol/timeframe error test
+
+ # Typing & Lint Hardening (performed after interfaces stabilize)
+ - [ ] G11 Elevate mypy to strict for src + tests (temporary allowlist only if blocking)
+ - [ ] G12 Annotate remaining dynamically typed modules (ingestion edge paths, validation summary, feature engine internals)
  - [ ] G13 Annotate all test fixtures & parametrized tests; remove implicit Any leakage
- - [ ] G14 Replace legacy typing imports (typing.List, etc.) with PEP 604 / builtins forms where consistent
- - [ ] G15 Introduce mypy plugin/flags: warn-redundant-casts, warn-unused-ignores; purge stale type: ignore comments
- - [ ] G16 Enforce ruff select set expansion (e.g. flake8-bugbear, pyupgrade strict, implicit-namespace-package checks) & fix violations
- - [ ] G17 Add CI job gate: fail if new mypy errors exceed baseline JSON snapshot (snapshot stored in repo)
- - [ ] G18 Add documentation section: "Typing & Lint Guarantees" in README + spec rationale
- - [ ] G19 Add benchmark ensuring typing/lint pass time stays within threshold (soft budget, report only)
- - [ ] G20 Add pre-commit hook for mypy --strict on touched files (efficient selective run)
- - [ ] G21 Add script to diff mypy error snapshot, generating markdown report for PR comments
- - [ ] G22 Final audit: zero 'type: ignore' without inline justification comment
+ - [ ] G14 Modernize typing syntax (PEP 604 unions, builtin generics) replacing legacy typing.List etc.
+ - [ ] G15 Enable extra mypy warnings (warn-redundant-casts, warn-unused-ignores); purge stale ignores
+ - [ ] G16 Expand Ruff rule set (bugbear, pyupgrade strict, potential error patterns) & remediate
+ - [ ] G17 Introduce CI snapshot gate: fail if mypy errors > 0 (baseline JSON stored)
+ - [ ] G18 Add pre-commit hook for selective mypy --strict on changed files
+ - [ ] G19 Script to diff mypy error snapshot -> markdown report (should be empty post-hardening)
+ - [ ] G20 Documentation: README/spec "Typing & Lint Guarantees" section
+ - [ ] G21 Benchmark typing+lint pass duration (soft budget reporting)
+ - [ ] G22 Final audit: zero un-justified 'type: ignore' (each remaining line has rationale)
 
 <!-- END AUTO-GENERATED -->
 
