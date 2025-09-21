@@ -125,14 +125,14 @@ All T001–T050 marked done; OpenAPI diff shows additive changes only; full CI g
 
 ### Phase J – Generalization (Multi-Symbol & Data Abstraction + Typing Hardening)
  # Foundation: remove legacy assumptions & introduce abstraction
- - [ ] G01 Remove synthetic orchestrator candles (always use real dataset slice)
- - [ ] G02 Introduce DataSource protocol + LocalCsvDataSource implementation
- - [ ] G03 Implement dataset registry config (symbol,timeframe -> provider/path/calendar)
- - [ ] G04 Refactor ingestion to generic CSV (remove NVDA hard-coding)
- - [ ] G05 Orchestrator integration with registry/DataSource
- - [ ] G06 Manifest enrichment with symbol & timeframe fields (additive)
- - [ ] G07 Run hash includes dataset snapshot binding (data_hash per (symbol,timeframe))
- - [ ] G08 API provider stub (future external data source)
+ - [x] G01 Remove synthetic orchestrator candles (always use real dataset slice)
+ - [x] G02 Introduce DataSource protocol + LocalCsvDataSource implementation
+ - [x] G03 Implement dataset registry config (symbol,timeframe -> provider/path/calendar)
+ - [x] G04 Refactor ingestion to generic CSV (remove NVDA hard-coding)
+ - [x] G05 Orchestrator integration with registry/DataSource
+ - [x] G06 Manifest enrichment with symbol & timeframe fields (additive)
+ - [x] G07 Run hash includes dataset snapshot binding (data_hash per (symbol,timeframe))
+ - [x] G08 API provider stub (future external data source)
 
  # Validation / Tests (functional guarantees before typing lock-in)
  - [ ] G09 Multi-symbol cache isolation test

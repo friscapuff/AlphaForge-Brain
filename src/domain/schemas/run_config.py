@@ -67,6 +67,8 @@ class RunConfig(BaseModel):
         # Provide deterministic dict (pydantic already orders fields, but we round-trip canonical JSON to apply float precision rules)
         data = self.model_dump(mode="python")
         # Remove any transient / non-deterministic fields in future here
+        # Phase J (G07): dataset snapshot binding will append (symbol,timeframe,data_hash) once data_hash resolved.
+        # A higher layer will patch data_hash into config before hashing.
         return data
 
     def canonical_hash(self) -> str:
@@ -79,10 +81,10 @@ class RunConfig(BaseModel):
 
 
 __all__ = [
-    "IndicatorSpec",
-    "StrategySpec",
-    "RiskSpec",
     "ExecutionSpec",
-    "ValidationSpec",
+    "IndicatorSpec",
+    "RiskSpec",
     "RunConfig",
+    "StrategySpec",
+    "ValidationSpec",
 ]

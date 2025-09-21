@@ -1,6 +1,39 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Iterable
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any, Callable
+
+# Phase J (G03): dataset registry mapping (symbol,timeframe) -> provider/path/calendar metadata.
+
+
+@dataclass(slots=True)
+class DatasetEntry:
+    symbol: str
+    timeframe: str
+    provider: str
+    path: str | None = None  # For local_csv
+    calendar_id: str | None = None
+
+
+_DATASET_REGISTRY: dict[tuple[str, str], DatasetEntry] = {}
+
+
+def register_dataset(entry: DatasetEntry) -> None:
+    key = (entry.symbol.upper(), entry.timeframe)
+    _DATASET_REGISTRY[key] = entry  # overwrite allowed for updates/tests
+
+
+def get_dataset(symbol: str, timeframe: str) -> DatasetEntry:
+    key = (symbol.upper(), timeframe)
+    try:
+        return _DATASET_REGISTRY[key]
+    except KeyError as e:  # pragma: no cover - defensive
+        raise KeyError(f"Dataset not registered for symbol={symbol} timeframe={timeframe}") from e
+
+
+def list_datasets() -> list[DatasetEntry]:  # pragma: no cover - trivial
+    return list(_DATASET_REGISTRY.values())
 
 _ProviderFunc = Callable[..., Any]
 _REGISTRY: dict[str, _ProviderFunc] = {}
@@ -51,4 +84,13 @@ class _ProviderObjectRegistry:
 provider_registry = _ProviderObjectRegistry()
 
 
-__all__ = ["provider", "get_provider_registry", "ProviderRegistry", "provider_registry"]
+__all__ = [
+    "ProviderRegistry",
+    "get_provider_registry",
+    "provider",
+    "provider_registry",
+    "DatasetEntry",
+    "register_dataset",
+    "get_dataset",
+    "list_datasets",
+]

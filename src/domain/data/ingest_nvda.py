@@ -19,20 +19,21 @@ Implements Group 1 (T001–T013) foundation tasks:
 NOTE: Integration with orchestrator / run hashing performed in later task groups.
 """
 
-from dataclasses import dataclass, asdict
-from pathlib import Path
-from typing import Any, Dict, Tuple
-import json
 import hashlib
+import json
 import time
-import pandas as pd
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass
+from datetime import timezone
+from pathlib import Path
+from typing import Dict, Tuple
 from zoneinfo import ZoneInfo
+
 import exchange_calendars as xcals
+import pandas as pd
 
 DATA_DIR_DEFAULT = Path("data")
-DATA_FILE_NAME = "NVDA_5y.csv"
-SYMBOL = "NVDA"
+DATA_FILE_NAME = "NVDA_5y.csv"  # Transitional until G04 full generic ingestion
+SYMBOL = "NVDA"  # Placeholder constant; will be removed when registry-driven generic loader added
 TIMEFRAME = "1d"
 CALENDAR_ID = "NASDAQ"  # Nominal label; exchange-calendars uses XNAS or XNYS; choose XNAS equivalent schedule.
 EXCHANGE_CALENDAR = "XNYS"  # Using NYSE calendar for session schedule (close enough for illustration)
@@ -253,9 +254,27 @@ def slice_canonical(start_ms: int | None, end_ms: int | None) -> pd.DataFrame:
     return canonical.loc[mask].copy().reset_index(drop=True)
 
 
+def load_dataset_for(symbol: str, timeframe: str, data_dir: Path | None = None) -> tuple[pd.DataFrame, DatasetMetadata]:
+    """Generic facade (Phase J G04 prep). Currently only supports NVDA/1d; routes to existing loader.
+
+    Once generic CSV logic is implemented this will dispatch by (symbol,timeframe,provider).
+    """
+    if symbol.upper() != SYMBOL or timeframe != TIMEFRAME:
+        raise NotImplementedError("Generic dataset loading not yet implemented for symbol/timeframe combination.")
+    return load_canonical_dataset(data_dir)
+
+
+def slice_dataset(symbol: str, timeframe: str, start_ms: int | None, end_ms: int | None) -> pd.DataFrame:
+    if symbol.upper() != SYMBOL or timeframe != TIMEFRAME:
+        raise NotImplementedError("Generic dataset slicing not yet implemented for symbol/timeframe combination.")
+    return slice_canonical(start_ms, end_ms)
+
+
 __all__ = [
     "DatasetMetadata",
-    "load_canonical_dataset",
     "get_dataset_metadata",
+    "load_canonical_dataset",
     "slice_canonical",
+    "load_dataset_for",
+    "slice_dataset",
 ]

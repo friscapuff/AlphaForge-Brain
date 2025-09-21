@@ -7,12 +7,20 @@ from typing import Any, Callable
 import pandas as pd
 
 from domain.execution.simulator import simulate
-from domain.metrics.calculator import compute_metrics, build_equity_curve
 from domain.execution.state import build_state
+from domain.metrics.calculator import build_equity_curve, compute_metrics
 from domain.risk.engine import apply_risk
 from domain.schemas.run_config import RunConfig
 from domain.strategy.runner import run_strategy
 from domain.validation.runner import run_all as validation_run_all
+from domain.data.registry import get_dataset, register_dataset, DatasetEntry
+from domain.data.datasource import LocalCsvDataSource
+from domain.data.ingest_nvda import slice_dataset, load_dataset_for
+
+# Phase J (G01) NOTE:
+# Synthetic candle generation removed. Orchestrator now expects upstream data ingestion pipeline
+# to provide a real dataset slice (symbol,timeframe,start,end) before strategy execution.
+# A DataSource abstraction & registry will be integrated in subsequent tasks (G02-G05).
 
 
 class OrchestratorState(str, Enum):
@@ -65,9 +73,29 @@ class Orchestrator:
             self._transition(OrchestratorState.RUNNING)
             if self._cancel_requested:
                 return self._finish_cancel()
-            # Build candles inline (future: provider integration) using timeframe & start/end durations placeholder
-            # For deterministic placeholder we create fixed number of synthetic candles (similar to tests generating candles externally)
-            candles = self._synthetic_candles()
+            # G01: Obtain candles from future integrated data layer. For now, raise if not injected via config.
+            # Temporary placeholder: Expect external orchestration layer to attach a pre-loaded DataFrame
+            # under a private attribute when calling Orchestrator. This avoids reverting to synthetic data.
+            candles: pd.DataFrame | None = getattr(self.config, "_injected_candles", None)
+            if candles is None:
+                # G05 integration path: resolve dataset entry & slice
+                # Auto-register NVDA if not present (transitional convenience)
+                try:
+                    entry = get_dataset(self.config.symbol, self.config.timeframe)
+                except KeyError:
+                    register_dataset(DatasetEntry(symbol=self.config.symbol, timeframe=self.config.timeframe, provider="local_csv", path="data/NVDA_5y.csv", calendar_id="NASDAQ"))
+                    entry = get_dataset(self.config.symbol, self.config.timeframe)
+                if entry.provider == "local_csv":
+                    # Load (ensures cache) then slice
+                    load_dataset_for(entry.symbol, entry.timeframe)
+                    # Convert ISO date start/end to epoch ms boundaries using pandas
+                    start_ts = pd.Timestamp(self.config.start).tz_localize("UTC").value // 1_000_000
+                    end_ts = pd.Timestamp(self.config.end).tz_localize("UTC").value // 1_000_000
+                    candles = slice_dataset(entry.symbol, entry.timeframe, start_ts, end_ts)
+                else:  # pragma: no cover - future provider path
+                    raise NotImplementedError(f"Provider not implemented: {entry.provider}")
+            if candles is None or candles.empty:
+                raise RuntimeError("Resolved dataset slice is empty or not provided.")
             # Precompute any function-style indicators (e.g., dual_sma) to align with run_strategy expectations
             # so strategy has required SMA columns when using legacy dual_sma config entries.
             # Derive dual SMA columns expected by strategy if config supplies at least two SMA windows or fast/slow params.
@@ -137,26 +165,7 @@ class Orchestrator:
         self._state = new_state
         self._emit(new_state, payload)
 
-    def _synthetic_candles(self) -> pd.DataFrame:
-        from datetime import timezone
-
-        import pandas as pd
-        minutes = 360
-        base = pd.Timestamp(self.config.start, tz=timezone.utc) if isinstance(self.config.start, str) else self.config.start
-        price = 100.0
-        rows = []
-        for i in range(minutes):
-            price += (1 if i % 30 < 15 else -1) * 0.4
-            ts = base + pd.Timedelta(minutes=i)
-            rows.append({
-                "timestamp": ts,
-                "open": price,
-                "high": price + 0.2,
-                "low": price - 0.2,
-                "close": price,
-                "volume": 1000 + i,
-            })
-        return pd.DataFrame(rows)
+    # Synthetic helper removed in Phase J (G01).
 
 
 def orchestrate(config: RunConfig, seed: int | None = None, *, callbacks: list[Callback] | None = None) -> dict[str, Any]:
@@ -166,4 +175,4 @@ def orchestrate(config: RunConfig, seed: int | None = None, *, callbacks: list[C
     return orch.run()
 
 
-__all__ = ["Orchestrator", "orchestrate", "OrchestratorState"]
+__all__ = ["Orchestrator", "OrchestratorState", "orchestrate"]

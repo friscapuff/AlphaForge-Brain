@@ -22,6 +22,9 @@ class ArtifactManifest(BaseModel):
     # Dataset characteristics for reproducibility / provenance (added T017)
     data_hash: str | None = None
     calendar_id: str | None = None
+    # Phase J (G06): symbol & timeframe enrichment (additive, nullable for backward compatibility)
+    symbol: str | None = None
+    timeframe: str | None = None
 
     @model_validator(mode="after")
     def _unique_names(self) -> ArtifactManifest:
@@ -40,6 +43,10 @@ class ArtifactManifest(BaseModel):
             base["data_hash"] = self.data_hash
         if self.calendar_id is not None:
             base["calendar_id"] = self.calendar_id
+        if self.symbol is not None:
+            base["symbol"] = self.symbol
+        if self.timeframe is not None:
+            base["timeframe"] = self.timeframe
         return base
 
     def canonical_hash(self) -> str:
