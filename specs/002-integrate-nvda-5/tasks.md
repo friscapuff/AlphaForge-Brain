@@ -53,9 +53,9 @@ Success Criteria:
 ### Phase D – Strategy / Risk / Execution Integration
  - [x] T023 Validate existing `dual_sma` strategy unchanged with NVDA dataset (Deps: T022)
  - [x] T024 End-to-end integration test: dual_sma NVDA run (baseline artifact set) (Deps: T023)
- - [ ] T025 Verify risk models (fixed_fraction, volatility_target, kelly_fraction) stable (Deps: T024)
- - [ ] T026 Execution simulator behavior on zero-volume bars (skip/hold deterministic) (Deps: T024)
- - [ ] T027 Add test: zero-volume day does not crash nor produce fill anomalies (Deps: T026) [P]
+ - [x] T025 Verify risk models (fixed_fraction, volatility_target, kelly_fraction) stable (Deps: T024)
+ - [x] T026 Execution simulator behavior on zero-volume bars (skip/hold deterministic) (Deps: T024)
+ - [x] T027 Add test: zero-volume day does not crash nor produce fill anomalies (Deps: T026) [P]
 
 ### Phase E – Metrics & Validation Extensions
  - [ ] T028 Ensure metrics unaffected by removed rows (index continuity) (Deps: T024)
