@@ -8,6 +8,11 @@ from domain.run.event_buffer import get_global_buffer
 from domain.schemas.run_config import RunConfig
 from infra.utils.hash import hash_canonical
 
+try:  # Local import guard for dataset metadata (NVDA integration). If unavailable, hashing proceeds without augmentation.
+    from domain.data.ingest_nvda import get_dataset_metadata as _get_dataset_metadata
+except Exception:  # pragma: no cover - fallback if module absent
+    _get_dataset_metadata = None
+
 from .orchestrator import orchestrate
 
 
@@ -24,9 +29,28 @@ class InMemoryRunRegistry:
 
 
 def config_hash(config: RunConfig) -> str:
-    # Use model_dump for stable representation
-    data = config.model_dump(mode="python")
-    digest: str = hash_canonical(data)
+    """Compute canonical hash for a run config including dataset binding.
+
+    Augments the raw config with dataset provenance fields (symbol,timeframe,data_hash) once
+    dataset metadata is resolvable. This ensures perturbations to the underlying dataset
+    (e.g., price edit) produce a new run hash even if the logical config is unchanged.
+    Fallback: if metadata loader unavailable, reverts to legacy hashing (pure config fields).
+    """
+    base = config.model_dump(mode="python")
+    # Resolve dataset metadata only if symbol/timeframe present and loader imported.
+    if _get_dataset_metadata is not None:
+        try:
+            meta = _get_dataset_metadata()
+            # Only attach if symbols match (future multi-symbol extension may need registry keyed by (symbol,timeframe)).
+            if getattr(meta, "symbol", None) and meta.symbol.lower() == base.get("symbol", "").lower():
+                base["_dataset"] = {
+                    "symbol": meta.symbol,
+                    "timeframe": base.get("timeframe"),
+                    "data_hash": getattr(meta, "data_hash", None),
+                }
+        except Exception:  # pragma: no cover - hashing must not fail due to ingestion errors
+            pass
+    digest: str = hash_canonical(base)
     return digest
 
 
@@ -104,4 +128,4 @@ def create_or_get(
     return h, record, True
 
 
-__all__ = ["InMemoryRunRegistry", "create_or_get", "config_hash"]
+__all__ = ["InMemoryRunRegistry", "config_hash", "create_or_get"]

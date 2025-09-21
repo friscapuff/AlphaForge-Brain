@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from .registry import indicator, indicator_registry
+from .registry import IndicatorProtocol, indicator, indicator_registry
 
 
-class SimpleMovingAverage:
+class SimpleMovingAverage(IndicatorProtocol):
     """Single-window simple moving average indicator producing a single feature column.
 
     Feature column naming convention used by feature engine tests: SMA_{window}_close

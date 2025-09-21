@@ -5,9 +5,10 @@ import json
 import os
 import sqlite3
 import threading
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, TypedDict
+from typing import Any, TypedDict
 
 """Preset persistence service (T057).
 

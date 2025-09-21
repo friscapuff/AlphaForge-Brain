@@ -4,8 +4,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from domain.data.registry import provider_registry  # type: ignore
-from infra.cache.metrics import cache_metrics  # type: ignore
+from domain.data.registry import provider_registry
+from infra.cache.metrics import cache_metrics
 
 # Contract for get_candles_slice (to be implemented in domain/data/slice.py):
 # get_candles_slice(symbol: str, start: datetime, end: datetime, *, provider: str, cache_dir: Path, use_cache: bool = True) -> DataFrame
@@ -21,12 +21,12 @@ class DummyProvider:
         self.df = df
         self.load_calls = 0
 
-    def load(self, symbol: str, start=None, end=None):  # signature compatibility
+    def load(self, symbol: str, start: datetime | None = None, end: datetime | None = None) -> pd.DataFrame:  # signature compatibility
         self.load_calls += 1
         return self.df
 
 
-def _make_df():
+def _make_df() -> pd.DataFrame:
     base = datetime(2024,1,1,0,0,tzinfo=timezone.utc)
     rows = []
     for i in range(10):
@@ -42,23 +42,23 @@ def _make_df():
     return pd.DataFrame(rows)
 
 @pytest.fixture()
-def raw_df():
+def raw_df() -> pd.DataFrame:
     return _make_df()
 
 @pytest.fixture()
-def provider(raw_df):
+def provider(raw_df: pd.DataFrame) -> DummyProvider:
     p = DummyProvider(raw_df)
-    provider_registry.register("dummy", p)  # type: ignore
+    provider_registry.register("dummy", p)
     return p
 
 @pytest.fixture()
-def cache_dir(tmp_path: Path):
+def cache_dir(tmp_path: Path) -> Path:
     d = tmp_path / "candle_cache"
     d.mkdir()
     return d
 
 
-def test_slice_basic_window(provider, raw_df, cache_dir):
+def test_slice_basic_window(provider: DummyProvider, raw_df: pd.DataFrame, cache_dir: Path) -> None:
     from domain.data import slice as slice_mod  # deferred import
     start = raw_df.loc[2, "timestamp"]
     end = raw_df.loc[5, "timestamp"]
@@ -75,7 +75,7 @@ def test_slice_basic_window(provider, raw_df, cache_dir):
     assert list(out["timestamp"]) == sorted(out["timestamp"])  # ascending
 
 
-def test_slice_cache_reuse(provider, raw_df, cache_dir):
+def test_slice_cache_reuse(provider: DummyProvider, raw_df: pd.DataFrame, cache_dir: Path) -> None:
     from domain.data import slice as slice_mod
     start = raw_df.loc[0, "timestamp"]
     end = raw_df.loc[3, "timestamp"]
@@ -91,7 +91,7 @@ def test_slice_cache_reuse(provider, raw_df, cache_dir):
     pd.testing.assert_frame_equal(out1, out2)
 
 
-def test_slice_out_of_range_returns_empty(provider, raw_df, cache_dir):
+def test_slice_out_of_range_returns_empty(provider: DummyProvider, raw_df: pd.DataFrame, cache_dir: Path) -> None:
     from domain.data import slice as slice_mod
     start = raw_df["timestamp"].max() + timedelta(minutes=10)
     end = start + timedelta(minutes=5)
@@ -99,7 +99,7 @@ def test_slice_out_of_range_returns_empty(provider, raw_df, cache_dir):
     assert out.empty
 
 
-def test_slice_memoization(provider, raw_df, cache_dir):
+def test_slice_memoization(provider: DummyProvider, raw_df: pd.DataFrame, cache_dir: Path) -> None:
     from domain.data import slice as slice_mod
     start = raw_df.loc[1, "timestamp"]
     end = raw_df.loc[4, "timestamp"]

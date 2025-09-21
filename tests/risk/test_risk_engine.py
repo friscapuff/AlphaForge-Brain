@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -8,7 +10,7 @@ from domain.schemas.run_config import IndicatorSpec, RiskSpec, RunConfig, Strate
 from domain.strategy.runner import run_strategy
 
 
-def _candles(n=120):
+def _candles(n: int = 120) -> pd.DataFrame:
     base = datetime(2024,1,1,tzinfo=timezone.utc)
     rows = []
     price = 100.0
@@ -25,7 +27,7 @@ def _candles(n=120):
     return pd.DataFrame(rows)
 
 
-def _config(fraction=0.1):
+def _config(fraction: float = 0.1) -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast":5,"slow":20})],
         strategy=StrategySpec(name="dual_sma", params={"short_window":5,"long_window":20}),
@@ -37,14 +39,14 @@ def _config(fraction=0.1):
     )
 
 
-def _signals_df():
+def _signals_df() -> tuple[RunConfig, pd.DataFrame]:
     cfg = _config()
     df = _candles(150)
     signals = run_strategy(cfg, df, candle_hash="dummy", cache_root=None)
     return cfg, signals
 
 
-def test_fixed_fraction_basic():
+def test_fixed_fraction_basic() -> None:
     cfg, signals = _signals_df()
     from domain.risk.engine import apply_risk
     out = apply_risk(cfg, signals)
@@ -55,7 +57,7 @@ def test_fixed_fraction_basic():
     pd.testing.assert_frame_equal(out, out2)
 
 
-def test_zero_nan_price_rows():
+def test_zero_nan_price_rows() -> None:
     cfg, signals = _signals_df()
     from domain.risk.engine import apply_risk
     mutated = signals.copy()
@@ -65,7 +67,7 @@ def test_zero_nan_price_rows():
     assert (out.loc[out.index[:6], "position_size"] == 0).all()
 
 
-def test_invalid_fraction():
+def test_invalid_fraction() -> None:
     bad_cfg = _config(fraction=1.5)
     _, signals = _signals_df()
     with pytest.raises(ValueError):

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pandas as pd
 
@@ -15,9 +16,9 @@ from domain.schemas.run_config import (
 from domain.strategy.runner import run_strategy
 
 
-def _candles(n: int = 240):
+def _candles(n: int = 240) -> pd.DataFrame:
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    rows = []
+    rows: list[dict[str, Any]] = []
     price = 120.0
     for i in range(n):
         price += (1 if i % 40 < 20 else -1) * 0.3
@@ -32,7 +33,7 @@ def _candles(n: int = 240):
     return pd.DataFrame(rows)
 
 
-def _config():
+def _config() -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast": 6, "slow": 24})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 6, "long_window": 24}),
@@ -45,7 +46,7 @@ def _config():
     )
 
 
-def _manual_pipeline(cfg: RunConfig):
+def _manual_pipeline(cfg: RunConfig) -> pd.DataFrame:
     import domain.indicators.sma  # noqa: F401
     candles = _candles(360)
     signals = run_strategy(cfg, candles, candle_hash="orchdummy")
@@ -55,10 +56,10 @@ def _manual_pipeline(cfg: RunConfig):
     return trades
 
 
-def test_orchestrator_run_state_sequence():
+def test_orchestrator_run_state_sequence() -> None:
     from domain.run import Orchestrator, OrchestratorState
     cfg = _config()
-    seq = []
+    seq: list[Any] = []
     orch = Orchestrator(cfg, seed=123)
     orch.on_progress(lambda st, payload: seq.append(st))
     result = orch.run()
@@ -73,7 +74,7 @@ def test_orchestrator_run_state_sequence():
     assert "permutation_p" in result["validation"]["summary"]
 
 
-def test_orchestrator_idempotent_second_run():
+def test_orchestrator_idempotent_second_run() -> None:
     from domain.run import Orchestrator
     cfg = _config()
     orch = Orchestrator(cfg, seed=42)
@@ -83,7 +84,7 @@ def test_orchestrator_idempotent_second_run():
     assert r1["summary"] == r2["summary"]
 
 
-def test_orchestrator_cancel_before_run():
+def test_orchestrator_cancel_before_run() -> None:
     from domain.run import Orchestrator, OrchestratorState
     cfg = _config()
     orch = Orchestrator(cfg, seed=77)

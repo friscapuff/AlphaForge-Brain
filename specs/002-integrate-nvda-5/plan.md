@@ -1,7 +1,7 @@
 # Implementation Plan: NVDA 5-Year Historical Dataset Integration
 
 Branch: 002-integrate-nvda-5
-Status: Active (Phases A–C complete; Phase D in progress; Phase J generalization planned)
+Status: Active (Phases A–D complete; Phase J generalization & typing hardening in progress)
 
 ## Phase 0: Research
 - Artifact: `research.md` (dataset characteristics, anomalies, normalization steps, reproducibility and risks) – COMPLETE
@@ -64,29 +64,55 @@ Status: Active (Phases A–C complete; Phase D in progress; Phase J generalizati
 ## Next Step
 Execute remaining Phase D tasks (T025–T027) then proceed with Phase J (generalization: DataSource abstraction, registry, multi-symbol readiness) before continuing to metrics (Phase E).
 
-## Forthcoming Phase J (Generalization + Typing Strictness Preview)
-Planned additions now combine multi-symbol data abstraction with a comprehensive static analysis hardening pass to avoid duplicate refactors later:
+## Phase J: Generalization & Typing Hardening
 
-Data Abstraction / Generalization:
-- DataSource protocol & LocalCsvDataSource implementation.
-- Dataset registry (symbol,timeframe -> provider/path/calendar) with declarative config.
-- Generic CSV ingestion refactor (removal of NVDA-specific constants).
-- Orchestrator integration with registry/DataSource and manifest enrichment (symbol,timeframe fields).
-- Run hash binding to dataset snapshot (data_hash per symbol/timeframe) for multi-symbol determinism.
-- Tests: multi-symbol cache isolation; missing symbol/timeframe error handling.
+Objective: Remove single-asset (NVDA) assumptions, introduce pluggable data source abstraction, and lock a zero-error static analysis baseline (mypy + Ruff) to future-proof multi-symbol and provider expansion.
 
-Typing & Lint Hardening (executed in same phase to prevent churn):
-- Elevate mypy to --strict for runtime and tests, introducing a temporary allowlist only if blocking.
-- Systematic annotation of residual dynamic code paths (ingestion edge cases, validation, feature engine internals).
-- Test fixture & parametrization typing (eliminate implicit Any leakage into production symbols).
-- Modernize typing syntax (PEP 604 unions, builtins generics) for clarity and reduced boilerplate.
-- Activate additional mypy warnings (warn-redundant-casts, warn-unused-ignores) and remove stale ignores.
-- Expand Ruff rule set (bugbear, pyupgrade strict, potential error-prone patterns) and remediate.
-- Introduce CI snapshot gate: failing build if mypy error count > 0 or deviates from zero baseline.
-- Pre-commit selective mypy on changed files for fast feedback.
-- Generate mypy error diff report script (future-proof PR review tooling—should stay empty once clean).
-- Documentation: README & spec section outlining “Typing & Lint Guarantees” (what guarantees, rationale, scope, how enforced, contribution guidelines).
-- Audit and justify any remaining type: ignore (must include trailing comment rationale) reaching a zero-unjustified baseline.
+### J1 Foundation (Completed)
+| Task | Status | Outcome |
+|------|--------|---------|
+| G01 Remove synthetic orchestrator candles | COMPLETE | Orchestrator always sources real dataset slices. |
+| G02 DataSource protocol + LocalCsvDataSource | COMPLETE | Unified interface for local CSV providers. |
+| G03 Dataset registry (symbol,timeframe → metadata) | COMPLETE | Declarative mapping enables rapid symbol onboarding. |
+| G04 Generic CSV ingestion refactor | COMPLETE | Eliminated NVDA-specific branching; pure path + calendar driven. |
+| G05 Orchestrator integration with registry/DataSource | COMPLETE | Run pipeline dynamically resolves data source. |
+| G06 Manifest enrichment (symbol, timeframe) | COMPLETE | Artifacts carry dataset identity for reproducibility. |
+| G07 Run hash dataset snapshot binding | COMPLETE | Hash stability tied to per (symbol,timeframe) data_hash. |
+| G08 API provider stub | COMPLETE | Placeholder extension surface for remote providers. |
 
-Rationale: Performing strict typing concurrently with generalization prevents duplicated adaptation work (e.g., updating registry interfaces twice) and locks deterministic, well-specified interfaces before broader data source expansion.
+### J2 Validation & Functional Tests (Completed)
+| Task | Status | Outcome |
+|------|--------|---------|
+| G09 Multi-symbol cache isolation test | COMPLETE | Ensures independent caching; no cross-symbol contamination. |
+| G10 Missing symbol/timeframe error test | COMPLETE | Clear failure mode & message integrity. |
+
+### J3 Typing & Lint Hardening (In Progress)
+| Task | Status | Notes |
+|------|--------|-------|
+| G11 Elevate mypy to strict for src + tests | COMPLETE | Strict enforced in pyproject; baseline zero errors in src. |
+| G12 Annotate remaining dynamic modules | COMPLETE | Ingestion edges, validation summary, feature engine stabilized. |
+| G13 Annotate all tests & fixtures | IN PROGRESS | Run-level tests partially annotated; remaining test modules queued. |
+| G14 Modernize typing syntax | PENDING | Will convert legacy typing.List/Dict to builtin generics & PEP 604 unions. |
+| G15 Enable extra mypy warnings | PENDING | Will activate warn-redundant-casts, warn-unused-ignores. |
+| G16 Expand Ruff ruleset | PENDING | Add bugbear, pyupgrade (strict), safety rules. |
+| G17 CI mypy snapshot gate | PENDING | JSON snapshot + diff fail on >0 errors. |
+| G18 Pre-commit selective mypy hook | PENDING | Fast feedback on staged Python files. |
+| G19 Mypy error diff script | PENDING | Generates markdown (expected empty post-hardening). |
+| G20 Docs: Typing & Lint Guarantees | PENDING | README & spec updates to guide contributors. |
+| G21 Benchmark typing+lint duration | PENDING | Wall clock recorded; soft regression watch. |
+| G22 Audit remaining type: ignore | PENDING | Each ignore carries rationale or is removed. |
+
+### Phase J Acceptance Criteria
+- Zero mypy errors (src + tests) with strict + extra warnings enabled.
+- Ruff expanded rules clean (no unaddressed findings in target categories).
+- Added abstraction introduces no behavioral diffs in existing NVDA runs (hash & artifact parity confirmed).
+- Manifest & run hash deterministically reflect multi-symbol dataset identity.
+- Documentation enumerates guarantees & contributor typing policy.
+- No unjustified type: ignore directives remain.
+
+### Rationale
+Executing abstraction and typing hardening together avoids duplicate churn on evolving interfaces and ensures any future provider integrations sit atop a stable, statically verified contract.
+
+### Follow-On (Post Phase J)
+Proceed to Metrics & Validation Extensions (Phase E tasks) with confidence that multi-symbol + typing foundations are locked and reproducible.
 

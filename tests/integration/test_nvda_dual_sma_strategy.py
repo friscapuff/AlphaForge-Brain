@@ -1,21 +1,28 @@
 import math
 from datetime import datetime, timezone
+from typing import TypedDict
 
 import pandas as pd
 import pytest
 
-from domain.schemas.run_config import (
-    RunConfig,
-    IndicatorSpec,
-    StrategySpec,
-    RiskSpec,
-)
-from domain.strategy.runner import run_strategy
+from domain.data.ingest_nvda import DatasetMetadata
 from domain.indicators.sma import dual_sma_indicator
+from domain.schemas.run_config import (
+    IndicatorSpec,
+    RiskSpec,
+    RunConfig,
+    StrategySpec,
+)
 from domain.strategy.base import StrategyRegistry
+from domain.strategy.runner import run_strategy
 
 
-def test_dual_sma_strategy_on_nvda_slice(nvda_canonical_slice):
+class SliceMeta(TypedDict):
+    symbol: str
+    timeframe: str
+
+
+def test_dual_sma_strategy_on_nvda_slice(nvda_canonical_slice: tuple[pd.DataFrame, DatasetMetadata]) -> None:
     """T023: Ensure dual_sma strategy semantics unchanged on NVDA canonical slice.
 
     Validates:

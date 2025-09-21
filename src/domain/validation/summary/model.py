@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Dict, Any
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from domain.data.ingest_nvda import DatasetMetadata, get_dataset_metadata
 
@@ -16,7 +16,11 @@ class ValidationSummary:
     row_count_canonical: int
     first_ts: int
     last_ts: int
-    anomaly_counters: Dict[str, int]
+    anomaly_counters: dict[str, int]
+    # Phase K enrichment
+    observed_bar_seconds: int | None = None
+    declared_bar_seconds: int | None = None
+    timeframe_ok: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -31,6 +35,9 @@ class ValidationSummary:
             "first_ts": d["first_ts"],
             "last_ts": d["last_ts"],
             "anomaly_counters": d["anomaly_counters"],
+            "observed_bar_seconds": d["observed_bar_seconds"],
+            "declared_bar_seconds": d["declared_bar_seconds"],
+            "timeframe_ok": d["timeframe_ok"],
         }
         return ordered
 
@@ -48,4 +55,7 @@ def build_validation_summary(meta: DatasetMetadata | None = None) -> ValidationS
         first_ts=meta.first_ts,
         last_ts=meta.last_ts,
         anomaly_counters=dict(meta.anomaly_counters),
+        observed_bar_seconds=getattr(meta, "observed_bar_seconds", None),
+        declared_bar_seconds=getattr(meta, "declared_bar_seconds", None),
+        timeframe_ok=getattr(meta, "timeframe_ok", None),
     )

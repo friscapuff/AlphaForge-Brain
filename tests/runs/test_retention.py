@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi.testclient import TestClient
 
 from api.app import app
@@ -5,7 +7,7 @@ from api.app import app
 client = TestClient(app)
 
 
-def _payload(seed: int):
+def _payload(seed: int) -> dict[str, Any]:
     return {
         "start": "2024-03-01",
         "end": "2024-03-02",
@@ -23,8 +25,8 @@ def _payload(seed: int):
     }
 
 
-def test_retention_capped_at_100_runs():
-    hashes = []
+def test_retention_capped_at_100_runs() -> None:
+    hashes: list[str] = []
     for i in range(105):
         r = client.post("/runs", json=_payload(seed=i))
         assert r.status_code == 200

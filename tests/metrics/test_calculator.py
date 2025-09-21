@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -17,7 +19,7 @@ from domain.schemas.run_config import (
 from domain.strategy.runner import run_strategy
 
 
-def test_build_equity_curve_and_returns():
+def test_build_equity_curve_and_returns() -> None:
     ts = pd.date_range("2024-01-01", periods=5, freq="1h")
     equity = [100.0, 101.0, 99.0, 102.0, 102.0]
     positions = pd.DataFrame({"timestamp": ts, "equity": equity})
@@ -30,7 +32,7 @@ def test_build_equity_curve_and_returns():
     assert curve.iloc[1]["return"] == pytest.approx(0.01, rel=1e-6)
 
 
-def test_compute_metrics_basic():
+def test_compute_metrics_basic() -> None:
     ts = pd.date_range("2024-01-01", periods=4, freq="1h")
     eq_vals = [100, 101, 100, 102]
     curve = pd.DataFrame({"timestamp": ts, "equity": eq_vals})
@@ -45,12 +47,12 @@ def test_compute_metrics_basic():
     assert metrics == metrics2
 
 
-def test_empty_equity_curve():
-        metrics = compute_metrics(pd.DataFrame(), pd.DataFrame())
-        assert metrics == {"total_return": 0.0, "sharpe": 0.0, "max_drawdown": 0.0, "trade_count": 0}
+def test_empty_equity_curve() -> None:
+    metrics = compute_metrics(pd.DataFrame(), pd.DataFrame())
+    assert metrics == {"total_return": 0.0, "sharpe": 0.0, "max_drawdown": 0.0, "trade_count": 0}
 
 
-def _candles(n: int = 120):
+def _candles(n: int = 120) -> pd.DataFrame:
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
     rows = []
     price = 100.0
@@ -69,7 +71,7 @@ def _candles(n: int = 120):
     return pd.DataFrame(rows)
 
 
-def _config():
+def _config() -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast": 5, "slow": 12})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 5, "long_window": 12}),
@@ -82,7 +84,7 @@ def _config():
     )
 
 
-def _pipeline():
+def _pipeline() -> tuple[pd.DataFrame, pd.DataFrame]:
     import domain.indicators.sma  # noqa: F401
     cfg = _config()
     candles = _candles(150)
@@ -93,7 +95,7 @@ def _pipeline():
     return trades, positions
 
 
-def test_metrics_computation_expected_schema_and_determinism():
+def test_metrics_computation_expected_schema_and_determinism() -> None:
     trades, positions = _pipeline()
     from domain.metrics import calculator
     eq = calculator.build_equity_curve(positions)

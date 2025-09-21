@@ -33,9 +33,9 @@ class CancelledError(DomainError):
 
 
 __all__ = [
-    "DomainError",
-    "ValidationError",
-    "NotFoundError",
-    "ConflictError",
     "CancelledError",
+    "ConflictError",
+    "DomainError",
+    "NotFoundError",
+    "ValidationError",
 ]

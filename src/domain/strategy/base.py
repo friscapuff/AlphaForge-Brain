@@ -37,4 +37,4 @@ class StrategyRegistry:
         return get_strategy_registry()
 
 
-__all__ = ["strategy", "get_strategy_registry", "Strategy", "StrategyRegistry"]
+__all__ = ["Strategy", "StrategyRegistry", "get_strategy_registry", "strategy"]

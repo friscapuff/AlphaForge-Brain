@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi.testclient import TestClient
 
 from api.app import app
@@ -5,7 +7,7 @@ from api.app import app
 client = TestClient(app)
 
 
-def test_run_cancel_endpoint():
+def test_run_cancel_endpoint() -> None:
     # create a run
     payload = {
         "indicators": [

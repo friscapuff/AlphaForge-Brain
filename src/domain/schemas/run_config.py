@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+from domain.time.timeframe import parse_timeframe
+
 from infra.utils.hash import canonical_json, hash_canonical
 
 
@@ -48,7 +50,7 @@ class RunConfig(BaseModel):
     validation: ValidationSpec = Field(default_factory=ValidationSpec)
 
     symbol: str
-    timeframe: str
+    timeframe: str  # raw user supplied; canonicalized in validator
     start: str  # ISO date (YYYY-MM-DD)
     end: str    # ISO date
     seed: int | None = None
@@ -61,6 +63,12 @@ class RunConfig(BaseModel):
             slow = self.strategy.params.get("slow")
             if isinstance(fast, int) and isinstance(slow, int) and fast >= slow:
                 raise ValueError("dual_sma fast must be < slow")
+        # Timeframe canonicalization (Phase K T052)
+        try:
+            spec = parse_timeframe(self.timeframe)
+            object.__setattr__(self, "timeframe", spec.canonical)
+        except ValueError as e:  # surface original message
+            raise ValueError(str(e))
         return self
 
     def canonical_dict(self) -> dict[str, Any]:

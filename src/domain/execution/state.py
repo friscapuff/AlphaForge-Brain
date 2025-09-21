@@ -94,7 +94,7 @@ def build_state(fills: pd.DataFrame, positions: pd.DataFrame) -> tuple[pd.DataFr
     cumulative_pnl = float(trades["pnl"].sum()) if not trades.empty else 0.0
     summary = {
         "cumulative_pnl": cumulative_pnl,
-        "trade_count": int(len(trades)),
+        "trade_count": len(trades),
     }
     return trades, summary
 

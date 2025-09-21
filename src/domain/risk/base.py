@@ -24,4 +24,4 @@ def get_risk_registry() -> dict[str, _RiskFactory]:  # pragma: no cover - trivia
     return dict(_REGISTRY)
 
 
-__all__ = ["risk_model", "get_risk_registry", "RiskModel"]
+__all__ = ["RiskModel", "get_risk_registry", "risk_model"]

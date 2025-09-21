@@ -1,14 +1,16 @@
-import os
-import pytest
-import pandas as pd
+from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from domain.data.ingest_nvda import load_canonical_dataset, slice_canonical, SYMBOL
+import pandas as pd
+import pytest
+
+from domain.data.ingest_nvda import load_canonical_dataset, slice_canonical
 
 
 @pytest.fixture(scope="session")
-def nvda_canonical():
+def nvda_canonical() -> tuple[pd.DataFrame, dict[str, Any]]:
     """Session-scoped canonical NVDA dataset (loads once). Skips if CSV missing."""
     csv_primary = Path("data") / "NVDA_5y.csv"
     csv_alt = Path("src") / "domain" / "data" / "NVDA_5y.csv"
@@ -22,7 +24,7 @@ def nvda_canonical():
 
 
 @pytest.fixture(scope="function")
-def nvda_canonical_slice(nvda_canonical):
+def nvda_canonical_slice(nvda_canonical: tuple[pd.DataFrame, dict[str, Any]]) -> tuple[pd.DataFrame, dict[str, Any]]:
     df, meta = nvda_canonical
     # Take a deterministic middle slice (avoid edges for moving averages)
     assert len(df) >= 120, f"Dataset unexpectedly small (<120 rows); got {len(df)} rows from {Path('data')/'NVDA_5y.csv' if (Path('data')/'NVDA_5y.csv').exists() else (Path('src')/'domain'/'data'/'NVDA_5y.csv')}"

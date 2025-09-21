@@ -26,4 +26,4 @@ def validate_candles(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-__all__ = ["CandleProvider", "REQUIRED_CANDLE_COLUMNS", "validate_candles"]
+__all__ = ["REQUIRED_CANDLE_COLUMNS", "CandleProvider", "validate_candles"]

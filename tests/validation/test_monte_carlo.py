@@ -15,7 +15,7 @@ from domain.schemas.run_config import (
 from domain.strategy.runner import run_strategy
 
 
-def _candles(n: int = 160):
+def _candles(n: int = 160) -> pd.DataFrame:
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
     rows = []
     price = 50.0
@@ -33,7 +33,7 @@ def _candles(n: int = 160):
     return pd.DataFrame(rows)
 
 
-def _config():
+def _config() -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast": 5, "slow": 15})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 5, "long_window": 15}),
@@ -46,7 +46,7 @@ def _config():
     )
 
 
-def _pipeline():
+def _pipeline() -> tuple[pd.DataFrame, pd.DataFrame]:
     import domain.indicators.sma  # noqa: F401
     cfg = _config()
     candles = _candles(180)
@@ -57,7 +57,7 @@ def _pipeline():
     return trades, positions_df
 
 
-def test_monte_carlo_slippage_distribution_deterministic():
+def test_monte_carlo_slippage_distribution_deterministic() -> None:
     trades, positions_df = _pipeline()
     from domain.validation import monte_carlo_slippage
 

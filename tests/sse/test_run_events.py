@@ -1,11 +1,12 @@
 import json
+from typing import Any
 
 from fastapi.testclient import TestClient
 
 from api.app import create_app
 
 
-def _make_run(client: TestClient):
+def _make_run(client: TestClient) -> str:
     payload = {
         "indicators": [{"name": "dual_sma", "params": {"fast": 5, "slow": 15}}],
         "strategy": {"name": "dual_sma", "params": {"short_window": 5, "long_window": 15}},
@@ -20,16 +21,17 @@ def _make_run(client: TestClient):
     }
     r = client.post("/runs", json=payload)
     assert r.status_code == 200
-    return r.json()["run_hash"]
+    body: dict[str, Any] = r.json()
+    return str(body["run_hash"])
 
 
-def test_events_snapshot_and_heartbeat():
+def test_events_snapshot_and_heartbeat() -> None:
     app = create_app()
     client = TestClient(app)
     run_hash = _make_run(client)
     resp = client.get(f"/runs/{run_hash}/events")
     assert resp.status_code == 200
-    events = []
+    events: list[dict[str, Any]] = []
     for block in resp.text.strip().split("\n\n"):
         if not block.strip():
             continue

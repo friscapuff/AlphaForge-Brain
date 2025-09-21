@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi.testclient import TestClient
 
 from api.app import app
@@ -5,7 +7,7 @@ from api.app import app
 client = TestClient(app)
 
 
-def test_run_events_stream_basic():
+def test_run_events_stream_basic() -> None:
     payload = {
         "start": "2024-01-01",
         "end": "2024-01-10",

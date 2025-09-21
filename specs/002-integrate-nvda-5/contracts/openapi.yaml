@@ -1,10 +1,11 @@
 openapi: 3.1.0
 info:
   title: AlphaForge Brain API (NVDA Integration Additions)
-  version: 0.2.2-draft
+  version: 0.2.3
   description: >-
-    Additive contract notes for NVDA 5-year dataset integration. Existing endpoints retained; this file focuses on
-    incremental schema enrichments (data_hash, calendar_id, validation summary exposure) and clarifications.
+    Additive contract notes for NVDA 5-year dataset integration.
+    Version 0.2.3 (finalized): formalizes exposure of data_hash, calendar_id, validation_summary and legacy alias `validation` (identical content for transition).
+    Also documents optional anomaly_counters expansion when include_anomalies=true (purely additive, no breaking field removals).
 servers:
   - url: http://localhost:8000
 paths:
@@ -13,13 +14,20 @@ paths:
       summary: Create or reuse a backtest run (NVDA capable)
       description: >-
         Accepts an extended RunConfig referencing symbol "NVDA" which triggers dataset ingestion/validation.
+      operationId: createRunNvda
       responses:
         '201': { description: Run created }
         '200': { description: Existing run reused }
   /runs/{run_hash}:
     get:
       summary: Get run detail (includes dataset linkage)
+      operationId: getRunNvda
       parameters:
+        - in: path
+          name: run_hash
+          required: true
+          schema:
+            type: string
         - in: query
           name: include_anomalies
           required: false
@@ -32,23 +40,34 @@ paths:
   /runs/{run_hash}/artifacts:
     get:
       summary: List artifact manifest (includes data_hash & calendar)
+      operationId: listArtifactsNvda
   /runs/{run_hash}/events:
     get:
       summary: Fetch buffered run events (unchanged)
+      operationId: streamRunEventsNvda
   /runs/{run_hash}/events/stream:
     get:
       summary: Long-lived incremental run events stream (unchanged)
+      operationId: streamRunEventsIncrementalNvda
 components:
   schemas:
     RunConfig:
+      description: NVDA extension of base RunConfig adding canonical timeframe enum constraints.
       allOf:
         - $ref: '../../001-initial-dual-tier/contracts/openapi.yaml#/components/schemas/RunConfig'
         - type: object
-          description: NVDA integration does not alter required fields; ingestion resolves data_hash internally.
+          description: NVDA integration does not alter required fields; ingestion resolves data_hash internally. Adds explicit timeframe enum constraints.
+          properties:
+            timeframe:
+              type: string
+              description: Canonical timeframe string.
+              enum: ["1m","5m","15m","30m","1h","2h","4h","1d"]
     RunDetail:
+      description: NVDA extension of base RunDetail with dataset provenance and validation summary alias fields.
       allOf:
         - $ref: '../../001-initial-dual-tier/contracts/openapi.yaml#/components/schemas/RunDetail'
         - type: object
+          description: Extends base RunDetail with dataset provenance (data_hash, calendar_id) and lightweight validation summaries.
           properties:
             data_hash:
               type: string
@@ -66,13 +85,31 @@ components:
                   $ref: '#/components/schemas/AnomalyCounters'
                 unexpected_gaps: { type: integer }
                 expected_closures: { type: integer }
+                observed_bar_seconds: { type: integer, nullable: true }
+                declared_bar_seconds: { type: integer, nullable: true }
+                timeframe_ok: { type: boolean, nullable: true }
+            validation:
+              type: object
+              description: Backward-compatible alias of validation_summary (identical content; may be deprecated in future).
+              properties:
+                symbol: { type: string }
+                data_hash: { type: string }
+                counters:
+                  $ref: '#/components/schemas/AnomalyCounters'
+                unexpected_gaps: { type: integer }
+                expected_closures: { type: integer }
+                observed_bar_seconds: { type: integer, nullable: true }
+                declared_bar_seconds: { type: integer, nullable: true }
+                timeframe_ok: { type: boolean, nullable: true }
             anomaly_counters:
               $ref: '#/components/schemas/AnomalyCounters'
               description: Present when include_anomalies=true; mirrors anomaly counters from dataset metadata.
     ArtifactManifest:
+      description: NVDA extension adding dataset provenance fields to base ArtifactManifest.
       allOf:
         - $ref: '../../001-initial-dual-tier/contracts/openapi.yaml#/components/schemas/ArtifactManifest'
         - type: object
+          description: Extends base ArtifactManifest with dataset provenance linkage (data_hash, calendar_id).
           properties:
             data_hash:
               type: string
@@ -102,6 +139,9 @@ components:
         expected_closures: { type: integer }
         unexpected_gaps: { type: integer }
         generated_at: { type: integer, format: int64 }
+        observed_bar_seconds: { type: integer, nullable: true }
+        declared_bar_seconds: { type: integer, nullable: true }
+        timeframe_ok: { type: boolean, nullable: true }
     AnomalyCounters:
       type: object
       description: Keyed anomaly and integrity counters arising from dataset normalization.

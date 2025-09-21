@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.app import create_app
@@ -5,10 +8,12 @@ from api.app import create_app
 # Note: Some endpoints raise fastapi.HTTPException directly; these won't produce DomainError envelopes.
 # We focus on endpoints wired to DomainError (cancel) and generic 404 for non-existent run resources.
 
-def make_app():
-    return create_app()
+def make_app() -> FastAPI:
+    app = create_app()
+    assert isinstance(app, FastAPI)
+    return app
 
-def test_cancel_missing_run_returns_domain_not_found_envelope():
+def test_cancel_missing_run_returns_domain_not_found_envelope() -> None:
     app = make_app()
     client = TestClient(app)
     r = client.post("/runs/UNKNOWN_HASH/cancel")
@@ -22,7 +27,7 @@ def test_cancel_missing_run_returns_domain_not_found_envelope():
     assert "UNKNOWN_HASH" in err.get("message", "")
 
 
-def test_get_missing_run_plain_404_no_domain_envelope():
+def test_get_missing_run_plain_404_no_domain_envelope() -> None:
     app = make_app()
     client = TestClient(app)
     r = client.get("/runs/NONEXISTENT")
@@ -32,7 +37,7 @@ def test_get_missing_run_plain_404_no_domain_envelope():
     assert body == {"detail": "run not found"}
 
 
-def test_create_run_invalid_strategy_params_fast_ge_slow():
+def test_create_run_invalid_strategy_params_fast_ge_slow() -> None:
     app = make_app()
     client = TestClient(app)
     payload = {
@@ -60,7 +65,7 @@ def test_create_run_invalid_strategy_params_fast_ge_slow():
     assert ("error" in body) or ("detail" in body)
 
 
-def test_create_run_missing_symbol_field_schema_error():
+def test_create_run_missing_symbol_field_schema_error() -> None:
     app = make_app()
     client = TestClient(app)
     payload = {

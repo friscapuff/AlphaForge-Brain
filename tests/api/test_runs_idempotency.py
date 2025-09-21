@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -8,7 +11,7 @@ from api.app import app
 client = TestClient(app)
 
 
-def _payload():
+def _payload() -> dict[str, Any]:
     return {
         "start": "2024-01-01",
         "end": "2024-01-07",
@@ -26,7 +29,7 @@ def _payload():
     }
 
 
-def test_idempotent_run_creation_reuses_hash_and_artifacts():
+def test_idempotent_run_creation_reuses_hash_and_artifacts() -> None:
     p = _payload()
     # First submission
     r1 = client.post("/runs", json=p)

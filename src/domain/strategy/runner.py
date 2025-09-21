@@ -140,4 +140,4 @@ def run_strategy(
     return result
 
 
-__all__ = ["run_strategy", "RunnerStats"]
+__all__ = ["RunnerStats", "run_strategy"]

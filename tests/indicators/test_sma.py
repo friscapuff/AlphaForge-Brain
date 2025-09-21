@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -8,7 +10,7 @@ from domain.indicators.registry import IndicatorRegistry
 from domain.indicators.sma import SimpleMovingAverage  # ensure class available
 
 
-def test_dual_sma_indicator_basic():
+def test_dual_sma_indicator_basic() -> None:
     # Synthetic price series
     prices = pd.Series([100,101,102,103,104,105,106,107,108,109], name="close", dtype=float)
 
@@ -35,7 +37,7 @@ def test_dual_sma_indicator_basic():
     pd.testing.assert_frame_equal(out, out2)
 
 
-def test_dual_sma_indicator_validation_errors():
+def test_dual_sma_indicator_validation_errors() -> None:
     prices = pd.DataFrame({"close": pd.Series([1,2,3,4,5], dtype=float)})
     indicator = IndicatorRegistry.get("dual_sma")
 
@@ -48,7 +50,7 @@ def test_dual_sma_indicator_validation_errors():
         indicator(prices, params={"short_window": 3, "long_window": 3})
 
 
-def test_simple_moving_average_basic():
+def test_simple_moving_average_basic() -> None:
     df = pd.DataFrame({"close": [10, 11, 12, 13, 14]}, dtype=float)
     sma = SimpleMovingAverage(window=3)
     out = sma.compute(df)
@@ -66,7 +68,7 @@ def test_simple_moving_average_basic():
     pd.testing.assert_frame_equal(out, out2)
 
 
-def test_simple_moving_average_errors():
+def test_simple_moving_average_errors() -> None:
     with pytest.raises(ValueError):
         SimpleMovingAverage(window=0)
     sma = SimpleMovingAverage(window=2)

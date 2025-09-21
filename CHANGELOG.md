@@ -4,7 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) and this project adheres (prospectively) to Semantic Versioning.
 
-## [0.2.1] - 2025-09-20 (Unreleased)
+## [0.3.0] - 2025-09-21
+### Added
+- Multi-symbol data abstraction & registry (Phase J G01-G08) enabling future portfolio expansion without breaking existing contracts.
+- Strict typing hardening: mypy --strict across src + tests with zero errors (G11-G13).
+- Typing modernization (PEP 604 unions, builtin generics) and removal of legacy typing imports (G14).
+- Additional mypy warning gates (`warn-unused-ignores`, `warn-redundant-casts`) enforced (G15).
+- Expanded Ruff ruleset (bugbear, pyupgrade strict, additional error detection) fully remediated (G16).
+- CI mypy snapshot gate & diff report artifacts (`.mypy_snapshot_src.json`, `mypy_diff.md`) (G17, G19).
+- Pre-commit selective mypy hook for changed files accelerating local feedback (G18).
+- Typing + lint timing benchmark (`timing_report.py`) with JSON/Markdown outputs establishing performance budget (G21).
+- Documentation: README "Typing & Lint Guarantees" and architecture updates reflecting abstraction and determinism enhancements (G20).
+
+### Changed
+- Manifest enriched with symbol/timeframe fields and dataset-binding hash semantics clarified (G06-G07).
+- Orchestrator fully removed synthetic candle fallback; always real dataset slice for determinism (G01).
+- Improved error messaging for missing symbol/timeframe (G10).
+
+### Removed
+- All stale `# type: ignore` directives (final audit left zero ignores) (G22).
+
+### Tooling / CI
+- Added mypy diff regression detection step failing build on new errors.
+- Added ruff + mypy timing artifact publication for longitudinal performance tracking.
+
+### Security / Determinism
+- Strengthened run hash inclusion of dataset snapshot binding; prevents accidental cross-symbol artifact reuse.
+
+## [0.2.2] - 2025-09-21
+### Added
+- SSE snapshot event now surfaces `validation_summary` and legacy alias `validation` for parity with RunDetail endpoint.
+
+### Changed
+- Test suite aligned NVDA run configs to canonical daily timeframe (`1d`) matching integrated dataset loader.
+
+### Fixed
+- Provenance fallback logging now guarantees visibility by emitting a best‑effort stdout line when structlog capture is absent.
+- Failing SSE anomaly summary test due to missing validation summary field in snapshot events.
+
+### Internal
+- Added dataset file placement under `./data` during local test execution for deterministic ingestion.
+
 ### Added
 - Long-lived incremental SSE streaming endpoint `/runs/{run_hash}/events/stream` with heartbeat + resume (T078).
 - ETag + `after_id` incremental caching for flush endpoint `/runs/{run_hash}/events` (T079).
@@ -31,6 +71,7 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) a
 - Expanded spec.md & plan.md to note pluggable slippage adapters (spread_pct, participation_rate) and streaming/caching event model.
 - README updated with Core Principles Summary referencing constitution.
 
+## [0.2.1] - 2025-09-20
 ## [0.2.0] - 2025-09-20
 ### Added
 - New risk sizing models: `volatility_target` and `kelly_fraction` (T076) with accompanying unit tests (`tests/risk/test_new_risk_models.py`).

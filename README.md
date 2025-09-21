@@ -1,8 +1,8 @@
 # AlphaForge Brain – Deterministic Single-User Trading Lab Backend
 
-![Version](https://img.shields.io/badge/version-0.2.1-blue.svg) ![Python](https://img.shields.io/badge/python-3.11.x-blue.svg) ![Coverage](https://img.shields.io/badge/coverage-available%20in%20CI-lightgrey.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Benchmarks](https://img.shields.io/badge/bench-risk_slippage%20&%20perf_run-informational.svg)
+![Version (Static)](https://img.shields.io/badge/version-0.3.0-blue.svg) ![Version (Dynamic)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/friscapuff/AlphaForge-Brain/badges/version_badge.json) ![Upcoming](https://img.shields.io/badge/unreleased-0.3.1--dev-orange.svg) ![Python](https://img.shields.io/badge/python-3.11.x-blue.svg) ![Coverage](https://img.shields.io/badge/coverage-available%20in%20CI-lightgrey.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Benchmarks](https://img.shields.io/badge/bench-risk_slippage%20&%20perf_run-informational.svg) ![Typing](https://img.shields.io/badge/typing-mypy--strict-success.svg)
 
-AlphaForge Brain is a deterministic, modular backend for running strategy backtests, risk-adjusted simulations, and statistical validations. It targets a single power user who wants **repeatable experiments**, **artifact integrity**, and **low-friction iteration** without premature multi-user overhead. A future UI (out of scope here) will sit on top of these APIs.
+AlphaForge Brain is a deterministic, modular backend for running strategy backtests, risk-adjusted simulations, and statistical validations. It targets a single power user who wants **repeatable experiments**, **artifact integrity**, and **low-friction iteration** without premature multi-user overhead. A future UI (out of scope here) will sit on top of these APIs. The codebase has recently completed a full **strict typing & lint hardening phase** (upcoming v0.3.0) and now exposes multi-symbol abstractions preparing for future portfolio-level extensions.
 
 ---
 ## 1. Executive Overview
@@ -26,6 +26,104 @@ AlphaForge Brain executes an orchestrated pipeline: load candles → compute ind
 | 10 | Automation as Policy | CI enforces all gates; manual checklists replaced by scripts. |
 
 These principles drive design decisions, code review criteria, and release gating. Any deviation requires an explicit, time-bound exception documented in PR rationale.
+
+---
+## Runtime Requirements
+Target runtime is pinned for determinism and reproducibility:
+
+| Component | Requirement | Notes |
+|-----------|-------------|-------|
+| Python | 3.11.9 (>=3.11,<3.12) | Patch 9 selected for latest security/bug fixes while avoiding 3.12 semantics drift |
+| Poetry | 1.8.x | Managed via CI (install-poetry action) |
+| OS | Linux/macOS/Windows | CI runs on Ubuntu; Windows dev scripts provided (PowerShell) |
+| Node.js (spec tooling) | 20.x | Used only for OpenAPI lint/bundle (Spectral + Redocly) |
+
+Local setup (pyenv recommended):
+```bash
+pyenv install 3.11.9
+pyenv local 3.11.9  # writes .python-version (already committed)
+poetry env use 3.11.9
+poetry install --with dev
+```
+
+Verification commands:
+```bash
+poetry run python --version  # Expect 3.11.9
+poetry run mypy --version
+node --version               # Expect v20.x
+```
+
+---
+## 1.b Runtime Version Introspection (API & CLI)
+The FastAPI application version now dynamically reflects the `pyproject.toml` version (`0.3.0`) without manual edits to the app factory. This guarantees docs & `/health` stay synchronized after a version bump.
+
+### Health Endpoint
+Example response (abridged) from a local dev instance after starting via `uvicorn api.app:create_app` or equivalent helper:
+
+```jsonc
+{
+  "status": "ok",
+  "version": "0.3.0",
+  "python": "3.11.9",
+  "uptime_sec": 42,
+  "build": "dev"
+}
+```
+
+### PowerShell Example
+```powershell
+$resp = Invoke-RestMethod -Uri http://localhost:8000/health -Method GET
+$resp.version  # Should output 0.3.0
+```
+
+### curl Example
+```bash
+curl -s http://localhost:8000/health | jq '.version'
+# "0.3.0"
+```
+
+### Programmatic Access Inside Code
+```python
+from api.app import create_app
+app = create_app()
+assert app.version == "0.3.0"
+```
+
+### How It Works
+`create_app()` attempts `importlib.metadata.version("project-a-backend")`. If the distribution is not installed (editable dev mode), it parses `pyproject.toml` (`tool.poetry.version`) via `tomllib`. Fallback default is `0.0.0+dev` (should not appear in normal workflows). This ensures:
+1. No drift between runtime and packaging metadata.
+2. OpenAPI schema `info.version` matches the package.
+3. Release automation only touches `pyproject.toml` (single source of truth).
+
+### Dynamic Version Badge (JSON Endpoint)
+CI generates a Shields.io compatible JSON endpoint via `scripts/ci/emit_version_badge.py`, producing `.artifacts/version_badge.json`. A lightweight publish job can push that file to a `badges` branch (served via GitHub Pages raw URL) powering the dynamic badge next to the static one. This ensures the README reflects the *current main branch version* even if a stale forked README is viewed. If the badge endpoint fails to load, the static badge still displays the last released version.
+
+### Ingestion Baseline & Drift Classification
+To guard determinism and silent data drift, the ingestion performance & structure are snapshotted:
+
+1. Capture baseline (once or after intentional update):
+  `poetry run python scripts/bench/capture_ingestion_baseline.py`
+2. Store output at `benchmarks/baseline_ingestion_nvda_1d.json` (committed).
+3. Generate current metrics in CI: `poetry run python scripts/bench/ingestion_perf.py --out-json current_ingestion.json`
+4. Diff: `poetry run python scripts/bench/ingestion_baseline_diff.py benchmarks/baseline_ingestion_nvda_1d.json current_ingestion.json`
+
+Exit codes:
+| Code | Meaning | Action |
+|------|---------|--------|
+| 0 | PERFECT (structure + hash + elapsed) | Proceed |
+| 20 | MINOR drift (elapsed only) | Log; optional performance review |
+| 50 | BREAKING drift (row counts or data_hash changed) | Fail build; require explicit override justification |
+
+Related provenance file: generated via `scripts/bench/generate_provenance.py` capturing source file hash & size for audit.
+
+### Operational Notes
+- CI smoke tests can assert `/health.version` equals the expected tag to catch accidental partial bumps.
+- For pre-release identifiers (e.g. `0.3.0-rc.1`), the same mechanism surfaces the semver string unchanged.
+- If you later adopt PEP 621 `project.version` (migrating from Poetry-specific table), the fallback parser can be adapted trivially.
+
+---
+
+If a different interpreter is detected in CI, the workflow will fail (version assertion step). This guards against silent upgrades to 3.12+ that could alter typing or performance characteristics.
 
 ---
 ## 2. Core Value Principles
@@ -130,6 +228,38 @@ Artifacts (metrics, trades, validation summaries) are written to disk. A manifes
 
 ---
 ## 6. Events & Streaming
+
+The system emits ordered Server-Sent Events (SSE) for run progress. Baseline synchronous runs emit a heartbeat + snapshot, with additive future stages planned (async orchestration, cancellation propagation). See `tests/api/test_run_events_*` for expected sequences.
+
+---
+## 7. NVDA Dataset Quickstart & Deterministic Helper (T041–T042)
+
+An integrated 5-year NVDA dataset powers provenance + anomaly demonstrations. A PowerShell helper script provides a zero-setup canonical run invocation and prints key artifact paths plus anomaly counters.
+
+Quickstart (Windows PowerShell):
+```powershell
+pwsh ./scripts/run_local_nvda.ps1 -Start 2024-01-01 -End 2024-01-10 -Output run_detail.json
+```
+
+Example output excerpts:
+```
+[NVDA] Submitting deterministic run (NVDA 2024-01-01->2024-01-10 tf=1m)
+Run hash: 4f0c2e9...
+Artifacts: artifacts/4f0c2e9...
+Manifest: artifacts/4f0c2e9.../manifest.json
+Anomaly counters: {"duplicates_dropped":0,"rows_dropped_missing":3,...}
+```
+
+Determinism Guarantees:
+- Re-running with identical dataset + parameters reuses hash & artifacts.
+- Editing the underlying CSV (single price) invalidates the run hash (perturbation test T039).
+- `_dataset` provenance (symbol, timeframe, data_hash) is namespaced inside the hash input to avoid collision with user config fields.
+
+To surface anomaly counters in API responses, pass `include_anomalies=true` to `GET /runs/{hash}`.
+
+Planned (T044+): golden baseline snapshot & ingestion baseline diff gating in CI for structural drift detection.
+
+---
 Two modes:
 1. Flush Endpoint: `GET /runs/{run_hash}/events` returns all events (optionally filtered with `after_id`). ETag header `<run_hash>:<last_event_id>` allows 304 responses if no new events.
 2. Streaming Endpoint: `GET /runs/{run_hash}/events/stream` replays backlog then waits for new events, sending periodic heartbeat events (~15s) until terminal.
@@ -301,6 +431,19 @@ pwsh scripts/dev/run_api.ps1 -Port 8000 -Reload
 ```
 
 ---
+### 14.a Typing & Lint Guarantees (Added in upcoming 0.3.0)
+The repository enforces a zero-regression typing and lint contract:
+| Guarantee | Enforcement Mechanism |
+|-----------|-----------------------|
+| mypy strict (src + tests) zero errors | CI snapshot gate (`.mypy_snapshot_src.json`) + diff report (`mypy_diff.md`) |
+| No stale `# type: ignore` | `warn-unused-ignores` + periodic audit (G22 complete) |
+| Modern syntax only (PEP 604, builtin generics) | Ruff + mypy; legacy patterns rejected |
+| Selective fast feedback in commits | Pre-commit hook: changed-file mypy strict |
+| Lint regression prevention | Expanded Ruff rules (bugbear, pyupgrade strict) |
+| Performance visibility of typing stage | Timing benchmark artifact (`typing_timing.json/md`) |
+
+If a new mypy error appears in a PR, the diff report highlights the delta and CI fails. This ensures steady-state zero-error baseline.
+
 ## 15. Troubleshooting & FAQ
 | Symptom | Cause | Resolution |
 |---------|-------|-----------|
@@ -319,11 +462,19 @@ Inspect `virt_report.json` for readiness flags.
 ---
 ## 16. Roadmap (Indicative)
 - Additional indicators (momentum, volatility clustering)
-- Portfolio-level multi-symbol extension
+- Portfolio-level multi-symbol extension (registry now prepared)
 - Advanced execution (queue modeling, partial fills)
 - Coverage badge publication (Codecov)
 - WebSocket multiplex (evaluation vs SSE)
 - Enhanced validation visualization support
+- Dataset diff tooling & ingestion provenance explorer
+
+### 16.a Upcoming 0.3.0 Highlights (Unreleased)
+- Multi-symbol dataset abstraction & canonical slice registry.
+- Typing hardening (strict + modernization + diff gating).
+- Lint rule expansion & automated diff/timing artifacts.
+- Strengthened run hash semantics including dataset binding.
+- Zero remaining ignores; baseline codified.
 
 ---
 ## 17. License

@@ -18,4 +18,4 @@ def get_validation_registry() -> dict[str, _ValidationFunc]:  # pragma: no cover
     return dict(_REGISTRY)
 
 
-__all__ = ["validation_test", "get_validation_registry"]
+__all__ = ["get_validation_registry", "validation_test"]

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from api.app import app
 
 
-def test_run_events_async_progress(monkeypatch):
+def test_run_events_async_progress(monkeypatch: MonkeyPatch) -> None:
     client = TestClient(app)
     payload = {
         "start": "2024-01-01",

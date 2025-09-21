@@ -1,3 +1,4 @@
+
 import numpy as np
 import pandas as pd
 
@@ -5,7 +6,7 @@ from domain.execution import simulator
 from domain.schemas.run_config import ExecutionSpec
 
 
-def _orders_frame():
+def _orders_frame() -> pd.DataFrame:
     ts = pd.date_range("2024-01-01", periods=5, freq="1min")
     # Construct a deterministic order stream
     df = pd.DataFrame({
@@ -18,7 +19,7 @@ def _orders_frame():
     return df
 
 
-def test_spread_pct_slippage_increases_fill_price_on_entry():
+def test_spread_pct_slippage_increases_fill_price_on_entry() -> None:
     df = _orders_frame()
     cfg = ExecutionSpec(slippage_model={"model": "spread_pct", "params": {"spread_pct": 0.001}})  # 10 bps total spread
     # Build sized frame semantics expected by simulator.simulate (already has position_size + signals) -> wrap in RunConfig surrogate
@@ -45,7 +46,7 @@ def test_spread_pct_slippage_increases_fill_price_on_entry():
         assert first.price >= raw_open
 
 
-def test_participation_rate_slippage_scales_with_size():
+def test_participation_rate_slippage_scales_with_size() -> None:
     df = _orders_frame()
     cfg = ExecutionSpec(slippage_model={"model": "participation_rate", "params": {"participation_pct": 0.5}})
     from domain.schemas.run_config import (

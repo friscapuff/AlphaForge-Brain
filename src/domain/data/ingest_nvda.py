@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 """NVDA 5-Year Static Dataset Ingestion & Normalization.
 
-Implements Group 1 (T001–T013) foundation tasks:
+Implements Group 1 (T001-T013) foundation tasks:
  - Data directory convention (expects ./data/NVDA_5y.csv unless overridden)
  - Dataset registry & cached metadata
  - Strict CSV load with dtype coercion
@@ -19,17 +17,20 @@ Implements Group 1 (T001–T013) foundation tasks:
 NOTE: Integration with orchestrator / run hashing performed in later task groups.
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass
-from datetime import timezone
 from pathlib import Path
-from typing import Dict, Tuple
-from zoneinfo import ZoneInfo
 
 import exchange_calendars as xcals
 import pandas as pd
+
+from infra.time.timestamps import to_epoch_ms
+
+# G14 modernization: removed legacy typing.Dict / Tuple usage (using builtins)
 
 DATA_DIR_DEFAULT = Path("data")
 DATA_FILE_NAME = "NVDA_5y.csv"  # Transitional until G04 full generic ingestion
@@ -51,14 +52,18 @@ class DatasetMetadata:
     row_count_canonical: int
     first_ts: int
     last_ts: int
-    anomaly_counters: Dict[str, int]
+    anomaly_counters: dict[str, int]
     created_at: int
+    # Phase K enrichment (initial fields; will be optional backfilled)
+    observed_bar_seconds: int | None = None
+    declared_bar_seconds: int | None = None
+    timeframe_ok: bool | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), separators=(",", ":"), sort_keys=True)
 
 
-_DATASET_CACHE: dict[str, Tuple[pd.DataFrame, DatasetMetadata]] = {}
+_DATASET_CACHE: dict[str, tuple[pd.DataFrame, DatasetMetadata]] = {}
 _CACHE_DIR = Path(".cache/datasets")
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -99,16 +104,9 @@ def _read_csv(path: Path) -> pd.DataFrame:
 
 
 def _parse_timestamps(df: pd.DataFrame) -> pd.DataFrame:
-    # Assume America/New_York (NY) then convert to UTC epoch ms
-    eastern = ZoneInfo("America/New_York")
-    # Parse then localize assuming naive timestamps are in Eastern, convert to UTC
-    parsed = pd.to_datetime(df["timestamp"], utc=False)
-    if parsed.dt.tz is None:
-        parsed = parsed.dt.tz_localize(eastern)
-    ts = parsed.dt.tz_convert(timezone.utc)
-    df = df.copy()
-    df["ts"] = (ts.view("int64") // 1_000_000).astype("int64")  # ns -> ms
-    return df
+    out = df.copy()
+    out["ts"] = to_epoch_ms(out["timestamp"], assume_tz="America/New_York")
+    return out
 
 
 def _classify_calendar_gaps(canonical: pd.DataFrame) -> tuple[int, int]:
@@ -203,7 +201,7 @@ def load_canonical_dataset(data_dir: Path | None = None) -> tuple[pd.DataFrame, 
 
     data_hash = _stable_dataframe_hash(canonical)
 
-    anomaly_counters: Dict[str, int] = {
+    anomaly_counters: dict[str, int] = {
         "duplicates_dropped": duplicates_dropped,
         "rows_dropped_missing": rows_dropped_missing,
         "zero_volume_rows": zero_volume_rows,
@@ -211,6 +209,17 @@ def load_canonical_dataset(data_dir: Path | None = None) -> tuple[pd.DataFrame, 
         "unexpected_gaps": unexpected_gaps,
         "expected_closures": expected_closures,
     }
+
+    # Observed bar seconds (median delta); since NVDA dataset is daily we map declared 1d = 86400
+    observed_bar_seconds: int | None = None
+    if len(canonical) >= 2:
+        deltas = canonical["ts"].diff().dropna().astype("int64") // 1000
+        if not deltas.empty:
+            observed_bar_seconds = int(deltas.median())
+    declared_bar_seconds = 86400  # daily timeframe
+    timeframe_ok = (observed_bar_seconds == declared_bar_seconds) if observed_bar_seconds else None
+    if timeframe_ok is False:
+        anomaly_counters["timeframe_mismatch"] = anomaly_counters.get("timeframe_mismatch", 0) + 1
 
     meta = DatasetMetadata(
         symbol=SYMBOL,
@@ -223,6 +232,9 @@ def load_canonical_dataset(data_dir: Path | None = None) -> tuple[pd.DataFrame, 
         last_ts=int(canonical["ts"].iloc[-1]) if not canonical.empty else 0,
         anomaly_counters=anomaly_counters,
         created_at=int(time.time() * 1000),
+        observed_bar_seconds=observed_bar_seconds,
+        declared_bar_seconds=declared_bar_seconds,
+        timeframe_ok=timeframe_ok,
     )
 
     _DATASET_CACHE[SYMBOL] = (canonical, meta)
@@ -274,7 +286,7 @@ __all__ = [
     "DatasetMetadata",
     "get_dataset_metadata",
     "load_canonical_dataset",
-    "slice_canonical",
     "load_dataset_for",
+    "slice_canonical",
     "slice_dataset",
 ]

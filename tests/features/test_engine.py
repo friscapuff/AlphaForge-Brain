@@ -5,15 +5,15 @@ import pytest
 
 # We expect an indicator registry already exists similar to strategies/indicators used earlier.
 # Import the registry and a sample indicator (SMA) used in earlier tasks.
-from domain.indicators.registry import indicator_registry  # type: ignore
-from domain.indicators.sma import SimpleMovingAverage  # type: ignore
+from domain.indicators.registry import indicator_registry
+from domain.indicators.sma import SimpleMovingAverage
 
 # The engine (to be implemented) will live at domain/features/engine.py
 # and expose a function build_features(df: pd.DataFrame) -> pd.DataFrame
 # plus maybe a class FeatureEngine for future extension. For now we just test the functional contract.
 
 @pytest.fixture(scope="module")
-def candles_df():
+def candles_df() -> pd.DataFrame:
     data = {
         "timestamp": [
             datetime(2024,1,1,0,0,tzinfo=timezone.utc),
@@ -31,9 +31,9 @@ def candles_df():
     return pd.DataFrame(data)
 
 
-def test_engine_applies_registered_indicators(candles_df):
+def test_engine_applies_registered_indicators(candles_df: pd.DataFrame) -> None:
     # Ensure SMA indicator is registered. (If registry already populated, re-register is idempotent/no-op.)
-    indicator_registry.register(SimpleMovingAverage(window=3))  # type: ignore
+    indicator_registry.register(SimpleMovingAverage(window=3))
 
     from domain.features import engine  # import deferred until after fixture/registration
 
@@ -50,16 +50,15 @@ def test_engine_applies_registered_indicators(candles_df):
     assert len(out) == len(candles_df)
 
 
-def test_engine_duplicate_feature_collision_raises(candles_df):
+def test_engine_duplicate_feature_collision_raises(candles_df: pd.DataFrame) -> None:
     # Register two indicators that intentionally collide in feature naming.
-    # We'll simulate by creating two SMA objects with same window but we will monkeypatch their feature_name method
-    class SMAAlias(SimpleMovingAverage):  # type: ignore
-        def feature_columns(self):  # type: ignore
-            # Force same column name as original SMA
-            return [f"SMA_{self.window}_close"]
-
-    indicator_registry.register(SimpleMovingAverage(window=2))  # ensure base
-    indicator_registry.register(SMAAlias(window=2))  # collision
+    # We'll simulate by creating two SMA objects with same window and monkeypatching one to collide.
+    indicator_registry.register(SimpleMovingAverage(window=2))
+    sm2 = SimpleMovingAverage(window=2)
+    def forced_feature_columns() -> list[str]:  # forces collision
+        return [f"SMA_{sm2.window}_close"]
+    sm2.feature_columns = forced_feature_columns  # monkeypatch for collision
+    indicator_registry.register(sm2)
 
     from domain.features import engine
 
@@ -67,10 +66,10 @@ def test_engine_duplicate_feature_collision_raises(candles_df):
         engine.build_features(candles_df.copy())
 
 
-def test_engine_deterministic_column_order(candles_df):
+def test_engine_deterministic_column_order(candles_df: pd.DataFrame) -> None:
     # Ensure registry does not contain prior collision artifacts
-    indicator_registry.clear()  # type: ignore
-    indicator_registry.register(SimpleMovingAverage(window=3))  # type: ignore
+    indicator_registry.clear()
+    indicator_registry.register(SimpleMovingAverage(window=3))
     from domain.features import engine
 
     out1 = engine.build_features(candles_df.copy())
@@ -79,9 +78,9 @@ def test_engine_deterministic_column_order(candles_df):
     assert list(out1.columns) == list(out2.columns), "Column order must be deterministic"
 
 
-def test_engine_idempotent_same_input_same_output(candles_df):
-    indicator_registry.clear()  # type: ignore
-    indicator_registry.register(SimpleMovingAverage(window=4))  # type: ignore
+def test_engine_idempotent_same_input_same_output(candles_df: pd.DataFrame) -> None:
+    indicator_registry.clear()
+    indicator_registry.register(SimpleMovingAverage(window=4))
     from domain.features import engine
 
     df_in = candles_df.copy()

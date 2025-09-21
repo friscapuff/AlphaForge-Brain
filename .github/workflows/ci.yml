@@ -19,6 +19,15 @@ jobs:
           python-version: '3.11.x'
           cache: 'poetry'
 
+      - name: Assert Python version
+        run: |
+          PYV=$(python -c "import sys;print('.'.join(map(str,sys.version_info[:3])))")
+          echo "Detected Python $PYV"
+            case "$PYV" in
+              3.11.*) echo "Python version OK" ;;
+              *) echo "Unexpected Python version: $PYV (expected 3.11.x)" && exit 1 ;;
+            esac
+
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
@@ -53,6 +62,47 @@ jobs:
         run: |
           poetry run mypy src
 
+      - name: Mypy snapshot (src)
+        run: |
+          poetry run python scripts/typing/snapshot_mypy.py --output .mypy_snapshot_src.json --paths src || true
+          echo "Snapshot error_count=$(jq '.error_count' .mypy_snapshot_src.json)"
+
+      - name: Enforce zero mypy regression (src)
+        run: |
+          ec=$(jq '.error_count' .mypy_snapshot_src.json)
+          if [ "$ec" != "0" ]; then
+            echo "Mypy regression: expected 0 errors, found $ec";
+            cat .mypy_snapshot_src.json;
+            exit 1;
+          fi
+        shell: bash
+
+      - name: Mypy diff report (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Attempt to fetch base snapshot artifact (if stored) - placeholder logic
+          BASE_SNAPSHOT=.mypy_base.json
+          echo '{"error_count":0,"errors":[]}' > $BASE_SNAPSHOT
+          poetry run python scripts/typing/diff_mypy.py --base $BASE_SNAPSHOT --new .mypy_snapshot_src.json --out mypy_diff.md || echo "Diff indicates regression"
+          cat mypy_diff.md
+      - name: Upload mypy diff artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-diff
+          path: mypy_diff.md
+
+      - name: Typing & lint timing
+        run: |
+          poetry run python scripts/typing/timing_report.py --out-json typing_timing.json --out-md typing_timing.md
+      - name: Upload timing artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: typing-timing
+          path: |
+            typing_timing.json
+            typing_timing.md
+
       - name: Lint & format check
         run: |
           poetry run ruff check .
@@ -77,6 +127,10 @@ jobs:
       - name: Generate dereferenced spec
         run: |
           npm run deref:api
+
+      - name: Version sync check
+        run: |
+          poetry run python scripts/ci/check_version_sync.py
 
       - name: Upload OpenAPI artifacts
         uses: actions/upload-artifact@v4
@@ -116,6 +170,14 @@ jobs:
         with:
           python-version: '3.11.x'
           cache: 'poetry'
+      - name: Assert Python version
+        run: |
+          PYV=$(python -c "import sys;print('.'.join(map(str,sys.version_info[:3])))")
+          echo "Detected Python $PYV"
+            case "$PYV" in
+              3.11.*) echo "Python version OK" ;;
+              *) echo "Unexpected Python version: $PYV (expected 3.11.x)" && exit 1 ;;
+            esac
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
@@ -133,3 +195,80 @@ jobs:
         with:
           name: perf-benchmark
           path: benchmark.json
+
+  ingestion-baseline:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.x'
+          cache: 'poetry'
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+            version: 1.8.3
+            virtualenvs-create: true
+            virtualenvs-in-project: true
+            installer-parallel: true
+      - name: Install deps
+        run: poetry install --no-interaction --no-root
+      - name: Dataset presence
+        id: dataset
+        run: |
+          poetry run python scripts/bench/check_dataset_presence.py --symbol NVDA --timeframe 1d --out dataset_presence.json || exit_code=$?; \
+          echo "exit_code=${exit_code:-0}" >> $GITHUB_OUTPUT; \
+          cat dataset_presence.json
+      - name: Upload dataset presence
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataset-presence
+          path: dataset_presence.json
+      - name: Ingestion perf
+        if: steps.dataset.outputs.exit_code == '0'
+        run: |
+          poetry run python scripts/bench/ingestion_perf.py --symbol NVDA --timeframe 1d --out-json current_ingestion.json
+      - name: Baseline diff
+        if: steps.dataset.outputs.exit_code == '0'
+        run: |
+          poetry run python scripts/bench/ingestion_baseline_diff.py benchmarks/baseline_ingestion_nvda_1d.json current_ingestion.json
+      - name: Upload ingestion artifacts
+        if: steps.dataset.outputs.exit_code == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingestion-baseline
+          path: |
+            current_ingestion.json
+            benchmarks/baseline_ingestion_nvda_1d.json
+
+  ingestion-smoke:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.x'
+          cache: 'poetry'
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install deps (no extras)
+        run: poetry install --no-interaction --no-root
+      - name: Ingestion smoke (NVDA slice)
+        run: |
+          poetry run python scripts/bench/ingestion_perf.py --symbol NVDA --timeframe 1d --limit 100 --out-json smoke_ingestion.json || exit 1
+      - name: Upload smoke artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingestion-smoke
+          path: smoke_ingestion.json

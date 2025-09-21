@@ -1,15 +1,25 @@
+from __future__ import annotations
+
 import math
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
 
 from domain.risk.engine import apply_risk
-from domain.schemas.run_config import RunConfig, IndicatorSpec, StrategySpec, RiskSpec, ExecutionSpec, ValidationSpec
+from domain.schemas.run_config import (
+    ExecutionSpec,
+    IndicatorSpec,
+    RiskSpec,
+    RunConfig,
+    StrategySpec,
+    ValidationSpec,
+)
 
 
 @pytest.fixture(scope="module")
-def nvda_slice(nvda_canonical):  # type: ignore[arg-type]
+def nvda_slice(nvda_canonical: tuple[pd.DataFrame, dict[str, object]]) -> pd.DataFrame:  # Provided by shared fixture
     """Provide a deterministic head slice of the canonical NVDA dataset.
 
     Falls back to pytest.skip if dataset file not present (mirrors other NVDA tests pattern).
@@ -26,7 +36,7 @@ def nvda_slice(nvda_canonical):  # type: ignore[arg-type]
     return head
 
 
-def _base_cfg(model: str, params: dict) -> RunConfig:
+def _base_cfg(model: str, params: dict[str, Any]) -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="sma", params={"window": 5})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 5, "long_window": 20}),
@@ -37,7 +47,7 @@ def _base_cfg(model: str, params: dict) -> RunConfig:
     )
 
 
-def test_risk_models_size_positive_when_signal_and_price(nvda_slice):
+def test_risk_models_size_positive_when_signal_and_price(nvda_slice: pd.DataFrame) -> None:
     # Build a deterministic signal column (all ones after first row)
     df = nvda_slice.copy()
     df["signal"] = pd.Series([math.nan] + [1] * (len(df) - 1), index=df.index)
@@ -74,7 +84,7 @@ def test_risk_models_size_positive_when_signal_and_price(nvda_slice):
 
 
 @pytest.mark.parametrize("p_win,payoff", [(0.55, 1.5), (0.6, 1.2), (0.4, 3.0)])
-def test_kelly_monotonic_with_probability(nvda_slice, p_win, payoff):
+def test_kelly_monotonic_with_probability(nvda_slice: pd.DataFrame, p_win: float, payoff: float) -> None:
     df = nvda_slice.copy()
     df["signal"] = pd.Series([math.nan] + [1] * (len(df) - 1), index=df.index)
     equity = 25_000.0
@@ -85,7 +95,7 @@ def test_kelly_monotonic_with_probability(nvda_slice, p_win, payoff):
 
     # Reference fraction calculation for second bar (first sized)
     price = df["close"].iloc[1]
-    from domain.risk.engine import _kelly_fraction_size  # type: ignore
+    from domain.risk.engine import _kelly_fraction_size
     expected = _kelly_fraction_size(equity, float(price), p_win, payoff, base_fraction)
     assert pytest.approx(sized["position_size"].iloc[1], rel=1e-9) == expected
 

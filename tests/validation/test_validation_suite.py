@@ -1,10 +1,12 @@
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
 from domain.validation.runner import run_all
 
 
-def build_trades(n=20):
+def build_trades(n: int = 20) -> pd.DataFrame:
     # Minimal trades DataFrame with timestamp and pnl for permutation/bootstrap etc.
     ts = pd.date_range("2024-01-01", periods=n, freq="1h")
     # Alternate small gains/losses
@@ -12,13 +14,13 @@ def build_trades(n=20):
     return pd.DataFrame({"timestamp": ts, "pnl": pnl})
 
 
-def build_positions(n=20):
+def build_positions(n: int = 20) -> pd.DataFrame:
     ts = pd.date_range("2024-01-01", periods=n, freq="1h")
     equity = 100 + np.cumsum(np.where(np.arange(n) % 2 == 0, 1.0, -0.5))
     return pd.DataFrame({"timestamp": ts, "equity": equity})
 
 
-def test_validation_run_all_deterministic():
+def test_validation_run_all_deterministic() -> None:
     trades = build_trades(30)
     positions = build_positions(30)
     config = {
@@ -30,7 +32,7 @@ def test_validation_run_all_deterministic():
     result1 = run_all(trades, positions, seed=12345, config=config)
     result2 = run_all(trades, positions, seed=12345, config=config)
 
-    def normalize(obj):
+    def normalize(obj: Any) -> Any:
         if isinstance(obj, dict):
             return {k: normalize(v) for k, v in obj.items()}
         if isinstance(obj, (list, tuple)):
@@ -51,7 +53,7 @@ def test_validation_run_all_deterministic():
     assert result1["summary"]["walk_forward_folds"] == len(result1["walk_forward"]["folds"])
 
 
-def test_validation_missing_sections_defaults():
+def test_validation_missing_sections_defaults() -> None:
     trades = build_trades(10)
     positions = build_positions(10)
     res = run_all(trades, positions, seed=1, config={})

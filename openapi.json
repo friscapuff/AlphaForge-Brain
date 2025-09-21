@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AlphaForge Brain API",
-    "version": "0.2.2",
-    "description": "Single-user backtesting, dataset ingestion, validation & artifact engine.\nIncludes NVDA 5-year dataset integration fields (data_hash, calendar_id, validation_summary) merged into canonical contract."
+    "version": "0.3.0",
+    "description": "Single-user backtesting, dataset ingestion, validation & artifact engine.\n0.3.0 consolidates provenance fields (data_hash, calendar_id), validation_summary exposure, strict typing & instrumentation upgrades."
   },
   "servers": [
     {

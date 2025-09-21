@@ -1,14 +1,13 @@
 <!--
 Sync Impact Report
-Version change: 1.0.0 -> 1.1.0 (MINOR: added explicit principle set, governance elaboration, no removals)
-Modified principles: (template placeholders replaced with concrete definitions)
-Added sections: Additional Constraints, Workflow & Quality Gates, General Governance details
-Removed sections: None (template placeholders replaced)
-Templates requiring updates: 
-  .specify/templates/plan-template.md ✅ (principle references still valid: constitution check gates) 
-  .specify/templates/spec-template.md ✅ (no mandatory section changes required) 
-  .specify/templates/tasks-template.md ✅ (TDD & ordering align with Test-First principle) 
-  README.md ⚠ (Add concise link/summary of principles) 
+Version change: 1.1.0 -> 1.2.0 (MINOR: added Typing & Lint Governance clauses; no removals)
+Modified principles: Extended Principle 10 wording to include typing/lint gates
+Added sections: Typing & Lint Governance Policy
+Removed sections: None
+Templates requiring updates:
+	.specify/templates/plan-template.md ✅ (add reference to typing gate in Constitution Check)
+	.specify/templates/spec-template.md ✅ (ensure spec references zero-error typing baseline where relevant)
+	README.md ✅ (Typing & Lint Guarantees section added)
 Deferred TODOs: None
 -->
 
@@ -70,10 +69,19 @@ Canonical dataset, feature registry, and run manifest each have exactly one auth
 module. Duplication (shadow copies, repeated derivations) MUST be eliminated. Hash inputs
 are explicitly enumerated; implicit environment-derived values are forbidden.
 
-### 10. Tooling & Automation as Policy Enforcement
-CI MUST gate merges on: tests, typing, linting, contract diff, spectral lint, reproducible
+### 10. Tooling, Typing & Automation as Policy Enforcement
+CI MUST gate merges on: tests, typing (mypy strict zero errors), linting (Ruff expanded rules), contract diff, spectral lint, reproducible
 bundle, and (when present) benchmark threshold checks. Manual checklists are replaced by
-scripted verifications where feasible. A broken CI gate is a release blocker.
+scripted verifications where feasible. A broken CI gate is a release blocker. No new `# type: ignore` may be introduced without a justification comment including an expiration or remediation plan.
+
+## Typing & Lint Governance Policy
+1. Baseline: mypy strict across `src/` and `tests/` with zero errors; snapshot JSON stored in CI.
+2. Regression Gate: Any PR introducing new type errors fails via diff report step; errors must be fixed or an explicit, time-bound exception approved.
+3. `# type: ignore` Usage: Discouraged. Allowed only with suffix comment containing rationale + ticket/issue reference + expiry date. Unused or expired ignores rejected by CI.
+4. Syntax Modernity: PEP 604 unions and builtin generics required; legacy `typing.List` etc. prohibited.
+5. Lint Rules: Expanded Ruff rule set (bugbear, pyupgrade strict, potential error detectors) enforced; warnings treated as errors.
+6. Performance Tracking: Typing/lint stage timing artifact published; >25% regression across two consecutive releases requires investigation note in CHANGELOG.
+7. Education: New contributors pointed to README Typing Guarantees section; deviations require mentorship PR comments not silent fixes.
 
 ## Additional Constraints
 1. Python 3.11 is the mandated runtime until an explicit upgrade RFC accepted.
@@ -108,4 +116,4 @@ scripted verifications where feasible. A broken CI gate is a release blocker.
 6. Source of Truth: Only this file defines principles—README provides summary link only.
 7. Ratification: Initial ratification at 2025-07-01 (inferred); amendments logged via version bumps.
 
-**Version**: 1.1.0 | **Ratified**: 2025-07-01 | **Last Amended**: 2025-09-21
+**Version**: 1.2.0 | **Ratified**: 2025-07-01 | **Last Amended**: 2025-09-21

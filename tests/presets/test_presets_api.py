@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from api.app import app
@@ -5,7 +8,7 @@ from api.app import app
 client = TestClient(app)
 
 
-def test_create_and_get_preset(tmp_path, monkeypatch):
+def test_create_and_get_preset(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     # Point service storage to temp path for isolation
     monkeypatch.setenv("ALPHAFORGE_PRESET_PATH", str(tmp_path / "presets.json"))
     payload = {"name": "mean_rev_fast", "config": {"lookback": 20, "threshold": 1.5}}
@@ -22,7 +25,7 @@ def test_create_and_get_preset(tmp_path, monkeypatch):
     assert r2.json()["preset_id"] == preset_id
 
 
-def test_list_and_conflict_idempotent(tmp_path, monkeypatch):
+def test_list_and_conflict_idempotent(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("ALPHAFORGE_PRESET_PATH", str(tmp_path / "presets.json"))
     p = {"name": "trend_follow", "config": {"ma": 50}}
     r1 = client.post("/presets", json=p)
@@ -43,7 +46,7 @@ def test_list_and_conflict_idempotent(tmp_path, monkeypatch):
     assert len(ours) == 1
 
 
-def test_delete_and_404(tmp_path, monkeypatch):
+def test_delete_and_404(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("ALPHAFORGE_PRESET_PATH", str(tmp_path / "presets.json"))
     p = {"name": "scalp", "config": {"tick": 5}}
     r1 = client.post("/presets", json=p)

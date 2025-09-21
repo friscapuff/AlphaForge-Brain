@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 
@@ -13,7 +15,7 @@ from domain.schemas.run_config import (
 
 # Build a deterministic signals frame with close prices trending so realized vol lowers over time
 
-def _signals_df(n=40):
+def _signals_df(n: int = 40) -> pd.DataFrame:
     ts = pd.date_range("2024-01-01", periods=n, freq="1min")
     # Price path with moderate variance first half then calmer second half
     prices = np.concatenate([
@@ -36,11 +38,14 @@ def _base_cfg(risk_spec: RiskSpec) -> RunConfig:
         risk=risk_spec,
         execution=ExecutionSpec(),
         validation=ValidationSpec(),
-        symbol="TEST", timeframe="1m", start="2024-01-01", end="2024-01-02"
+        symbol="TEST",
+        timeframe="1m",
+        start="2024-01-01",
+        end="2024-01-02",
     )
 
 
-def test_volatility_target_sizes_scale_inverse_with_realized_vol():
+def test_volatility_target_sizes_scale_inverse_with_realized_vol() -> None:
     df = _signals_df()
     cfg = _base_cfg(RiskSpec(model="volatility_target", params={"target_vol": 0.15, "lookback": 5, "base_fraction": 0.2}))
     sized = apply_risk(cfg, df, equity=10_000)
@@ -53,8 +58,8 @@ def test_volatility_target_sizes_scale_inverse_with_realized_vol():
     rolling_std = rets.rolling(lookback).std().fillna(1e9)
     # Identify two indices where realized vol strictly decreases.
     # Scan from lookback onward to find first pair (i,j) with j>i and rv_j < rv_i.
-    idx1 = None
-    idx2 = None
+    idx1: int | None = None
+    idx2: int | None = None
     for i in range(lookback + 1, len(rolling_std) - 1):
         rv_i = rolling_std.iloc[i]
         # search forward
@@ -74,7 +79,7 @@ def test_volatility_target_sizes_scale_inverse_with_realized_vol():
         assert sized["position_size"].iloc[lookback + 1:].gt(0).any()
 
 
-def test_kelly_fraction_respects_probability_and_payoff():
+def test_kelly_fraction_respects_probability_and_payoff() -> None:
     df = _signals_df()
     cfg = _base_cfg(RiskSpec(model="kelly_fraction", params={"p_win": 0.55, "payoff_ratio": 1.2, "base_fraction": 0.5}))
     sized = apply_risk(cfg, df, equity=5_000)

@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Protocol, cast, runtime_checkable
+
+import pandas as pd
+
+from domain.data.ingest_csv import load_generic_csv, slice_generic
+from domain.data.ingest_nvda import DatasetMetadata, load_canonical_dataset, slice_canonical
+from domain.data.registry import get_dataset
+
 """DataSource abstraction (Phase J G02).
 
 Provides a protocol-style base and concrete LocalCsvDataSource implementation that
 will be wired into the dataset registry in G03 and orchestrator integration in G05.
 """
-
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Protocol, runtime_checkable, Any
-
-import pandas as pd
-
-from domain.data.ingest_nvda import load_canonical_dataset, slice_canonical, DatasetMetadata
-from domain.data.registry import get_dataset
-from domain.data.ingest_csv import load_generic_csv, slice_generic
 
 
 @runtime_checkable
@@ -36,16 +36,20 @@ class LocalCsvDataSource:
     root: Path = Path("data")
     # For NVDA transitional reuse we delegate to existing NVDA ingestion; future refactor (G04) removes symbol coupling.
 
-    def load(self) -> tuple[pd.DataFrame, Any]:  # return generic meta or DatasetMetadata
+    def load(self) -> tuple[pd.DataFrame, DatasetMetadata]:  # unified metadata type
         # Look up dataset entry; if symbol NVDA with legacy path reuse existing implementation else generic
         try:
             entry = get_dataset(self.symbol, self.timeframe)
         except KeyError:  # fallback to NVDA legacy
             if self.symbol.upper() == "NVDA":
-                return load_canonical_dataset(self.root)
+                legacy_frame, legacy_meta = load_canonical_dataset(self.root)
+                legacy_frame = pd.DataFrame(legacy_frame)
+                return legacy_frame, legacy_meta
             raise
         if entry.symbol.upper() == "NVDA" and entry.path and entry.path.endswith("NVDA_5y.csv"):
-            return load_canonical_dataset(self.root)
+            legacy_frame, legacy_meta = load_canonical_dataset(self.root)
+            legacy_frame = pd.DataFrame(legacy_frame)
+            return legacy_frame, legacy_meta
         if entry.path is None:
             raise ValueError("LocalCsvDataSource requires a path in registry entry")
         frame, meta = load_generic_csv(entry.symbol, entry.timeframe, Path(entry.path), entry.calendar_id)
@@ -56,11 +60,14 @@ class LocalCsvDataSource:
             entry = get_dataset(self.symbol, self.timeframe)
         except KeyError:
             if self.symbol.upper() == "NVDA":
-                return slice_canonical(start_ms, end_ms)
+                legacy_slice = cast(pd.DataFrame, slice_canonical(start_ms, end_ms))
+                return legacy_slice
             raise
         if entry.symbol.upper() == "NVDA" and entry.path and entry.path.endswith("NVDA_5y.csv"):
-            return slice_canonical(start_ms, end_ms)
-        return slice_generic(entry.symbol, entry.timeframe, start_ms, end_ms)
+            legacy_slice = cast(pd.DataFrame, slice_canonical(start_ms, end_ms))
+            return legacy_slice
+        result = cast(pd.DataFrame, slice_generic(entry.symbol, entry.timeframe, start_ms, end_ms))
+        return result
 
 
 __all__ = [
@@ -81,9 +88,9 @@ class ApiDataSource:  # pragma: no cover - stub
         self.timeframe = timeframe
         self.base_url = base_url
 
-    def load(self):  # type: ignore[override]
+    def load(self) -> tuple[pd.DataFrame, DatasetMetadata]:  # pragma: no cover - stub
         raise NotImplementedError("ApiDataSource load not implemented (stub)")
 
-    def slice(self, start_ms: int | None, end_ms: int | None):  # type: ignore[override]
+    def slice(self, start_ms: int | None, end_ms: int | None) -> pd.DataFrame:  # pragma: no cover - stub
         raise NotImplementedError("ApiDataSource slice not implemented (stub)")
 

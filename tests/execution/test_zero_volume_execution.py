@@ -1,15 +1,23 @@
 import math
+from typing import Any
 
 import pandas as pd
 import pytest
 
-from domain.risk.engine import apply_risk
 from domain.execution.simulator import simulate
-from domain.schemas.run_config import RunConfig, IndicatorSpec, StrategySpec, RiskSpec, ExecutionSpec, ValidationSpec
+from domain.risk.engine import apply_risk
+from domain.schemas.run_config import (
+    ExecutionSpec,
+    IndicatorSpec,
+    RiskSpec,
+    RunConfig,
+    StrategySpec,
+    ValidationSpec,
+)
 
 
 @pytest.fixture
-def sized_df_with_zero_volume(nvda_canonical_slice):  # type: ignore[arg-type]
+def sized_df_with_zero_volume(nvda_canonical_slice: tuple[pd.DataFrame, Any]) -> tuple[pd.DataFrame, RunConfig]:  # returns sized frame and config
     (slice_df, meta) = nvda_canonical_slice
     df = slice_df.copy().iloc[:120]  # limit scope
     # Construct a simple alternating signal after first bar
@@ -35,7 +43,7 @@ def sized_df_with_zero_volume(nvda_canonical_slice):  # type: ignore[arg-type]
     return sized, cfg
 
 
-def test_skip_zero_volume_holds_position(sized_df_with_zero_volume):
+def test_skip_zero_volume_holds_position(sized_df_with_zero_volume: tuple[pd.DataFrame, RunConfig]) -> None:
     sized, cfg = sized_df_with_zero_volume
     fills_skip, positions_skip = simulate(cfg, sized, initial_cash=50_000, skip_zero_volume=True)
     # Ensure no fills executed on zero-volume bars
@@ -56,7 +64,7 @@ def test_skip_zero_volume_holds_position(sized_df_with_zero_volume):
         assert abs(end_all - end_skip) / max(1.0, abs(end_all)) < 0.05
 
 
-def test_zero_volume_bars_do_not_crash(sized_df_with_zero_volume):
+def test_zero_volume_bars_do_not_crash(sized_df_with_zero_volume: tuple[pd.DataFrame, RunConfig]) -> None:
     sized, cfg = sized_df_with_zero_volume
     # Should run without exceptions
     simulate(cfg, sized, initial_cash=10_000, skip_zero_volume=True)

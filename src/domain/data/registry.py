@@ -85,12 +85,12 @@ provider_registry = _ProviderObjectRegistry()
 
 
 __all__ = [
+    "DatasetEntry",
     "ProviderRegistry",
+    "get_dataset",
     "get_provider_registry",
+    "list_datasets",
     "provider",
     "provider_registry",
-    "DatasetEntry",
     "register_dataset",
-    "get_dataset",
-    "list_datasets",
 ]

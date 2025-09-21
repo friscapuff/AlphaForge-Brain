@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import pandas as pd
 
 from domain.indicators.sma import SimpleMovingAverage
 
 
-def test_sma_no_lookahead():
+def test_sma_no_lookahead() -> None:
     # Construct deterministic ascending close prices
     ts = pd.date_range("2024-01-01", periods=20, freq="1D")
     close = pd.Series(range(100, 120))

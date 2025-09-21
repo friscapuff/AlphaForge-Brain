@@ -1,10 +1,12 @@
 
+from pathlib import Path
+
 import domain.data.providers.local  # noqa: F401  # trigger registration
 from domain.data import registry as data_registry
 from domain.data.providers.base import REQUIRED_CANDLE_COLUMNS, validate_candles
 
 
-def test_local_provider_csv_loading(tmp_path):
+def test_local_provider_csv_loading(tmp_path: Path) -> None:
     csv_content = "ts,open,high,low,close,volume\n1,10,11,9,10.5,100\n2,10.5,11.5,10,11,150\n3,11,12,10.5,11.5,120\n"
     p = tmp_path / "sample.csv"
     p.write_text(csv_content)
@@ -17,7 +19,7 @@ def test_local_provider_csv_loading(tmp_path):
     validate_candles(df)  # should not raise
 
 
-def test_local_provider_deterministic_ordering(tmp_path):
+def test_local_provider_deterministic_ordering(tmp_path: Path) -> None:
     # Two CSV files out of order; provider should concatenate & sort
     csv1 = "ts,open,high,low,close,volume\n2,10.5,11.5,10,11,150\n3,11,12,10.5,11.5,120\n"
     csv2 = "ts,open,high,low,close,volume\n1,10,11,9,10.5,100\n"

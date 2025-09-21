@@ -54,4 +54,4 @@ def get_global_buffer(run_hash: str, capacity: int = 512) -> EventRingBuffer:
         GLOBAL_EVENT_BUFFERS[run_hash] = buf
     return buf
 
-__all__ = ["EventRingBuffer", "EventRecord", "GLOBAL_EVENT_BUFFERS", "get_global_buffer"]
+__all__ = ["GLOBAL_EVENT_BUFFERS", "EventRecord", "EventRingBuffer", "get_global_buffer"]

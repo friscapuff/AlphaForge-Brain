@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi.testclient import TestClient
 
 from api.app import app
@@ -5,7 +7,7 @@ from api.app import app
 client = TestClient(app)
 
 
-def _create_run():
+def _create_run() -> str:
     payload = {
         "start": "2024-01-01",
         "end": "2024-01-05",
@@ -23,10 +25,12 @@ def _create_run():
     }
     r = client.post("/runs", json=payload)
     assert r.status_code in (200, 201)
-    return r.json()["run_hash"]
+    run_hash = r.json().get("run_hash")
+    assert isinstance(run_hash, str)
+    return run_hash
 
 
-def test_cancel_emits_event():
+def test_cancel_emits_event() -> None:
     run_hash = _create_run()
     # Prime buffer (heartbeat + snapshot)
     initial = client.get(f"/runs/{run_hash}/events")

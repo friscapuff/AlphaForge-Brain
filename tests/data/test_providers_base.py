@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pandas as pd
 import pytest
 
@@ -5,13 +7,13 @@ from domain.data import registry as data_registry
 from domain.data.providers.base import REQUIRED_CANDLE_COLUMNS, validate_candles
 
 
-def test_provider_registry_decorator_and_listing():
+def test_provider_registry_decorator_and_listing() -> None:
     # Not yet registered dummy should raise
     with pytest.raises(KeyError):
         data_registry.ProviderRegistry.get("dummy")
 
 
-def test_required_candle_columns_ordering_validation():
+def test_required_candle_columns_ordering_validation() -> None:
     assert set(REQUIRED_CANDLE_COLUMNS) == {"ts", "open", "high", "low", "close", "volume"}
 
     # Construct unsorted / invalid frame to ensure validation errors

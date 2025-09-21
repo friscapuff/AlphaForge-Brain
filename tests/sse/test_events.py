@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -13,7 +14,7 @@ from domain.schemas.run_config import (
 )
 
 
-def _run_config():
+def _run_config() -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"short_window": 3, "long_window": 6})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 3, "long_window": 6}),
@@ -28,15 +29,15 @@ def _run_config():
     )
 
 
-def _create_run(client: TestClient, cfg: RunConfig):
+def _create_run(client: TestClient, cfg: RunConfig) -> tuple[str, bool]:
     resp = client.post("/runs", json=json.loads(cfg.canonical_json()))
     assert resp.status_code == 200
     data = resp.json()
     return data["run_hash"], data["created"]
 
 
-def parse_sse(raw: str):
-    events = []
+def parse_sse(raw: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
     for block in [b for b in raw.strip().split("\n\n") if b.strip()]:
         eid = etype = None
         payload = None
@@ -54,7 +55,7 @@ def parse_sse(raw: str):
     return events
 
 
-def test_sse_events_and_resume():
+def test_sse_events_and_resume() -> None:
     app = create_app()
     client = TestClient(app)
     run_hash, created = _create_run(client, _run_config())
@@ -84,7 +85,7 @@ def test_sse_events_and_resume():
     assert len(events3) == len(events)
 
 
-def test_sse_stream_incremental_and_etag():
+def test_sse_stream_incremental_and_etag() -> None:
     app = create_app()
     client = TestClient(app)
     run_hash, _ = _create_run(client, _run_config())

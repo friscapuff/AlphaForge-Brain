@@ -16,7 +16,7 @@ from domain.schemas.run_config import (
 from domain.strategy.runner import run_strategy
 
 
-def _base_config():
+def _base_config() -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"short_window": 2, "long_window": 4})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 2, "long_window": 4}),
@@ -31,7 +31,7 @@ def _base_config():
     )
 
 
-def build_sized_frame(signals, position_size=10, start=0):
+def build_sized_frame(signals: list[int] | list[float], position_size: int | float = 10, start: int = 0) -> pd.DataFrame:
     # Build a DataFrame with open/close identical for simplicity
     n = len(signals) + 1  # one extra bar for final potential execution
     ts = pd.date_range("2024-01-01", periods=n, freq="1min")
@@ -48,7 +48,7 @@ def build_sized_frame(signals, position_size=10, start=0):
     return df
 
 
-def test_t_plus_one_fill_rule():
+def test_t_plus_one_fill_rule() -> None:
     cfg = _base_config()
     # Single long signal at bar 1 (index 1 in sized frame after leading NaN), should fill at bar 2 open
     sized = build_sized_frame([1, 0, 0])  # signals for bars 1-3 lead to potential fills at bars 2-4
@@ -59,7 +59,7 @@ def test_t_plus_one_fill_rule():
     assert fills.iloc[0].timestamp == expected_ts
 
 
-def test_cost_application_fee_and_slippage_direction():
+def test_cost_application_fee_and_slippage_direction() -> None:
     cfg = _base_config()
     sized = build_sized_frame([1, 0])  # signal followed by neutral to allow T+1 execution
     fills, _ = simulator.simulate(cfg, sized)
@@ -71,7 +71,7 @@ def test_cost_application_fee_and_slippage_direction():
     assert fill_price > base_price
 
 
-def test_skip_zero_volume():
+def test_skip_zero_volume() -> None:
     cfg = _base_config()
     sized = build_sized_frame([1, 0, -1])
     # Force zero volume on execution bars to skip
@@ -82,7 +82,7 @@ def test_skip_zero_volume():
     assert fills.empty, "All fills should be skipped due to zero volume"
 
 
-def test_flatten_end_generates_synthetic_fill():
+def test_flatten_end_generates_synthetic_fill() -> None:
     cfg = _base_config()
     sized = build_sized_frame([1, 0, 0, 0])  # open long then hold
     fills, positions = simulator.simulate(cfg, sized, flatten_end=True)
@@ -92,7 +92,7 @@ def test_flatten_end_generates_synthetic_fill():
     assert positions.iloc[-1].position == 0.0
 
 
-def test_empty_input_returns_empty_frames():
+def test_empty_input_returns_empty_frames() -> None:
     cfg = _base_config()
     empty = pd.DataFrame(columns=["timestamp", "open", "close", "signal", "position_size"]).iloc[0:0]
     fills, pos = simulator.simulate(cfg, empty)
@@ -100,7 +100,7 @@ def test_empty_input_returns_empty_frames():
  # Intentionally import simulator lazily inside tests after file creation
 
 
-def _candles(n: int = 40):
+def _candles(n: int = 40) -> pd.DataFrame:
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
     rows = []
     price = 100.0
@@ -120,7 +120,7 @@ def _candles(n: int = 40):
     return pd.DataFrame(rows)
 
 
-def _config(fast=3, slow=6, fee_bps=5.0, slippage_bps=10.0):
+def _config(fast: int = 3, slow: int = 6, fee_bps: float = 5.0, slippage_bps: float = 10.0) -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast": fast, "slow": slow})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": fast, "long_window": slow}),
@@ -140,7 +140,7 @@ def _build_signals(cfg: RunConfig, df: pd.DataFrame) -> pd.DataFrame:
     return sized
 
 
-def test_t_plus_one_fill_and_skip_last_bar_signal():
+def test_t_plus_one_fill_and_skip_last_bar_signal() -> None:
     cfg = _config()
     df = _candles(50)
     sized = _build_signals(cfg, df)
@@ -156,7 +156,7 @@ def test_t_plus_one_fill_and_skip_last_bar_signal():
     assert set(fills_df["timestamp"]).issubset(candle_ts)
 
 
-def test_fees_and_slippage_applied():
+def test_fees_and_slippage_applied() -> None:
     cfg = _config(fee_bps=10, slippage_bps=25)
     df = _candles(60)
     sized = _build_signals(cfg, df)
@@ -173,7 +173,7 @@ def test_fees_and_slippage_applied():
                 assert r.price < raw_open
 
 
-def test_cash_and_position_evolution_deterministic():
+def test_cash_and_position_evolution_deterministic() -> None:
     cfg = _config()
     df = _candles(80)
     sized = _build_signals(cfg, df)
@@ -184,7 +184,7 @@ def test_cash_and_position_evolution_deterministic():
     pd.testing.assert_frame_equal(pos1, pos2)
 
 
-def test_zero_volume_skips_fill_and_flatten_end_flag():
+def test_zero_volume_skips_fill_and_flatten_end_flag() -> None:
     cfg = _config()
     df = _candles(40)
     # Force a signal on bar 8 so execution would occur on bar 9 (which we'll zero volume) by directly editing sized later.
@@ -203,7 +203,7 @@ def test_zero_volume_skips_fill_and_flatten_end_flag():
         assert zero_ts not in set(fills_df["timestamp"]), "Fill should be skipped on zero-volume bar when skip_zero_volume=True"
 
 
-def test_flatten_end_realizes_final_position():
+def test_flatten_end_realizes_final_position() -> None:
     cfg = _config()
     df = _candles(45)
     sized = _build_signals(cfg, df)

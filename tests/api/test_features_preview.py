@@ -6,7 +6,7 @@ from api.app import app
 
 client = TestClient(app)
 
-def test_features_preview_empty():
+def test_features_preview_empty() -> None:
     payload = {
         "symbol": "NO_DATA_SYMBOL",
         "start": "2020-01-01T00:00:00Z",

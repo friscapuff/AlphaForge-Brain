@@ -1,3 +1,4 @@
+
 from domain.schemas.run_config import (
     ExecutionSpec,
     IndicatorSpec,
@@ -7,7 +8,7 @@ from domain.schemas.run_config import (
 )
 
 
-def _config():
+def _config() -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast": 5, "slow": 15})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 5, "long_window": 15}),
@@ -20,7 +21,7 @@ def _config():
     )
 
 
-def test_create_or_get_idempotent():
+def test_create_or_get_idempotent() -> None:
     from domain.run.create import InMemoryRunRegistry, create_or_get
     cfg = _config()
     registry = InMemoryRunRegistry()

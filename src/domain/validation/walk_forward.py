@@ -76,7 +76,7 @@ def walk_forward_report(
             "fold": i,
             "start": segment[ts_col].iloc[0],
             "end": segment[ts_col].iloc[-1],
-            "n_trades": int(len(segment)),
+            "n_trades": len(segment),
             **metrics,
         })
     return reports

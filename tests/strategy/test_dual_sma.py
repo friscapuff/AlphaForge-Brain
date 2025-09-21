@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -8,7 +10,7 @@ import domain.strategy.dual_sma  # noqa: F401  # ensure registration
 from domain.strategy.base import StrategyRegistry
 
 
-def test_dual_sma_strategy_signals():
+def test_dual_sma_strategy_signals() -> None:
     data = pd.DataFrame({
         "close": pd.Series([100,101,102,103,104,103,102,101,102,103,104,105], dtype=float)
     })
@@ -28,7 +30,7 @@ def test_dual_sma_strategy_signals():
     # Define expected first crossover behaviour: when short SMA first exceeds long SMA -> +1
     first_long_valid = 4  # long=5 window valid index
     # Find first index where short > long after both valid
-    idx_cross = None
+    idx_cross: int | None = None
     for i in range(first_long_valid, len(result)):
         s = result.loc[i, "sma_short_3"]
         long_sma = result.loc[i, "sma_long_5"]
@@ -39,7 +41,7 @@ def test_dual_sma_strategy_signals():
     assert result.loc[idx_cross, "signal"] == 1
 
     # After short drops below long we expect -1 at first occurence
-    idx_cross_down = None
+    idx_cross_down: int | None = None
     for i in range(idx_cross + 1, len(result)):
         s = result.loc[i, "sma_short_3"]
         long_sma = result.loc[i, "sma_long_5"]
@@ -54,7 +56,7 @@ def test_dual_sma_strategy_signals():
     pd.testing.assert_frame_equal(result, result2)
 
 
-def test_dual_sma_strategy_validation_errors():
+def test_dual_sma_strategy_validation_errors() -> None:
     from domain.indicators.sma import dual_sma_indicator
     data = pd.DataFrame({"close": pd.Series([100,101,102,103,104,103,102], dtype=float)})
     enriched = dual_sma_indicator(data, {"short_window": 2, "long_window": 4})

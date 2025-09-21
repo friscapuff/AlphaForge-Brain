@@ -15,7 +15,7 @@ from domain.schemas.run_config import (
 from domain.strategy.runner import run_strategy
 
 
-def _candles(n: int = 180):
+def _candles(n: int = 180) -> pd.DataFrame:
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
     rows = []
     price = 100.0
@@ -32,7 +32,7 @@ def _candles(n: int = 180):
     return pd.DataFrame(rows)
 
 
-def _config():
+def _config() -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast": 5, "slow": 15})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 5, "long_window": 15}),
@@ -45,7 +45,7 @@ def _config():
     )
 
 
-def _pipeline():
+def _pipeline() -> pd.DataFrame:
     import domain.indicators.sma  # noqa: F401
     cfg = _config()
     candles = _candles(200)
@@ -56,7 +56,7 @@ def _pipeline():
     return trades
 
 
-def test_block_bootstrap_distribution_deterministic():
+def test_block_bootstrap_distribution_deterministic() -> None:
     trades = _pipeline()
     from domain.validation import block_bootstrap
 

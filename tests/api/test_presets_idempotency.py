@@ -6,7 +6,7 @@ from api.app import app
 
 client = TestClient(app)
 
-PRESET_PAYLOAD = {
+PRESET_PAYLOAD: dict[str, object] = {
     "name": "dual_sma_default",
     "config": {
         "symbol": "TEST",
@@ -23,7 +23,7 @@ PRESET_PAYLOAD = {
     }
 }
 
-def test_presets_idempotent_hash():
+def test_presets_idempotent_hash() -> None:
     r1 = client.post("/presets", json=PRESET_PAYLOAD)
     r2 = client.post("/presets", json=PRESET_PAYLOAD)
     assert r1.status_code == 200 or r1.status_code == 201

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Callable, Iterable
+from collections.abc import Iterable
+from typing import Callable
 
 import pandas as pd
 
@@ -78,10 +79,10 @@ def get_indicator_registry() -> dict[str, IndicatorFn]:  # pragma: no cover - tr
 
 
 __all__ = [
-    "indicator_registry",
     "IndicatorProtocol",
-    "indicator",
     "get_indicator_registry",
+    "indicator",
+    "indicator_registry",
 ]
 
 

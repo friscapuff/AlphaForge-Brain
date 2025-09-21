@@ -1,6 +1,6 @@
 repos:
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.6.8
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
     hooks:
       - id: ruff
         args: ["--fix"]
@@ -24,6 +24,12 @@ repos:
       - id: env-check
         name: Environment sanity check
         entry: poetry run python scripts/env/check_env.py --strict
+        language: system
+        pass_filenames: false
+        stages: [commit]
+      - id: mypy-changed
+        name: mypy (changed files strict)
+        entry: poetry run python scripts/typing/mypy_changed.py --strict
         language: system
         pass_filenames: false
         stages: [commit]

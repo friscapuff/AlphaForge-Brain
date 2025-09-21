@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from fastapi.testclient import TestClient
 
@@ -8,7 +9,7 @@ from api.app import app
 client = TestClient(app)
 
 
-def _payload(seed: int):
+def _payload(seed: int) -> dict[str, Any]:
     return {
         "start": "2024-02-01",
         "end": "2024-02-05",
@@ -26,17 +27,20 @@ def _payload(seed: int):
     }
 
 
-def _manifest(run_hash: str):
+def _manifest(run_hash: str) -> dict[str, Any]:
     mp = Path("artifacts") / run_hash / "manifest.json"
     assert mp.exists(), f"manifest missing for {run_hash}"
-    return json.loads(mp.read_text("utf-8"))
+    raw = json.loads(mp.read_text("utf-8"))
+    # Runtime guard to satisfy typing without a broad ignore; manifest is always a JSON object.
+    assert isinstance(raw, dict), "manifest root must be an object"
+    return cast(dict[str, Any], raw)
 
 
-def _artifact_file_hashes(manifest: dict):
-    return {f["name"]: f["sha256"] for f in manifest.get("files", [])}
+def _artifact_file_hashes(manifest: dict[str, Any]) -> dict[str, str]:
+    return {f["name"]: str(f["sha256"]) for f in manifest.get("files", [])}
 
 
-def test_determinism_same_seed_same_hash_and_artifacts():
+def test_determinism_same_seed_same_hash_and_artifacts() -> None:
     p = _payload(seed=42)
     r1 = client.post("/runs", json=p)
     assert r1.status_code == 200
@@ -58,7 +62,7 @@ def test_determinism_same_seed_same_hash_and_artifacts():
     assert hashes1 == hashes2, "Artifact file hashes differ on reuse"
 
 
-def test_determinism_different_seed_new_hash():
+def test_determinism_different_seed_new_hash() -> None:
     p1 = _payload(seed=101)
     p2 = _payload(seed=202)
 

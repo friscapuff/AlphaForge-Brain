@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
@@ -85,6 +86,10 @@ async def _stream(request: Request, run_hash: str, last_event_id: int | None) ->
                 "run_hash": run_hash,
                 "summary": rec.get("summary"),
                 "p_values": rec.get("p_values"),
+                # Surface validation summary for parity with /runs/{run_hash} detail endpoint
+                # (legacy alias 'validation' retained for backward compatibility with older clients/tests)
+                "validation_summary": rec.get("validation_summary"),
+                "validation": rec.get("validation_summary"),
                 "status": status,
             }
             yield _event(1, "snapshot", snapshot).encode()
@@ -94,6 +99,8 @@ async def _stream(request: Request, run_hash: str, last_event_id: int | None) ->
                 "run_hash": run_hash,
                 "summary": rec.get("summary"),
                 "p_values": rec.get("p_values"),
+                "validation_summary": rec.get("validation_summary"),
+                "validation": rec.get("validation_summary"),
                 "status": status,
             }
             yield _event(1, "snapshot", snapshot).encode()

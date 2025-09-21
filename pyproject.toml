@@ -6,7 +6,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "project-a-backend"
-version = "0.2.1"
+version = "0.3.0"
 description = "Single-user deterministic backtesting & validation engine"
 authors = ["Project A <devnull@example.com>"]
 readme = "README.md"
@@ -84,8 +84,24 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E","F","I","B","UP","Q","RUF"]
-ignore = ["E501"]
+select = [
+	"E","F","I","B","UP","Q","RUF",  # Existing
+	"SIM",  # Simplify
+	"C4",   # Comprehensions
+	"PIE",  # Misc best practices
+	"TID",  # Type hinting style
+	"FBT",  # Boolean trap
+	"PL",   # Pylint-like (lightweight extra signals)
+]
+ignore = [
+	"E501",          # Line length handled separately
+	"PLR0913",       # Allow multi-arg dataclass/constructors in domain models
+	"PLR2004",       # Magic value comparisons acceptable in tests
+	"FBT001", "FBT002"  # Boolean arg naming less critical for internal test helpers
+]
+fixable = ["ALL"]
+unfixable = []
+preview = true
 
 [tool.mypy]
 python_version = "3.11"
@@ -96,4 +112,11 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 show_error_codes = true
 ignore_missing_imports = true
+warn_return_any = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_any_unimported = true
+disallow_any_decorated = true
+disallow_any_explicit = true
+disallow_any_expr = true
 

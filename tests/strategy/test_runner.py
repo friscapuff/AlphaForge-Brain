@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pandas as pd
+from _pytest.monkeypatch import MonkeyPatch
 
 from domain.schemas.run_config import IndicatorSpec, RiskSpec, RunConfig, StrategySpec
 from domain.strategy.runner import RunnerStats, run_strategy
@@ -9,7 +13,7 @@ from domain.strategy.runner import RunnerStats, run_strategy
 # Using dual_sma strategy which expects SMA columns already present (via indicators / feature engine)
 
 
-def _build_candles(n: int = 120):
+def _build_candles(n: int = 120) -> pd.DataFrame:
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
     rows = []
     price = 100.0
@@ -29,7 +33,7 @@ def _build_candles(n: int = 120):
     return pd.DataFrame(rows)
 
 
-def _run_config(short: int = 5, long: int = 20):
+def _run_config(short: int = 5, long: int = 20) -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast": short, "slow": long})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": short, "long_window": long}),
@@ -41,12 +45,12 @@ def _run_config(short: int = 5, long: int = 20):
     )
 
 
-def test_signals_deterministic_and_aligned(monkeypatch):
+def test_signals_deterministic_and_aligned(monkeypatch: MonkeyPatch) -> None:
     from domain.features.engine import build_features as real_build_features
 
-    calls = {"count": 0}
+    calls: dict[str, int] = {"count": 0}
 
-    def wrapper(df: pd.DataFrame, **kwargs):
+    def wrapper(df: pd.DataFrame, **kwargs: Any) -> pd.DataFrame:
         calls["count"] += 1
         return real_build_features(df, **kwargs)
 
@@ -71,7 +75,7 @@ def test_signals_deterministic_and_aligned(monkeypatch):
     assert calls["count"] >= 1
 
 
-def test_empty_on_insufficient_warmup():
+def test_empty_on_insufficient_warmup() -> None:
     # Provide fewer rows than long window so strategy should yield no valid signals (empty or all NaN without signal column)
     short = 5
     long = 30
@@ -87,7 +91,7 @@ def test_empty_on_insufficient_warmup():
         assert out["signal"].notna().sum() == 0
 
 
-def test_feature_reuse(monkeypatch):
+def test_feature_reuse(monkeypatch: MonkeyPatch) -> None:
     # Ensure if we pass precomputed features, internal feature build isn't called
     from domain.features.engine import build_features as real_build_features
 
@@ -97,9 +101,9 @@ def test_feature_reuse(monkeypatch):
     features = real_build_features(df, use_cache=False)
     import domain.indicators.sma  # noqa: F401
 
-    calls = {"count": 0}
+    calls: dict[str, int] = {"count": 0}
 
-    def counting(df: pd.DataFrame, **kwargs):
+    def counting(df: pd.DataFrame, **kwargs: Any) -> pd.DataFrame:
         calls["count"] += 1
         return real_build_features(df, **kwargs)
 

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from _pytest.monkeypatch import MonkeyPatch
+
 from domain.presets.service import SQLitePresetService, get_preset_service
 
 
-def test_sqlite_backend_create_list_get_delete(tmp_path, monkeypatch):
+def test_sqlite_backend_create_list_get_delete(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     db_path = tmp_path / "presets_test.db"
     monkeypatch.setenv("ALPHAFORGE_PRESET_BACKEND", "sqlite")
     monkeypatch.setenv("ALPHAFORGE_PRESET_DB", str(db_path))
@@ -27,7 +31,7 @@ def test_sqlite_backend_create_list_get_delete(tmp_path, monkeypatch):
     assert svc.get(pid) is None
 
 
-def test_sqlite_backend_env_switch_reinit(tmp_path, monkeypatch):
+def test_sqlite_backend_env_switch_reinit(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     db_path1 = tmp_path / "p1.db"
     db_path2 = tmp_path / "p2.db"
     monkeypatch.setenv("ALPHAFORGE_PRESET_BACKEND", "sqlite")
@@ -38,7 +42,7 @@ def test_sqlite_backend_env_switch_reinit(tmp_path, monkeypatch):
 
     # Force new process style re-init by clearing module-level cache
     from domain.presets import service as mod
-    mod._service = None  # type: ignore[attr-defined]
+    mod._service = None
 
     monkeypatch.setenv("ALPHAFORGE_PRESET_DB", str(db_path2))
     svc2 = get_preset_service()

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping, cast
+from typing import Any, cast
 
 import pandas as pd
 
@@ -179,4 +180,4 @@ def simulate(
     return fills_df, positions_df
 
 
-__all__ = ["simulate", "ExecutionResult"]
+__all__ = ["ExecutionResult", "simulate"]

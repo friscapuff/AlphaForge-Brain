@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
 
-from domain.indicators.registry import indicator_registry  # type: ignore
-from domain.indicators.sma import SimpleMovingAverage  # type: ignore
-from infra.utils.hash import sha256_of_text  # type: ignore
+from domain.indicators.registry import indicator_registry
+from domain.indicators.sma import SimpleMovingAverage
+from infra.utils.hash import sha256_of_text
 
 # The FeaturesCache will be implemented in infra/cache/features.py with an API similar to CandleCache:
 #   cache = FeaturesCache(root: Path)
@@ -17,13 +19,13 @@ from infra.utils.hash import sha256_of_text  # type: ignore
 #  - Deterministic, Windows-safe filename
 
 @pytest.fixture()
-def tmp_cache_dir(tmp_path):
+def tmp_cache_dir(tmp_path: Path) -> Path:
     d = tmp_path / "feature_cache"
     d.mkdir()
     return d
 
 @pytest.fixture()
-def candles_df():
+def candles_df() -> pd.DataFrame:
     data = {
         "timestamp": [
             datetime(2024,1,1,0,0,tzinfo=timezone.utc),
@@ -41,33 +43,33 @@ def candles_df():
 
 
 def _simulate_candle_hash(df: pd.DataFrame) -> str:
-    # Simplified candle cache key surrogate
-    text = df.to_csv(index=False)
-    return sha256_of_text(text)[:16]
+    text: str = df.to_csv(index=False)
+    digest: str = sha256_of_text(text)
+    return digest[:16]
 
 
-def _indicator_signature(ind):
-    # Indicators expected to have: name attr and window (for SMA). Add generically if present.
-    parts = [getattr(ind, "name", ind.__class__.__name__)]
-    if hasattr(ind, "window"):
-        parts.append(f"window={ind.window}")
+def _indicator_signature(ind: Any) -> str:
+    parts: list[str] = [getattr(ind, "name", ind.__class__.__name__)]
+    window = getattr(ind, "window", None)
+    if isinstance(window, int):
+        parts.append(f"window={window}")
     return ":".join(parts)
 
 
-def test_feature_cache_write_then_hit(tmp_cache_dir, candles_df):
-    indicator_registry.clear()  # type: ignore
+def test_feature_cache_write_then_hit(tmp_cache_dir: Path, candles_df: pd.DataFrame) -> None:
+    indicator_registry.clear()
     ind = SimpleMovingAverage(window=3)
-    indicator_registry.register(ind)  # type: ignore
+    indicator_registry.register(ind)
 
     # Lazy import until after indicators registered
-    from infra.cache import features as feature_cache_mod  # type: ignore
+    from infra.cache import features as feature_cache_mod
 
     cache = feature_cache_mod.FeaturesCache(tmp_cache_dir)
 
     candle_hash = _simulate_candle_hash(candles_df)
-    indicators = list(indicator_registry.list())  # type: ignore
+    indicators = list(indicator_registry.list())
 
-    def builder(df):
+    def builder(df: pd.DataFrame) -> pd.DataFrame:
         # produce feature DataFrame (same shape) using feature engine to ensure integration
         from domain.features import engine
         return engine.build_features(df)
@@ -87,17 +89,17 @@ def test_feature_cache_write_then_hit(tmp_cache_dir, candles_df):
     assert mtime2 == mtime1, "Second call should use cached file (no rewrite)"
 
 
-def test_feature_cache_corruption_rebuild(tmp_cache_dir, candles_df):
-    indicator_registry.clear()  # type: ignore
+def test_feature_cache_corruption_rebuild(tmp_cache_dir: Path, candles_df: pd.DataFrame) -> None:
+    indicator_registry.clear()
     ind = SimpleMovingAverage(window=4)
-    indicator_registry.register(ind)  # type: ignore
-    from infra.cache import features as feature_cache_mod  # type: ignore
+    indicator_registry.register(ind)
+    from infra.cache import features as feature_cache_mod
     cache = feature_cache_mod.FeaturesCache(tmp_cache_dir)
 
     candle_hash = _simulate_candle_hash(candles_df)
-    indicators = list(indicator_registry.list())  # type: ignore
+    indicators = list(indicator_registry.list())
 
-    def builder(df):
+    def builder(df: pd.DataFrame) -> pd.DataFrame:
         from domain.features import engine
         return engine.build_features(df)
 
@@ -116,17 +118,17 @@ def test_feature_cache_corruption_rebuild(tmp_cache_dir, candles_df):
     pd.testing.assert_frame_equal(df1, df2)
 
 
-def test_feature_cache_deterministic_filename(tmp_cache_dir, candles_df):
-    indicator_registry.clear()  # type: ignore
-    indicator_registry.register(SimpleMovingAverage(window=5))  # type: ignore
-    indicator_registry.register(SimpleMovingAverage(window=2))  # type: ignore
-    from infra.cache import features as feature_cache_mod  # type: ignore
+def test_feature_cache_deterministic_filename(tmp_cache_dir: Path, candles_df: pd.DataFrame) -> None:
+    indicator_registry.clear()
+    indicator_registry.register(SimpleMovingAverage(window=5))
+    indicator_registry.register(SimpleMovingAverage(window=2))
+    from infra.cache import features as feature_cache_mod
     cache = feature_cache_mod.FeaturesCache(tmp_cache_dir)
 
     candle_hash = _simulate_candle_hash(candles_df)
-    indicators = list(indicator_registry.list())  # type: ignore
+    indicators = list(indicator_registry.list())
 
-    def builder(df):
+    def builder(df: pd.DataFrame) -> pd.DataFrame:
         from domain.features import engine
         return engine.build_features(df)
 

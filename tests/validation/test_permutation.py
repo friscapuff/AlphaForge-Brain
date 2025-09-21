@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pandas as pd
 
@@ -15,7 +16,7 @@ from domain.schemas.run_config import (
 from domain.strategy.runner import run_strategy
 
 
-def _candles(n: int = 120):
+def _candles(n: int = 120) -> pd.DataFrame:
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
     rows = []
     price = 100.0
@@ -32,7 +33,7 @@ def _candles(n: int = 120):
     return pd.DataFrame(rows)
 
 
-def _config():
+def _config() -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast": 4, "slow": 10})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 4, "long_window": 10}),
@@ -45,7 +46,7 @@ def _config():
     )
 
 
-def _pipeline():
+def _pipeline() -> tuple[Any, Any]:
     import domain.indicators.sma  # noqa: F401
     cfg = _config()
     candles = _candles(160)
@@ -56,7 +57,7 @@ def _pipeline():
     return trades, positions
 
 
-def test_permutation_p_value_and_determinism():
+def test_permutation_p_value_and_determinism() -> None:
     trades, positions = _pipeline()
     from domain.validation import permutation
     result = permutation.permutation_test(trades_df=trades, positions_df=positions, n=50, seed=123)

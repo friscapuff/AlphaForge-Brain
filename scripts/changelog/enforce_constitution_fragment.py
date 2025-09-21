@@ -9,29 +9,30 @@ Heuristic:
 Assumes constitution file contains line: **Version**: X.Y.Z |
 """
 from __future__ import annotations
+
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-CONSTITUTION_PATH = Path('.specify/memory/constitution.md')
-CHANGELOG_PATH = Path('CHANGELOG.md')
+CONSTITUTION_PATH = Path(".specify/memory/constitution.md")
+CHANGELOG_PATH = Path("CHANGELOG.md")
 
 VERSION_PATTERN = re.compile(r"\*\*Version\*\*:\s*(?P<ver>\d+\.\d+\.\d+)")
 
 
 def get_current_version() -> str:
-    text = CONSTITUTION_PATH.read_text(encoding='utf-8')
+    text = CONSTITUTION_PATH.read_text(encoding="utf-8")
     m = VERSION_PATTERN.search(text)
     if not m:
         print("ERROR: Unable to locate constitution version line.", file=sys.stderr)
         sys.exit(2)
-    return m.group('ver')
+    return m.group("ver")
 
 
 def constitution_changed() -> bool:
     try:
-        diff = subprocess.check_output(['git', 'diff', '--name-only', 'origin/main...HEAD'], text=True)
+        diff = subprocess.check_output(["git", "diff", "--name-only", "origin/main...HEAD"], text=True)
     except subprocess.CalledProcessError as e:
         print(f"WARN: git diff failed ({e}); assuming no change.")
         return False
@@ -41,7 +42,7 @@ def constitution_changed() -> bool:
 def changelog_contains(version: str) -> bool:
     if not CHANGELOG_PATH.exists():
         return False
-    text = CHANGELOG_PATH.read_text(encoding='utf-8')
+    text = CHANGELOG_PATH.read_text(encoding="utf-8")
     return version in text
 
 
@@ -64,5 +65,5 @@ def main() -> None:
     sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

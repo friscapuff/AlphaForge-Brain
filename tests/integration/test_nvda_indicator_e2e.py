@@ -1,12 +1,13 @@
-import pytest
+from typing import Any
+
 import pandas as pd
 
 from domain.features.engine import build_features
-from domain.indicators.sma import SimpleMovingAverage, dual_sma_indicator
 from domain.indicators.registry import indicator_registry
+from domain.indicators.sma import SimpleMovingAverage, dual_sma_indicator
 
 
-def test_nvda_slice_indicators_end_to_end(nvda_canonical_slice):
+def test_nvda_slice_indicators_end_to_end(nvda_canonical_slice: tuple[Any, Any]) -> None:
     (slice_df, meta) = nvda_canonical_slice
     # Register a simple SMA indicator instance for this test (avoid polluting global across parallel by cleanup)
     sma = SimpleMovingAverage(window=10)
@@ -39,7 +40,7 @@ def test_nvda_slice_indicators_end_to_end(nvda_canonical_slice):
         pd.testing.assert_series_equal(slice_df["zero_volume"], featured["zero_volume"], check_names=True)
 
 
-def test_nvda_slice_requires_dataset(nvda_canonical):
+def test_nvda_slice_requires_dataset(nvda_canonical: tuple[Any, Any]) -> None:
     # Fixture ensures dataset exists otherwise test skipped.
     df, meta = nvda_canonical
     assert len(df) >= 1

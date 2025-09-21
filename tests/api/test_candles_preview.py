@@ -10,7 +10,7 @@ client = TestClient(app)
 
 # For now we rely on local provider data existence; if empty, endpoint should return empty list gracefully.
 
-def test_candles_preview_param_validation():
+def test_candles_preview_param_validation() -> None:
     end = datetime.now(timezone.utc)
     start = end + timedelta(days=1)  # invalid (end < start)
     resp = client.get(
@@ -26,7 +26,7 @@ def test_candles_preview_param_validation():
     assert "end must be >= start" in resp.text
 
 
-def test_candles_preview_empty_ok():
+def test_candles_preview_empty_ok() -> None:
     # Choose a symbol/time range likely absent
     end = datetime(2020,1,2,tzinfo=timezone.utc)
     start = datetime(2020,1,1,tzinfo=timezone.utc)

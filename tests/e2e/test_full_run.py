@@ -1,6 +1,7 @@
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -9,7 +10,7 @@ from api.app import app
 client = TestClient(app)
 
 
-def _run_payload():
+def _run_payload() -> dict[str, Any]:
     return {
         "start": "2024-01-01",
         "end": "2024-01-05",
@@ -27,7 +28,7 @@ def _run_payload():
     }
 
 
-def test_full_run_artifacts_and_sse():
+def test_full_run_artifacts_and_sse() -> None:
     payload = _run_payload()
     r = client.post("/runs", json=payload)
     assert r.status_code == 200

@@ -118,31 +118,59 @@ None (all prior ambiguities resolved). Future multi-asset expansion will introdu
 ## Consistency & Non-Conflict Note
 The chosen policies reinforce determinism (no hidden transformations), integrity (explicit exclusion over silent fill), and extensibility (calendar-backed classification). Retaining zero-volume rows with flags is compatible with execution logic so long as simulator treats zero-volume as non-fillable or flagged; this should be confirmed in planning tasks. No contradictions detected with existing system goals or reproducibility guarantees.
 
-## Generalization & Typing Strictness Outlook (Phase J Preview)
-Upcoming work unifies multi-symbol data abstraction with a one-time strict typing and lint hardening sweep to avoid refactoring the same seams twice:
+## Phase J: Generalization & Typing Hardening (Finalized)
+Phase J removes single-asset assumptions and establishes a statically enforced contract for future multi-symbol and multi-provider expansion while achieving a zero-error static analysis baseline.
 
-Data Abstraction Targets:
-- DataSource protocol abstraction and `LocalCsvDataSource` baseline implementation.
-- Dataset registry mapping (symbol,timeframe) → provider/path/calendar metadata (extensible to API providers later).
-- Generic CSV ingestion refactor (eliminate NVDA constant coupling) with pluggable schema validators.
-- Orchestrator selection flow updated to resolve (symbol,timeframe) and enrich manifest.
-- Manifest fields extended: symbol, timeframe (and potentially provider id) — additive only.
-- Run hash extended to incorporate dataset snapshot binding (data_hash per (symbol,timeframe)).
-- Tests: multi-symbol cache isolation; missing symbol/timeframe error path; hash invalidation on modified CSV content.
+### J1 Foundation (Completed)
+- G01 Removed synthetic orchestrator candle generation (data always sourced from registered datasets).
+- G02 Introduced `DataSource` protocol and `LocalCsvDataSource` implementation.
+- G03 Added dataset registry: (symbol, timeframe) → {path, provider, calendar} metadata.
+- G04 Refactored ingestion to generic CSV pipeline (no NVDA-specific branches).
+- G05 Integrated orchestrator with registry & data source resolution.
+- G06 Enriched manifest with symbol & timeframe (additive, backwards compatible).
+- G07 Bound run hash to dataset snapshot via per (symbol,timeframe) `data_hash` inclusion.
+- G08 Added API provider stub (extensibility point for remote feeds).
 
-Typing & Lint Strictness Targets:
-- Transition to mypy --strict across src/ and tests/ (zero baseline errors expected post-phase).
-- Comprehensive annotation of lingering dynamic regions (ingestion edge handling branches, validation summary aggregation, feature engine fallback code paths).
-- Test fixtures & parametrized tests annotated (eliminate implicit Any propagation).
-- Modern typing syntax adoption (PEP 604 unions, builtin generics) for readability & consistency.
-- Activation of additional mypy warnings (warn-unused-ignores, warn-redundant-casts) + purge or justify ignores.
-- Ruff rule expansion: include bugbear, pyupgrade (strict), and other correctness-focused rules; remediate violations.
-- CI snapshot guard: mypy must remain at zero errors; script produces diff markdown (should be empty after initial hardening).
-- Pre-commit hook: selective mypy run on changed Python files for fast local feedback.
-- Documentation section: "Typing & Lint Guarantees" describing scope, guarantees, enforcement mechanisms, and contributor guidance.
-- Final audit: any remaining type: ignore lines include inline justification or are removed.
+### J2 Validation & Functional Tests (Completed)
+- G09 Ensured multi-symbol cache isolation (no cross-contamination between datasets).
+- G10 Explicit missing symbol/timeframe error path with deterministic messaging.
 
-Rationale: Hardening typing simultaneously with generalization prevents churn (e.g., evolving registry interfaces twice) and strengthens contracts before layering additional data providers. Deterministic behavior and static clarity reduce future regression risk, especially for multi-symbol caching and hash semantics.
+### J3 Typing & Lint Hardening (In Progress)
+- G11 Enforced mypy --strict across src & tests (runtime baseline clean).
+- G12 Annotated remaining dynamic modules (ingestion edge conditions, validation summary, feature engine internals, orchestrator branches).
+- G13 Ongoing annotation of test fixtures & parametrized tests (removal of implicit Any leakage).
+- G14 Planned modernization: adopt PEP 604 unions (X | Y) and builtin generics (list[str], dict[str, Any]).
+- G15 Will enable extra mypy warnings: warn-redundant-casts, warn-unused-ignores.
+- G16 Will expand Ruff rules: bugbear, pyupgrade (strict), plus error-prone pattern checks.
+- G17 Planned CI mypy snapshot gate (zero-error JSON baseline + diff enforcement).
+- G18 Planned pre-commit hook for selective mypy --strict on staged files.
+- G19 Planned mypy diff markdown report script (expected empty post-hardening; regression sentinel).
+- G20 Documentation update: Typing & Lint Guarantees section (README + this spec) describing scope, guarantees, enforcement.
+- G21 Benchmark of typing+lint wall clock recorded (soft performance baseline; used for future budget monitoring).
+- G22 Final audit ensuring zero unjustified `type: ignore` lines (each remaining ignore has inline rationale or is removed).
+
+### Invariants & Guarantees Post Phase J
+1. Determinism: Run hashes incorporate dataset snapshot identity (symbol, timeframe, data_hash) ensuring reproducible artifacts.
+2. Abstraction Stability: DataSource protocol shields orchestrator & downstream steps from provider-specific implementation details.
+3. Static Safety: Zero mypy errors with strict + extra warnings; Ruff extended rules green.
+4. Contributor Policy: New code must not introduce implicit Any; CI gate rejects regressions; selective pre-commit hook accelerates feedback.
+5. Auditability: Manifest & artifacts contain explicit symbol/timeframe context; dataset modifications yield predictable hash invalidation.
+
+### Rationale
+Co-locating abstraction and static analysis hardening reduces duplicated refactor cycles and locks interface clarity prior to introducing additional data providers or live feeds.
+
+### Success Criteria
+- All tasks G01–G22 complete.
+- Zero mypy errors (src + tests) with extended warnings enabled.
+- Ruff extended rule set passes without newly suppressed violations.
+- Documentation updated with formal typing & lint guarantees and contribution guidance.
+- No unjustified `type: ignore` comments remain.
+
+### Out of Scope (Phase J)
+- Live streaming data ingestion.
+- Cross-symbol aggregated portfolio analytics.
+- External (vendor API) provider implementations beyond stub.
+
 
 ---
 ## Success Definition (Business Framing)

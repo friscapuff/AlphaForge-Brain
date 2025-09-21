@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 from domain.run.create import InMemoryRunRegistry, create_or_get
 from domain.schemas.run_config import (
@@ -12,7 +13,7 @@ from domain.schemas.run_config import (
 )
 
 
-def make_config():
+def make_config() -> RunConfig:
     return RunConfig(
         symbol="TEST",
         timeframe="1m",
@@ -33,7 +34,7 @@ def make_config():
     )
 
 
-def test_validation_merge_artifact(tmp_path: Path, monkeypatch):
+def test_validation_merge_artifact(tmp_path: Path, monkeypatch: Any) -> None:
     registry = InMemoryRunRegistry()
     cfg = make_config()
     run_hash, record, created = create_or_get(cfg, registry, seed=cfg.seed)

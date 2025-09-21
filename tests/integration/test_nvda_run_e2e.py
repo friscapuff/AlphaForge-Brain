@@ -1,16 +1,31 @@
 import json
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, TypedDict
 
 import pandas as pd
 import pytest
 
-from domain.schemas.run_config import RunConfig, IndicatorSpec, StrategySpec, RiskSpec, ExecutionSpec
+from domain.data.ingest_nvda import DatasetMetadata
 from domain.run.create import InMemoryRunRegistry, create_or_get
+from domain.schemas.run_config import (
+    ExecutionSpec,
+    IndicatorSpec,
+    RiskSpec,
+    RunConfig,
+    StrategySpec,
+)
+
+
+class SliceMeta(TypedDict):
+    symbol: str
+    timeframe: str
 
 
 @pytest.mark.parametrize("fast,slow", [(5, 20)])
-def test_nvda_end_to_end_run_artifacts(nvda_canonical_slice, fast, slow, tmp_path):
+def test_nvda_end_to_end_run_artifacts(
+    nvda_canonical_slice: tuple[pd.DataFrame, DatasetMetadata], fast: int, slow: int, tmp_path: Path
+) -> None:
     """T024: Full orchestrated run on NVDA slice producing artifacts & manifest.
 
     Validates that:
@@ -46,10 +61,10 @@ def test_nvda_end_to_end_run_artifacts(nvda_canonical_slice, fast, slow, tmp_pat
     import domain.artifacts.writer as writer_mod
     orig_write = writer_mod.write_artifacts
 
-    def write_wrapper(run_hash: str, record: dict, base_path: Path):  # type: ignore[override]
+    def write_wrapper(run_hash: str, record: dict[str, Any], base_path: Path) -> Any:
         return orig_write(run_hash, record, base_path=artifacts_dir)
 
-    writer_mod.write_artifacts = write_wrapper  # type: ignore
+    writer_mod.write_artifacts = write_wrapper  # runtime patch
     try:
         h1, rec1, created1 = create_or_get(cfg, registry, seed=cfg.seed or 42)
     finally:
@@ -84,7 +99,7 @@ def test_nvda_end_to_end_run_artifacts(nvda_canonical_slice, fast, slow, tmp_pat
     # If seed not part of hash, force param tweak (fraction) to produce distinct run
     cfg2.risk.params["fraction"] = 0.06
 
-    writer_mod.write_artifacts = write_wrapper  # type: ignore
+    writer_mod.write_artifacts = write_wrapper
     try:
         h2, rec2, created2 = create_or_get(cfg2, registry, seed=123)
     finally:

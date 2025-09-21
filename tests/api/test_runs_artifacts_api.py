@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi.testclient import TestClient
 
 from api.app import app
@@ -5,7 +7,7 @@ from api.app import app
 client = TestClient(app)
 
 
-def create_run():
+def create_run() -> str:
     payload = {
         "indicators": [
             {"name": "dual_sma", "params": {"fast": 5, "slow": 20}}
@@ -22,10 +24,12 @@ def create_run():
     }
     r = client.post("/runs", json=payload)
     assert r.status_code == 200
-    return r.json()["run_hash"]
+    run_hash = r.json().get("run_hash")
+    assert isinstance(run_hash, str)
+    return run_hash
 
 
-def test_artifacts_listing_and_fetch():
+def test_artifacts_listing_and_fetch() -> None:
     run_hash = create_run()
     # list artifacts
     r = client.get(f"/runs/{run_hash}/artifacts")

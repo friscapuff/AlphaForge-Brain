@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-import pandas as pd
-from pathlib import Path
 import tempfile
+from pathlib import Path
+from typing import Any
 
-from domain.data.registry import register_dataset, DatasetEntry
+import pandas as pd
+
 from domain.data.datasource import LocalCsvDataSource
+from domain.data.registry import DatasetEntry, register_dataset
 
 
 def _write_csv(path: Path, start_price: float) -> None:
-    rows = []
+    rows: list[dict[str, Any]] = []
     price = start_price
     for i in range(5):
         price += 1

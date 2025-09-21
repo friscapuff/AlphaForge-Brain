@@ -15,7 +15,7 @@ from domain.schemas.run_config import (
 from domain.strategy.runner import run_strategy
 
 
-def _candles(days: int = 90):
+def _candles(days: int = 90) -> pd.DataFrame:
     # 1-minute bars for ~90 days (~129600 minutes) but we can downscale for test brevity
     # We'll simulate 6 hours per day to keep size modest: 6*60=360 per day
     rows = []
@@ -38,7 +38,7 @@ def _candles(days: int = 90):
     return pd.DataFrame(rows)
 
 
-def _config():
+def _config() -> RunConfig:
     return RunConfig(
         indicators=[IndicatorSpec(name="dual_sma", params={"fast": 8, "slow": 21})],
         strategy=StrategySpec(name="dual_sma", params={"short_window": 8, "long_window": 21}),
@@ -51,7 +51,7 @@ def _config():
     )
 
 
-def _pipeline():
+def _pipeline() -> tuple[pd.DataFrame, pd.DataFrame]:
     import domain.indicators.sma  # noqa: F401
     cfg = _config()
     candles = _candles(30)  # 30 days * 360 = 10800 bars
@@ -62,7 +62,7 @@ def _pipeline():
     return trades, positions_df
 
 
-def test_walk_forward_report_basic():
+def test_walk_forward_report_basic() -> None:
     trades, positions_df = _pipeline()
     from domain.validation import walk_forward_report
 

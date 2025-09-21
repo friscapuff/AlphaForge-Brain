@@ -89,7 +89,7 @@ GET /runs/{run_id}
 GET /runs/{run_id}/artifacts -> manifest JSON listing hashed files.
 GET /runs/{run_id}/artifact/equity.parquet -> equity curve.
 
-Each new run's `manifest.json` now includes:
+Each new run's `manifest.json` now includes (provenance fields guaranteed even on metadata fallback):
 ```
 {
   "run_hash": "...",
@@ -99,7 +99,7 @@ Each new run's `manifest.json` now includes:
   "files": [ {"name": "summary.json", "sha256": "...", "size": 512, "path": "<run_hash>/summary.json" }, ... ]
 }
 ```
-`chain_prev` forms an integrity chain across sequential runs allowing tamper detection (hash mismatch breaks traversal). Re-running an identical config reuses the same run directory & manifest; the `manifest_hash` and `chain_prev` remain stable (idempotent).
+`chain_prev` forms an integrity chain across sequential runs allowing tamper detection (hash mismatch breaks traversal). Re-running an identical config reuses the same run directory & manifest; the `manifest_hash` and `chain_prev` remain stable (idempotent). Fields `data_hash` and `calendar_id` are always present (fallback logged if upstream provenance retrieval fails).
 
 ## 5. Candle & Feature Preview
 GET /candles?symbol=AAPL&timeframe=1h&start=...&end=...
@@ -128,6 +128,26 @@ Re-submit identical body: server returns existing run (status may advance) with 
 
 ## 10. Retention Behavior
 After 101st completed run, oldest run directory and DB row removed. Manifest hash ensures integrity before deletion optional.
+
+## 11. Benchmarking & Determinism Tooling
+- Run ingestion performance benchmark:
+  `poetry run python scripts/bench/ingestion_perf.py --symbol NVDA --timeframe 1d --out-json ingestion_perf.json`
+- Compare against stored baseline:
+  `poetry run python scripts/bench/ingestion_baseline_diff.py baselines/nvda_ingestion.json ingestion_perf.json`
+  Fails (exit 1) if row counts or data hash differ; elapsed seconds reported but not gating.
+- Type/Lint timing summary:
+  `poetry run python scripts/typing/timing_report.py --out-json typing_timing.json --out-md typing_timing.md`
+
+## 12. Anomaly Counters
+When querying run detail with `?include_anomalies=true`, the `summary.anomaly_counters` object (e.g., `{ "unexpected_gaps": 1 }`) surfaces ingestion/validation anomalies. Absence indicates either zero anomalies or omission of the flag.
+
+## 13. Timestamp Normalization Guarantee
+All internal times are normalized via a single utility (`to_epoch_ms`) which enforces:
+- Naive timestamps interpreted as UTC (unless an `assume_tz` is explicitly supplied).
+- Ambiguous DST times raise by default (can be resolved with parameter overrides).
+- Non-existent local times (spring forward gaps) optionally shifted forward.
+- NaT preserved, future timestamps optionally clipped when `clip_future` used.
+This ensures consistent gap detection and reproducible hashing of data slices.
 
 ---
 This quickstart covers the primary lifecycle: submit, stream, inspect, download artifacts, manage presets, and cancel.

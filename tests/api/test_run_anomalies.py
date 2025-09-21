@@ -1,14 +1,23 @@
-import json
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Any, ClassVar
 
 from fastapi.testclient import TestClient
 
 from api.app import create_app
-from domain.run.create import InMemoryRunRegistry, create_or_get
-from domain.schemas.run_config import RunConfig, IndicatorSpec, StrategySpec, RiskSpec, ExecutionSpec, ValidationSpec
+from domain.run.create import create_or_get
+from domain.schemas.run_config import (
+    ExecutionSpec,
+    IndicatorSpec,
+    RiskSpec,
+    RunConfig,
+    StrategySpec,
+    ValidationSpec,
+)
 
 
-def _config():
+def _config() -> RunConfig:
     return RunConfig(
         symbol="TEST",
         timeframe="1m",
@@ -22,30 +31,32 @@ def _config():
     )
 
 
-def test_get_run_with_anomalies(monkeypatch, tmp_path: Path):
+def test_get_run_with_anomalies(monkeypatch: Any, tmp_path: Path) -> None:
     app = create_app()
     client = TestClient(app)
 
     # patch dataset metadata to deterministic dummy
     class DummyMeta:
-        symbol = "NVDA"
-        timeframe = "1d"
-        data_hash = "dummyhash"
-        calendar_id = "NASDAQ"
-        row_count_raw = 100
-        row_count_canonical = 95
-        first_ts = 0
-        last_ts = 0
-        anomaly_counters = {"duplicates_dropped":2, "rows_dropped_missing":1}
+        symbol: ClassVar[str] = "NVDA"
+        timeframe: ClassVar[str] = "1d"
+        data_hash: ClassVar[str] = "dummyhash"
+        calendar_id: ClassVar[str] = "NASDAQ"
+        row_count_raw: ClassVar[int] = 100
+        row_count_canonical: ClassVar[int] = 95
+        first_ts: ClassVar[int] = 0
+        last_ts: ClassVar[int] = 0
+        anomaly_counters: ClassVar[dict[str, int]] = {"duplicates_dropped": 2, "rows_dropped_missing": 1}
 
-    def fake_get_dataset_metadata():
+    def fake_get_dataset_metadata() -> DummyMeta:
         return DummyMeta()
 
     import domain.data.ingest_nvda as ingest_mod
     monkeypatch.setattr(ingest_mod, "get_dataset_metadata", fake_get_dataset_metadata, raising=False)
 
     cfg = _config()
-    registry = app.state.registry  # type: ignore[attr-defined]
+    # FastAPI app.state dynamic attribute; for tests we accept dynamic typing
+    from typing import cast
+    registry = cast(Any, app.state).registry  # FastAPI state dynamic attribute
     run_hash, record, created = create_or_get(cfg, registry, seed=cfg.seed)
     assert created is True
 

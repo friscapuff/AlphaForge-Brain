@@ -15,15 +15,36 @@ from domain.run.create import InMemoryRunRegistry, create_or_get
 from domain.schemas.run_config import RunConfig
 from infra.config import get_settings
 from infra.logging import init_logging
+try:  # pragma: no cover - lightweight runtime fetch
+    from importlib.metadata import version as _pkg_version
+except Exception:  # pragma: no cover - very old Python
+    _pkg_version = None  # type: ignore
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     init_logging()
 
+    # Resolve package version dynamically so FastAPI surface stays in sync with pyproject version.
+    resolved_version = None
+    if _pkg_version:
+        try:
+            resolved_version = _pkg_version("project-a-backend")
+        except Exception:  # pragma: no cover - package not installed (editable dev mode)
+            resolved_version = None
+    if not resolved_version:
+        # Fallback: parse pyproject.toml directly (dev editable mode without installed dist)
+        try:
+            import tomllib  # Python 3.11+
+            pyproj = Path("pyproject.toml")
+            if pyproj.exists():
+                data = tomllib.loads(pyproj.read_text("utf-8"))
+                resolved_version = data.get("tool", {}).get("poetry", {}).get("version")
+        except Exception:  # pragma: no cover - best effort
+            resolved_version = None
     app = FastAPI(
         title="Project A Backend",
-        version="0.1.0",
+        version=resolved_version or "0.0.0+dev",
         root_path=settings.api_root_path,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -86,10 +107,15 @@ def create_app() -> FastAPI:
         # Attach manifest if present
         manifest_path = Path("artifacts") / run_hash / "manifest.json"
         manifest = None
+        data_hash: str | None = None
+        calendar_id: str | None = None
         if manifest_path.exists():  # pragma: no cover simple path
             try:
                 import json
                 manifest = json.loads(manifest_path.read_text("utf-8"))
+                # Extract dataset metadata if present (additive exposure)
+                data_hash = manifest.get("data_hash")
+                calendar_id = manifest.get("calendar_id")
             except Exception:
                 manifest = None
         summary_obj = rec.get("summary") or {}
@@ -101,7 +127,16 @@ def create_app() -> FastAPI:
             except Exception:
                 summary_obj = dict(summary_obj)
                 summary_obj.setdefault("anomaly_counters", {})
-        return {"run_hash": run_hash, "summary": summary_obj, "validation": rec.get("validation_summary"), "manifest": manifest}
+        return {
+            "run_hash": run_hash,
+            "summary": summary_obj,
+            # Explicit surface of validation summary (alias kept for backward compat if clients used old key)
+            "validation_summary": rec.get("validation_summary"),
+            "validation": rec.get("validation_summary"),  # legacy alias
+            "data_hash": data_hash,
+            "calendar_id": calendar_id,
+            "manifest": manifest,
+        }
 
     @app.get("/runs", tags=["runs"])
     async def list_runs(limit: int = 20) -> dict[str, Any]:
