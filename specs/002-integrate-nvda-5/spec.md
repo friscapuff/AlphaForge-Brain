@@ -118,8 +118,31 @@ None (all prior ambiguities resolved). Future multi-asset expansion will introdu
 ## Consistency & Non-Conflict Note
 The chosen policies reinforce determinism (no hidden transformations), integrity (explicit exclusion over silent fill), and extensibility (calendar-backed classification). Retaining zero-volume rows with flags is compatible with execution logic so long as simulator treats zero-volume as non-fillable or flagged; this should be confirmed in planning tasks. No contradictions detected with existing system goals or reproducibility guarantees.
 
-## Generalization Outlook (Phase J Preview)
-Upcoming work will introduce a DataSource protocol, a dataset registry mapping (symbol,timeframe) to provider metadata, generic CSV ingestion (removing NVDA-specific constants), orchestrator integration for multi-symbol selection, manifest enrichment with symbol/timeframe, and run hash binding to the underlying dataset snapshot. Tests will cover cache isolation, missing symbol failure modes, and run hash invalidation on CSV modification. These are strictly additive and preserve current NVDA behavior.
+## Generalization & Typing Strictness Outlook (Phase J Preview)
+Upcoming work unifies multi-symbol data abstraction with a one-time strict typing and lint hardening sweep to avoid refactoring the same seams twice:
+
+Data Abstraction Targets:
+- DataSource protocol abstraction and `LocalCsvDataSource` baseline implementation.
+- Dataset registry mapping (symbol,timeframe) → provider/path/calendar metadata (extensible to API providers later).
+- Generic CSV ingestion refactor (eliminate NVDA constant coupling) with pluggable schema validators.
+- Orchestrator selection flow updated to resolve (symbol,timeframe) and enrich manifest.
+- Manifest fields extended: symbol, timeframe (and potentially provider id) — additive only.
+- Run hash extended to incorporate dataset snapshot binding (data_hash per (symbol,timeframe)).
+- Tests: multi-symbol cache isolation; missing symbol/timeframe error path; hash invalidation on modified CSV content.
+
+Typing & Lint Strictness Targets:
+- Transition to mypy --strict across src/ and tests/ (zero baseline errors expected post-phase).
+- Comprehensive annotation of lingering dynamic regions (ingestion edge handling branches, validation summary aggregation, feature engine fallback code paths).
+- Test fixtures & parametrized tests annotated (eliminate implicit Any propagation).
+- Modern typing syntax adoption (PEP 604 unions, builtin generics) for readability & consistency.
+- Activation of additional mypy warnings (warn-unused-ignores, warn-redundant-casts) + purge or justify ignores.
+- Ruff rule expansion: include bugbear, pyupgrade (strict), and other correctness-focused rules; remediate violations.
+- CI snapshot guard: mypy must remain at zero errors; script produces diff markdown (should be empty after initial hardening).
+- Pre-commit hook: selective mypy run on changed Python files for fast local feedback.
+- Documentation section: "Typing & Lint Guarantees" describing scope, guarantees, enforcement mechanisms, and contributor guidance.
+- Final audit: any remaining type: ignore lines include inline justification or are removed.
+
+Rationale: Hardening typing simultaneously with generalization prevents churn (e.g., evolving registry interfaces twice) and strengthens contracts before layering additional data providers. Deterministic behavior and static clarity reduce future regression risk, especially for multi-symbol caching and hash semantics.
 
 ---
 ## Success Definition (Business Framing)

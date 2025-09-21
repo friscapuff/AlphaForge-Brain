@@ -134,6 +134,18 @@ All T001–T050 marked done; OpenAPI diff shows additive changes only; full CI g
  - [ ] G08 API provider stub (future external data source)
  - [ ] G09 Manifest enrichment with symbol & timeframe fields
  - [ ] G10 Run hash includes dataset snapshot binding (data_hash)
+ - [ ] G11 Elevate mypy to strict for src + tests (introduce per-module allowlist for phased adoption if needed)
+ - [ ] G12 Annotate remaining dynamically typed modules (data ingestion, validation summary, feature engine edge paths)
+ - [ ] G13 Annotate all test fixtures & parametrized tests; remove implicit Any leakage
+ - [ ] G14 Replace legacy typing imports (typing.List, etc.) with PEP 604 / builtins forms where consistent
+ - [ ] G15 Introduce mypy plugin/flags: warn-redundant-casts, warn-unused-ignores; purge stale type: ignore comments
+ - [ ] G16 Enforce ruff select set expansion (e.g. flake8-bugbear, pyupgrade strict, implicit-namespace-package checks) & fix violations
+ - [ ] G17 Add CI job gate: fail if new mypy errors exceed baseline JSON snapshot (snapshot stored in repo)
+ - [ ] G18 Add documentation section: "Typing & Lint Guarantees" in README + spec rationale
+ - [ ] G19 Add benchmark ensuring typing/lint pass time stays within threshold (soft budget, report only)
+ - [ ] G20 Add pre-commit hook for mypy --strict on touched files (efficient selective run)
+ - [ ] G21 Add script to diff mypy error snapshot, generating markdown report for PR comments
+ - [ ] G22 Final audit: zero 'type: ignore' without inline justification comment
 
 <!-- END AUTO-GENERATED -->
 

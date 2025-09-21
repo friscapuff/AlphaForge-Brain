@@ -64,6 +64,29 @@ Status: Active (Phases A–C complete; Phase D in progress; Phase J generalizati
 ## Next Step
 Execute remaining Phase D tasks (T025–T027) then proceed with Phase J (generalization: DataSource abstraction, registry, multi-symbol readiness) before continuing to metrics (Phase E).
 
-## Forthcoming Phase J (Generalization Preview)
-Planned additions: DataSource protocol, LocalCsvDataSource, dataset registry (symbol,timeframe), generic CSV ingestion refactor, orchestrator registry integration, manifest enrichment (symbol,timeframe), run hash binding to data snapshot, tests for multi-symbol cache isolation & missing symbol error paths.
+## Forthcoming Phase J (Generalization + Typing Strictness Preview)
+Planned additions now combine multi-symbol data abstraction with a comprehensive static analysis hardening pass to avoid duplicate refactors later:
+
+Data Abstraction / Generalization:
+- DataSource protocol & LocalCsvDataSource implementation.
+- Dataset registry (symbol,timeframe -> provider/path/calendar) with declarative config.
+- Generic CSV ingestion refactor (removal of NVDA-specific constants).
+- Orchestrator integration with registry/DataSource and manifest enrichment (symbol,timeframe fields).
+- Run hash binding to dataset snapshot (data_hash per symbol/timeframe) for multi-symbol determinism.
+- Tests: multi-symbol cache isolation; missing symbol/timeframe error handling.
+
+Typing & Lint Hardening (executed in same phase to prevent churn):
+- Elevate mypy to --strict for runtime and tests, introducing a temporary allowlist only if blocking.
+- Systematic annotation of residual dynamic code paths (ingestion edge cases, validation, feature engine internals).
+- Test fixture & parametrization typing (eliminate implicit Any leakage into production symbols).
+- Modernize typing syntax (PEP 604 unions, builtins generics) for clarity and reduced boilerplate.
+- Activate additional mypy warnings (warn-redundant-casts, warn-unused-ignores) and remove stale ignores.
+- Expand Ruff rule set (bugbear, pyupgrade strict, potential error-prone patterns) and remediate.
+- Introduce CI snapshot gate: failing build if mypy error count > 0 or deviates from zero baseline.
+- Pre-commit selective mypy on changed files for fast feedback.
+- Generate mypy error diff report script (future-proof PR review tooling—should stay empty once clean).
+- Documentation: README & spec section outlining “Typing & Lint Guarantees” (what guarantees, rationale, scope, how enforced, contribution guidelines).
+- Audit and justify any remaining type: ignore (must include trailing comment rationale) reaching a zero-unjustified baseline.
+
+Rationale: Performing strict typing concurrently with generalization prevents duplicated adaptation work (e.g., updating registry interfaces twice) and locks deterministic, well-specified interfaces before broader data source expansion.
 
