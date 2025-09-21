@@ -54,7 +54,8 @@ virt_report.json
 scripts/reports/
 
 # Caches
-cache/
+# Only ignore root-level cache directory, allow infra/cache package
+/cache/
 **/__pycache__/
 
 # OS files
