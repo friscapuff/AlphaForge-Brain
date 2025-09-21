@@ -1,0 +1,117 @@
+openapi: 3.1.0
+info:
+  title: AlphaForge Brain API (NVDA Integration Additions)
+  version: 0.2.2-draft
+  description: >-
+    Additive contract notes for NVDA 5-year dataset integration. Existing endpoints retained; this file focuses on
+    incremental schema enrichments (data_hash, calendar_id, validation summary exposure) and clarifications.
+servers:
+  - url: http://localhost:8000
+paths:
+  /runs:
+    post:
+      summary: Create or reuse a backtest run (NVDA capable)
+      description: >-
+        Accepts an extended RunConfig referencing symbol "NVDA" which triggers dataset ingestion/validation.
+      responses:
+        '201': { description: Run created }
+        '200': { description: Existing run reused }
+  /runs/{run_hash}:
+    get:
+      summary: Get run detail (includes dataset linkage)
+      parameters:
+        - in: query
+          name: include_anomalies
+          required: false
+          schema:
+            type: boolean
+          description: When true, embed anomaly_counters into summary metrics.
+      responses:
+        '200':
+          description: Run detail with dataset metadata & optional anomaly counters
+  /runs/{run_hash}/artifacts:
+    get:
+      summary: List artifact manifest (includes data_hash & calendar)
+  /runs/{run_hash}/events:
+    get:
+      summary: Fetch buffered run events (unchanged)
+  /runs/{run_hash}/events/stream:
+    get:
+      summary: Long-lived incremental run events stream (unchanged)
+components:
+  schemas:
+    RunConfig:
+      allOf:
+        - $ref: '../../001-initial-dual-tier/contracts/openapi.yaml#/components/schemas/RunConfig'
+        - type: object
+          description: NVDA integration does not alter required fields; ingestion resolves data_hash internally.
+    RunDetail:
+      allOf:
+        - $ref: '../../001-initial-dual-tier/contracts/openapi.yaml#/components/schemas/RunDetail'
+        - type: object
+          properties:
+            data_hash:
+              type: string
+              description: Canonical sha256 of normalized dataset used.
+            calendar_id:
+              type: string
+              description: Exchange calendar identifier applied during ingestion.
+            validation_summary:
+              type: object
+              description: Lightweight anomaly & integrity counters (subset of validation.json artifact).
+              properties:
+                symbol: { type: string }
+                data_hash: { type: string }
+                counters:
+                  $ref: '#/components/schemas/AnomalyCounters'
+                unexpected_gaps: { type: integer }
+                expected_closures: { type: integer }
+            anomaly_counters:
+              $ref: '#/components/schemas/AnomalyCounters'
+              description: Present when include_anomalies=true; mirrors anomaly counters from dataset metadata.
+    ArtifactManifest:
+      allOf:
+        - $ref: '../../001-initial-dual-tier/contracts/openapi.yaml#/components/schemas/ArtifactManifest'
+        - type: object
+          properties:
+            data_hash:
+              type: string
+              description: Added for explicit dataset provenance linkage.
+            calendar_id:
+              type: string
+              description: Exchange calendar identifier.
+    ValidationSummary:
+      type: object
+      description: Complete validation details available in validation.json artifact.
+      properties:
+        symbol: { type: string }
+        data_hash: { type: string }
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string }
+              count: { type: integer }
+              sample:
+                type: array
+                items: { type: integer, format: int64 }
+              resolution: { type: string }
+        counters:
+          $ref: '#/components/schemas/AnomalyCounters'
+        expected_closures: { type: integer }
+        unexpected_gaps: { type: integer }
+        generated_at: { type: integer, format: int64 }
+    AnomalyCounters:
+      type: object
+      description: Keyed anomaly and integrity counters arising from dataset normalization.
+      additionalProperties:
+        type: integer
+      example:
+        duplicates_dropped: 0
+        rows_dropped_missing: 3
+        zero_volume_rows: 0
+        future_rows_dropped: 0
+        unexpected_gaps: 1
+        expected_closures: 120
+  

@@ -19,6 +19,9 @@ class ArtifactManifest(BaseModel):
     # represents the canonical hash (ArtifactManifest.canonical_hash()) of
     # the previous run's manifest at the time it was finalized.
     chain_prev: str | None = None
+    # Dataset characteristics for reproducibility / provenance (added T017)
+    data_hash: str | None = None
+    calendar_id: str | None = None
 
     @model_validator(mode="after")
     def _unique_names(self) -> ArtifactManifest:
@@ -33,6 +36,10 @@ class ArtifactManifest(BaseModel):
         base: dict[str, Any] = {"entries": entries_list}
         if self.chain_prev is not None:
             base["chain_prev"] = self.chain_prev
+        if self.data_hash is not None:
+            base["data_hash"] = self.data_hash
+        if self.calendar_id is not None:
+            base["calendar_id"] = self.calendar_id
         return base
 
     def canonical_hash(self) -> str:

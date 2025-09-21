@@ -2,14 +2,14 @@
 
 **Feature Branch**: `002-integrate-nvda-5`  
 **Created**: 2025-09-20  
-**Status**: Draft  
+**Status**: Active  
 **Input**: User description: "Integrate NVDA 5-year historical CSV dataset into pipeline: load, clean, validate timestamps/anomalies, make it default data source while keeping modular multi-asset design. Support end-to-end backtest (indicators, strategy, risk, execution, metrics, validation) and enable downstream visualization readiness."
 
 ## Execution Flow (main)
 ```
 1. Parse description → OK (financial historical data integration for NVDA over 5 years)
 2. Extract key concepts → asset: NVDA; scope: load/clean/validate; usage: all pipeline phases; goal: full backtest ready; modular multi-asset future
-3. Identify uncertainties → mark [NEEDS CLARIFICATION] items
+3. Identify uncertainties → mark (resolved) items
 4. Produce user scenarios & acceptance criteria (run a strategy end-to-end on NVDA)
 5. Derive functional requirements (testable statements; no implementation specifics)
 6. Identify entities: Dataset, Candle Record, Validation Report, Data Source, Anomaly Event
@@ -38,9 +38,9 @@ As a research user, I want the system to load and prepare a 5‑year historical 
 
 ### Edge Cases
 - Dataset contains a future-dated row outside expected 5‑year window → should be excluded and recorded.
-- Duplicate timestamps appear (same second/minute) → must be deduplicated deterministically (e.g., keep first) or flagged. [NEEDS CLARIFICATION: Should duplicates be dropped or aggregated?]
+- Duplicate timestamps appear (same second/minute) → must be deduplicated deterministically (keep first).
 - Entire trading day missing (unexpected closure) → system proceeds; metrics unaffected; note in validation report.
-- All volume zero for a day → treat as anomalous; execution phase should still run but mark day as low-liquidity in validation summary. [NEEDS CLARIFICATION: Should zero-volume bars be dropped or retained?]
+- All volume zero for a day → treat as anomalous; execution phase should still run but mark day as low-liquidity in validation summary (rows retained with flag).
 - Partial final day (truncated session) → acceptable; final partial bar may be excluded from indicator warm-up if insufficient data.
 
 ---
@@ -84,11 +84,11 @@ As a research user, I want the system to load and prepare a 5‑year historical 
 - [ ] All mandatory sections completed
 
 ### Requirement Completeness
-- [ ] All [NEEDS CLARIFICATION] items resolved or explicitly deferred prior to implementation
-- [ ] Requirements are testable & uniquely identifiable (FR-001…FR-020)
-- [ ] Success criteria measurable (e.g., anomalies reported, deterministic hash reuse)
-- [ ] Scope bounded to single-asset integration + extensibility prep
-- [ ] Assumptions captured (see ambiguities)
+- [x] All clarification items resolved or explicitly deferred prior to implementation
+- [x] Requirements are testable & uniquely identifiable (FR-001…FR-021)
+- [x] Success criteria measurable (e.g., anomalies reported, deterministic hash reuse)
+- [x] Scope bounded to single-asset integration + extensibility prep
+- [x] Assumptions captured (see ambiguities)
 
 ---
 ## Execution Status
@@ -98,7 +98,7 @@ As a research user, I want the system to load and prepare a 5‑year historical 
 - [x] User scenarios defined
 - [x] Requirements generated
 - [x] Entities identified
-- [ ] Review checklist passed (pending clarification resolution)
+- [x] Review checklist passed (all clarifications resolved)
 
 ---
 ## Clarification Decisions
@@ -117,6 +117,9 @@ None (all prior ambiguities resolved). Future multi-asset expansion will introdu
 
 ## Consistency & Non-Conflict Note
 The chosen policies reinforce determinism (no hidden transformations), integrity (explicit exclusion over silent fill), and extensibility (calendar-backed classification). Retaining zero-volume rows with flags is compatible with execution logic so long as simulator treats zero-volume as non-fillable or flagged; this should be confirmed in planning tasks. No contradictions detected with existing system goals or reproducibility guarantees.
+
+## Generalization Outlook (Phase J Preview)
+Upcoming work will introduce a DataSource protocol, a dataset registry mapping (symbol,timeframe) to provider metadata, generic CSV ingestion (removing NVDA-specific constants), orchestrator integration for multi-symbol selection, manifest enrichment with symbol/timeframe, and run hash binding to the underlying dataset snapshot. Tests will cover cache isolation, missing symbol failure modes, and run hash invalidation on CSV modification. These are strictly additive and preserve current NVDA behavior.
 
 ---
 ## Success Definition (Business Framing)

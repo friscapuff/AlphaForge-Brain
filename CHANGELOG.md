@@ -11,6 +11,7 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) a
 - Risk & slippage microbenchmark script `scripts/bench/risk_slippage.py` (T082).
 - README badges (version, license, python, coverage placeholder, benchmarks) and microbenchmark docs (T083).
 - Spec & plan documentation refresh covering new risk models, slippage adapters, SSE streaming & caching (T084).
+- Project constitution v1.1.0 establishing 10 core principles (deterministic reproducibility, additive contracts, test-first, data integrity & provenance, modular architecture, observability & explainability, performance guardrail, pragmatic extensibility, single sources of truth, automation as policy) plus constraints & governance.
 
 ### Changed
 - SSE tests hardened to ignore timestamp drift and prevent hang via early-exit fast-path for synchronous runs.
@@ -28,6 +29,7 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) a
 
 ### Documentation
 - Expanded spec.md & plan.md to note pluggable slippage adapters (spread_pct, participation_rate) and streaming/caching event model.
+- README updated with Core Principles Summary referencing constitution.
 
 ## [0.2.0] - 2025-09-20
 ### Added

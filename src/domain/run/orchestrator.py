@@ -7,6 +7,7 @@ from typing import Any, Callable
 import pandas as pd
 
 from domain.execution.simulator import simulate
+from domain.metrics.calculator import compute_metrics, build_equity_curve
 from domain.execution.state import build_state
 from domain.risk.engine import apply_risk
 from domain.schemas.run_config import RunConfig
@@ -96,6 +97,11 @@ class Orchestrator:
             sized = apply_risk(self.config, signals)
             fills, positions = simulate(self.config, sized, flatten_end=True)
             trades, summary = build_state(fills, positions)
+            # Attach metrics if not already present
+            if "metrics" not in summary:
+                eq_curve = build_equity_curve(positions)
+                metrics = compute_metrics(trades, eq_curve, include_anomalies=False)
+                summary["metrics"] = metrics
 
             self._transition(OrchestratorState.VALIDATING, {"trade_count": summary.get("trade_count", 0)})
             if self._cancel_requested:

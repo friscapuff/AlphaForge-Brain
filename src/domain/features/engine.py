@@ -29,11 +29,13 @@ class FeatureEngine:
         "low",
         "close",
         "volume",
+        "zero_volume",  # threaded from canonical dataset (NVDA integration T020)
     )
 
     def build_features(self, df: pd.DataFrame) -> pd.DataFrame:
         # Work on a copy to guarantee idempotency
         out = df.copy(deep=True)
+        # zero_volume threading: if present it remains; engine does not create or drop it.
 
         # Collect planned feature columns per indicator
         indicator_objects = list(indicator_registry.list())

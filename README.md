@@ -11,6 +11,23 @@ AlphaForge Brain executes an orchestrated pipeline: load candles → compute ind
 **Why it exists:** To provide a trustworthy sandbox for researching and iterating on systematic strategies with strict reproducibility and transparent state transitions. It favors correctness, clarity, and traceable transformations over opaque monolith logic.
 
 ---
+## 1.a Core Principles Summary (See full constitution: `.specify/memory/constitution.md`)
+| # | Principle | Summary |
+|---|-----------|---------|
+| 1 | Deterministic Reproducibility | Same config + dataset snapshot → identical hash & artifacts; nondeterminism isolated or recorded. |
+| 2 | Additive Contracts | Public schemas evolve additively; breaking changes require major version proposal. |
+| 3 | Test-First Discipline | Failing tests precede implementation; all gates (mypy, ruff, pytest, spectral) must pass. |
+| 4 | Data Integrity & Provenance | Validation summary + anomaly counters + data_hash surfaced; no silent imputation. |
+| 5 | Modular Domain Architecture | Clear bounded contexts (data, features, strategy, risk, execution, validation, run). |
+| 6 | Observability & Explainability | Structured logs + events enable post-hoc reasoning for every trade & anomaly. |
+| 7 | Performance Guardrail | Measure first; optimize only with baseline + delta evidence. |
+| 8 | Pragmatic Extensibility | Prepare only for upcoming multi-symbol/provider needs when non-breaking; avoid speculative layers. |
+| 9 | Single Sources of Truth | One authoritative module per canonical dataset, registry, manifest hashing pipeline. |
+| 10 | Automation as Policy | CI enforces all gates; manual checklists replaced by scripts. |
+
+These principles drive design decisions, code review criteria, and release gating. Any deviation requires an explicit, time-bound exception documented in PR rationale.
+
+---
 ## 2. Core Value Principles
 | Principle | Meaning | Implementation Hooks |
 |-----------|---------|----------------------|
@@ -210,6 +227,31 @@ scripts/
 specs/                # Architecture, plan, openapi, research
 presets/              # Stored presets (if not overridden)
 ```
+
+---
+## 12.a NVDA Dataset Placement (Group 1 Foundation)
+For the NVDA 5‑Year integration feature the ingestion layer expects a canonical CSV file at:
+
+```
+./data/NVDA_5y.csv
+```
+
+Required columns (case-sensitive):
+`timestamp,open,high,low,close,volume` (optional: `adj_close` ignored)
+
+Normalization assumptions:
+- Source timezone: America/New_York (converted to UTC epoch ms `ts`)
+- Daily timeframe; gaps classified via exchange-calendars (NYSE schedule proxy)
+- Duplicate timestamps: keep first, drop rest (counter incremented)
+- Missing critical fields: row dropped
+- Zero volume: retained with `zero_volume=1`
+- Future dated rows (ts > now UTC): dropped
+
+Deterministic dataset hash (`data_hash`) is computed over canonical columns:
+`ts,open,high,low,close,volume,zero_volume` with stable float formatting and ordering.
+
+If you need a different location, set up or symlink `data/` accordingly before running Group 2+ tasks.
+
 
 ---
 ## 13. Extensibility Guide

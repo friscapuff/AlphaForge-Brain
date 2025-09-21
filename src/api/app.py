@@ -79,7 +79,7 @@ def create_app() -> FastAPI:
         return {"run_hash": run_hash, "created": created, "p_values": record.get("p_values")}
 
     @app.get("/runs/{run_hash}", tags=["runs"])
-    async def get_run(run_hash: str) -> dict[str, Any]:
+    async def get_run(run_hash: str, include_anomalies: bool = False) -> dict[str, Any]:
         rec = registry.get(run_hash)
         if not rec:
             raise HTTPException(status_code=404, detail="run not found")
@@ -92,7 +92,16 @@ def create_app() -> FastAPI:
                 manifest = json.loads(manifest_path.read_text("utf-8"))
             except Exception:
                 manifest = None
-        return {"run_hash": run_hash, "summary": rec.get("summary"), "validation": rec.get("validation_summary"), "manifest": manifest}
+        summary_obj = rec.get("summary") or {}
+        if include_anomalies:
+            try:  # pragma: no cover - integration guard
+                from domain.data.ingest_nvda import get_dataset_metadata
+                summary_obj = dict(summary_obj)
+                summary_obj.setdefault("anomaly_counters", dict(get_dataset_metadata().anomaly_counters))
+            except Exception:
+                summary_obj = dict(summary_obj)
+                summary_obj.setdefault("anomaly_counters", {})
+        return {"run_hash": run_hash, "summary": summary_obj, "validation": rec.get("validation_summary"), "manifest": manifest}
 
     @app.get("/runs", tags=["runs"])
     async def list_runs(limit: int = 20) -> dict[str, Any]:

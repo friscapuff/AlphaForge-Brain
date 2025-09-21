@@ -58,6 +58,46 @@ jobs:
           poetry run ruff check .
           poetry run ruff format --check . || (echo "Run 'ruff format .' locally" && exit 1)
 
+      - name: Install Node (for Spectral)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install spec tooling (npm ci)
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint & bundle OpenAPI
+        run: |
+          npm run check:api
+
+      - name: Generate Redoc HTML
+        run: |
+          npm run docs:api
+
+      - name: Generate dereferenced spec
+        run: |
+          npm run deref:api
+
+      - name: Upload OpenAPI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: |
+            specs/001-initial-dual-tier/contracts/openapi.yaml
+            openapi.json
+            openapi.deref.json
+            openapi.html
+
+      - name: Enforce spec changelog entry
+        if: github.event_name == 'pull_request'
+        run: |
+          poetry run python scripts/contract/ensure_changelog.py --spec specs/001-initial-dual-tier/contracts/openapi.yaml --base origin/main
+
+      - name: Enforce constitution changelog entry
+        if: github.event_name == 'pull_request'
+        run: |
+          poetry run python scripts/changelog/enforce_constitution_fragment.py
+
       - name: Upload env check artifact
         uses: actions/upload-artifact@v4
         with:

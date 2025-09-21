@@ -1,570 +1,788 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
-	title: Project A Backend API
-	version: 0.1.0
-	description: Single-user backtesting & validation engine (v1) – draft OpenAPI (subset; FastAPI will enrich).
+  title: AlphaForge Brain API
+  version: 0.2.2
+  description: |-
+    Single-user backtesting, dataset ingestion, validation & artifact engine.
+    Includes NVDA 5-year dataset integration fields (data_hash, calendar_id, validation_summary) merged into canonical contract.
 servers:
-	- url: http://localhost:8000
+  - url: http://localhost:8000
 paths:
-	/runs:
-		post:
-			summary: Create or reuse a backtest run
-			operationId: createRun
-			parameters:
-				- in: header
-					name: Idempotency-Key
-					required: false
-					schema: { type: string }
-			requestBody:
-				required: true
-				content:
-					application/json:
-						schema:
-							$ref: '#/components/schemas/RunConfig'
-			responses:
-				'201':
-					description: Run created
-					content:
-						application/json:
-							schema: { $ref: '#/components/schemas/RunCreated' }
-				'200':
-					description: Existing run reused (idempotent)
-					content:
-						application/json:
-							schema: { $ref: '#/components/schemas/RunCreated' }
-				'400': { $ref: '#/components/responses/BadRequest' }
-		get:
-			summary: List recent runs
-			operationId: listRuns
-			parameters:
-				- in: query
-					name: cursor
-					schema: { type: string }
-				- in: query
-					name: limit
-					schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
-			responses:
-				'200':
-					description: List of runs
-					content:
-						application/json:
-							schema: { $ref: '#/components/schemas/RunList' }
-	/runs/{run_id}:
-		get:
-			summary: Get run detail
-			operationId: getRun
-			parameters:
-				- in: path
-					name: run_id
-					required: true
-					schema: { type: string }
-			responses:
-				'200':
-					description: Run detail
-					content:
-						application/json:
-							schema: { $ref: '#/components/schemas/RunDetail' }
-				'404': { $ref: '#/components/responses/NotFound' }
-		/runs/{run_id}/cancel:
-			post:
-				summary: Request cancellation
-				operationId: cancelRun
-				parameters:
-					- in: path
-						name: run_id
-						required: true
-						schema: { type: string }
-				responses:
-					'202': { description: Cancellation requested }
-					'404': { $ref: '#/components/responses/NotFound' }
-	/runs/{run_id}/events:
-		get:
-			summary: Fetch buffered run events (one-shot SSE, ETag cacheable)
-			operationId: streamRunEvents
-			parameters:
-				- in: path
-					name: run_id
-					required: true
-					schema: { type: string }
-				- in: query
-					name: after_id
-					required: false
-					schema: { type: integer, minimum: 0 }
-				- in: header
-					name: Last-Event-ID
-					required: false
-					schema: { type: string }
-				- in: header
-					name: If-None-Match
-					required: false
-					schema: { type: string }
-			responses:
-				'200':
-					description: One-shot SSE event stream flush (connection closes after emitting current buffer). Includes ETag header of form "<run_id>:<last_event_id>".
-					content:
-						text/event-stream:
-	/runs/{run_id}/events/stream:
-		get:
-			summary: Long-lived incremental run events stream (SSE)
-			operationId: streamRunEventsIncremental
-			parameters:
-				- in: path
-					name: run_id
-					required: true
-					schema: { type: string }
-				- in: header
-					name: Last-Event-ID
-					required: false
-					schema: { type: string }
-			responses:
-				'200':
-					description: Ongoing SSE stream (heartbeats every ~15s when idle).
-					content:
-						text/event-stream:
-							examples:
-								incrementalExample:
-									summary: Incremental stream snippet
-									value: |-
-									  id: 10
-									  event: stage
-									  data: {"type":"stage","ts":"2024-01-01T00:00:05Z","data":{"run_hash":"abc123","stage":"metrics"}}
+  /runs:
+    post:
+      summary: Create or reuse a backtest run
+      operationId: createRun
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunConfig'
+      responses:
+        '201':
+          description: Run created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunCreated'
+        '200':
+          description: Existing run reused (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    get:
+      summary: List recent runs
+      operationId: listRuns
+      parameters:
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: List of runs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunList'
+  /runs/{run_id}:
+    get:
+      summary: Get run detail
+      operationId: getRun
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Run detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /runs/{run_id}/cancel:
+    post:
+      summary: Request cancellation
+      operationId: cancelRun
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Cancellation requested
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /runs/{run_id}/events:
+    get:
+      summary: Fetch buffered run events (one-shot SSE, ETag cacheable)
+      operationId: streamRunEvents
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: after_id
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: header
+          name: Last-Event-ID
+          required: false
+          schema:
+            type: string
+        - in: header
+          name: If-None-Match
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One-shot SSE event stream flush (connection closes after emitting current buffer). Includes ETag header of form "<run_id>:<last_event_id>".
+          content:
+            text/event-stream: {}
+  /runs/{run_id}/events/stream:
+    get:
+      summary: Long-lived incremental run events stream (SSE)
+      operationId: streamRunEventsIncremental
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Last-Event-ID
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ongoing SSE stream (heartbeats every ~15s when idle).
+          content:
+            text/event-stream:
+              examples:
+                incrementalExample:
+                  summary: Incremental stream snippet
+                  value: |-
+                    id: 10
+                    event: stage
+                    data: {"type":"stage","ts":"2024-01-01T00:00:05Z","data":{"run_hash":"abc123","stage":"metrics"}}
 
-									  id: 11
-									  event: heartbeat
-									  data: {"type":"heartbeat","ts":"2024-01-01T00:00:20Z","data":{"status":"RUNNING"}}
-				'404': { $ref: '#/components/responses/NotFound' }
-							examples:
-								initialCompleted:
-									summary: Completed run flush (stage events + snapshot + completed)
-									value: |-
-									  id: 0
-									  event: stage
-									  data: {"type":"stage","ts":"2024-01-01T00:00:00Z","data":{"run_hash":"abc123","state":"RUNNING"}}
-
-									  id: 1
-									  event: stage
-									  data: {"type":"stage","ts":"2024-01-01T00:00:00Z","data":{"run_hash":"abc123","state":"VALIDATING"}}
-
-									  id: 2
-									  event: snapshot
-									  data: {"type":"snapshot","ts":"2024-01-01T00:00:01Z","data":{"run_hash":"abc123","status":"COMPLETE"}}
-
-									  id: 3
-									  event: completed
-									  data: {"type":"completed","ts":"2024-01-01T00:00:01Z","data":{"run_hash":"abc123","status":"COMPLETE"}}
-								cancelled:
-									summary: Cancelled run flush
-									value: |-
-									  id: 0
-									  event: stage
-									  data: {"type":"stage","ts":"2024-01-01T00:00:00Z","data":{"run_hash":"abc123","state":"RUNNING"}}
-
-									  id: 1
-									  event: snapshot
-									  data: {"type":"snapshot","ts":"2024-01-01T00:00:01Z","data":{"run_hash":"abc123","status":"RUNNING"}}
-
-									  id: 2
-									  event: cancelled
-									  data: {"type":"cancelled","ts":"2024-01-01T00:00:02Z","data":{"run_hash":"abc123","status":"CANCELLED"}}
-				'404': { $ref: '#/components/responses/NotFound' }
-	/runs/{run_id}/artifacts:
-		get:
-			summary: List artifact manifest
-			operationId: listArtifacts
-			parameters:
-				- in: path
-					name: run_id
-					required: true
-					schema: { type: string }
-			responses:
-				'200':
-					description: Manifest
-					content:
-						application/json:
-							schema: { $ref: '#/components/schemas/ArtifactManifest' }
-							examples:
-								minimal:
-									summary: Minimal manifest
-									value:
-									  run_id: abc123
-									  config_hash: deadbeefcafebabe
-									  created_at: 1704067200
-									  files:
-									    - name: summary.json
-									      path: summary.json
-									      sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-									      size: 342
-									      mime: application/json
-				'404': { $ref: '#/components/responses/NotFound' }
-	/runs/{run_id}/artifact/{name}:
-		get:
-			summary: Download artifact
-			operationId: getArtifact
-			parameters:
-				- in: path
-					name: run_id
-					required: true
-					schema: { type: string }
-				- in: path
-					name: name
-					required: true
-					schema: { type: string }
-			responses:
-				'200': { description: Artifact file }
-				'404': { $ref: '#/components/responses/NotFound' }
-	/candles:
-		get:
-			summary: Fetch candle slice
-			operationId: getCandles
-			parameters:
-				- in: query
-					name: symbol
-					required: true
-					schema: { type: string }
-				- in: query
-					name: timeframe
-					required: true
-					schema: { type: string }
-				- in: query
-					name: start
-					schema: { type: integer, format: int64 }
-				- in: query
-					name: end
-					schema: { type: integer, format: int64 }
-				- in: query
-					name: provider
-					schema: { type: string }
-				- in: query
-					name: limit
-					schema: { type: integer, minimum: 1, maximum: 10000 }
-			responses:
-				'200':
-					description: Candle data
-					content:
-						application/json:
-							schema: { $ref: '#/components/schemas/CandleResponse' }
-	/features/preview:
-		post:
-			summary: Compute ad-hoc features preview
-			operationId: postFeaturePreview
-			requestBody:
-				required: true
-				content:
-					application/json:
-						schema:
-							type: object
-							required: [symbol, start, end, limit]
-							properties:
-								symbol: { type: string }
-								start: { type: string, format: date-time }
-								end: { type: string, format: date-time }
-								limit: { type: integer, minimum: 1, maximum: 2000 }
-						examples:
-							basicPreview:
-								summary: Simple feature preview
-								value:
-									symbol: TEST
-									start: 2020-01-01T00:00:00Z
-									end: 2020-01-02T00:00:00Z
-									limit: 50
-			responses:
-				'200':
-					description: Feature preview
-					content:
-						application/json:
-							schema: { $ref: '#/components/schemas/FeaturePreview' }
-		/presets:
-			get:
-				summary: List presets
-				operationId: listPresets
-				responses:
-					'200':
-						description: Preset list
-						content:
-							application/json:
-								schema: { $ref: '#/components/schemas/PresetList' }
-			post:
-				summary: Create preset (idempotent)
-				operationId: createPreset
-				requestBody:
-					required: true
-					content:
-						application/json:
-							schema: { $ref: '#/components/schemas/PresetCreate' }
-						examples:
-							basicDualSma:
-								summary: Minimal dual SMA preset
-								value:
-									name: mean_rev_fast
-									config:
-										strategy: { name: dual_sma, params: { fast: 5, slow: 20 } }
-										risk: { model: fixed_fraction, params: { fraction: 0.1 } }
-										execution: { slippage_bps: 5, fee_bps: 0.0 }
-										indicators:
-											- name: dual_sma
-										seed: 42
-				responses:
-					'200': { description: Created or existing (idempotent) }
-		/presets/{preset_id}:
-			get:
-				summary: Get preset by id
-				operationId: getPreset
-				parameters:
-					- in: path
-						name: preset_id
-						required: true
-						schema: { type: string }
-				responses:
-					'200':
-						description: Preset
-						content:
-							application/json:
-								schema: { $ref: '#/components/schemas/Preset' }
-					'404': { $ref: '#/components/responses/NotFound' }
-			delete:
-					summary: Delete preset
-					operationId: deletePreset
-					parameters:
-						- in: path
-							name: preset_id
-							required: true
-							schema: { type: string }
-					responses:
-						'200': { description: Deleted (confirmation object) }
-						'404': { $ref: '#/components/responses/NotFound' }
-	/health:
-		get:
-			summary: Health check
-			operationId: getHealth
-			responses:
-				'200':
-					description: OK
-					content:
-						application/json:
-							schema: { $ref: '#/components/schemas/Health' }
+                    id: 11
+                    event: heartbeat
+                    data: {"type":"heartbeat","ts":"2024-01-01T00:00:20Z","data":{"status":"RUNNING"}}
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /runs/{run_id}/artifacts:
+    get:
+      summary: List artifact manifest
+      operationId: listArtifacts
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Manifest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactManifest'
+              examples:
+                minimal:
+                  summary: Minimal manifest
+                  value:
+                    run_id: abc123
+                    config_hash: deadbeefcafebabe
+                    created_at: 1704067200
+                    files:
+                      - name: summary.json
+                        path: summary.json
+                        sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+                        size: 342
+                        mime: application/json
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /runs/{run_id}/artifact/{name}:
+    get:
+      summary: Download artifact
+      operationId: getArtifact
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Artifact file
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /candles:
+    get:
+      summary: Fetch candle slice
+      operationId: getCandles
+      parameters:
+        - in: query
+          name: symbol
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: timeframe
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: start
+          schema:
+            type: integer
+            format: int64
+        - in: query
+          name: end
+          schema:
+            type: integer
+            format: int64
+        - in: query
+          name: provider
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+      responses:
+        '200':
+          description: Candle data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandleResponse'
+  /features/preview:
+    post:
+      summary: Compute ad-hoc features preview
+      operationId: postFeaturePreview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [symbol, start, end, limit]
+              properties:
+                symbol: { type: string }
+                start: { type: string, format: date-time }
+                end: { type: string, format: date-time }
+                limit: { type: integer, minimum: 1, maximum: 2000 }
+            examples:
+              basicPreview:
+                summary: Simple feature preview
+                value:
+                  symbol: TEST
+                  start: 2020-01-01T00:00:00Z
+                  end: 2020-01-02T00:00:00Z
+                  limit: 50
+      responses:
+        '200':
+          description: Feature preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeaturePreview'
+  /presets:
+    get:
+      summary: List presets
+      operationId: listPresets
+      responses:
+        '200':
+          description: Preset list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresetList'
+    post:
+      summary: Create preset (idempotent)
+      operationId: createPreset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresetCreate'
+            examples:
+              basicDualSma:
+                summary: Minimal dual SMA preset
+                value:
+                  name: mean_rev_fast
+                  config:
+                    strategy: { name: dual_sma, params: { fast: 5, slow: 20 } }
+                    risk: { model: fixed_fraction, params: { fraction: 0.1 } }
+                    execution: { slippage_bps: 5, fee_bps: 0.0 }
+                    indicators:
+                      - name: dual_sma
+                    seed: 42
+      responses:
+        '200':
+          description: Created or existing (idempotent)
+  /presets/{preset_id}:
+    get:
+      summary: Get preset by id
+      operationId: getPreset
+      parameters:
+        - in: path
+          name: preset_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Preset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preset'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete preset
+      operationId: deletePreset
+      parameters:
+        - in: path
+          name: preset_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted (confirmation object)
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
 
 components:
-	responses:
-		NotFound:
-			description: Resource not found
-			content:
-				application/json:
-					schema: { $ref: '#/components/schemas/ErrorEnvelope' }
-					examples:
-						runMissing:
-							summary: Run not found
-							value:
-							  error:
-							    code: NOT_FOUND
-							    message: run not found
-		BadRequest:
-			description: Invalid request
-			content:
-				application/json:
-					schema: { $ref: '#/components/schemas/ErrorEnvelope' }
-					examples:
-						invalidParam:
-							summary: Invalid parameter
-							value:
-							  error:
-							    code: BAD_REQUEST
-							    message: timeframe unsupported
-							    details: { field: timeframe, allowed: ["1m","5m"] }
-	schemas:
-		RunConfig:
-			type: object
-			required: [symbol, timeframe, start, end, provider, indicators, strategy, risk, execution, seed]
-			properties:
-				symbol: { type: string }
-				timeframe: { type: string }
-				start: { type: integer, format: int64 }
-				end: { type: integer, format: int64 }
-				provider: { type: string }
-				indicators:
-					type: array
-					items:
-						type: object
-						required: [name, params]
-						properties:
-							name: { type: string }
-							params: { type: object, additionalProperties: true }
-				strategy:
-					type: object
-					required: [name, params]
-					properties:
-						name: { type: string }
-						params: { type: object, additionalProperties: true }
-					risk:
-						type: object
-						required: [model, params]
-						properties:
-							model: { type: string, enum: [fixed_fraction, volatility_target, kelly_fraction] }
-							params:
-								type: object
-								additionalProperties: true
-								description: |-
-								  Parameters by model:
-								    fixed_fraction:
-								      fraction: float (0,1]
-								    volatility_target:
-								      target_vol: float (desired annualized volatility, e.g. 0.15)
-								      lookback: int (>1)
-								      base_fraction: float base sizing fraction prior to scaling
-								    kelly_fraction:
-								      p_win: float [0,1]
-								      payoff_ratio: float (>0)
-								      base_fraction: float dampening multiplier on Kelly fraction
-				execution:
-					type: object
-					properties:
-						commission_per_share: { type: number }
-						slippage_bps: { type: number }
-						borrow_bps: { type: number }
-						fill_price: { type: string, enum: [open_next, mid_next, vwap_next], default: open_next }
-							slippage_model:
-								type: object
-								required: [model]
-								properties:
-									model: { type: string, enum: [spread_pct, participation_rate] }
-									params:
-										type: object
-										additionalProperties: true
-										description: |-
-										  Parameters by model:
-										    spread_pct:
-										      spread_pct: float (fraction; 0.001 = 10 bps total spread width)
-										    participation_rate:
-										      participation_pct: float (impact scaling factor relative to size/volume)
-				validation:
-					type: object
-					properties:
-						permutation: { type: object, properties: { n: { type: integer, minimum: 1 } } }
-						block_bootstrap: { type: object, properties: { n: { type: integer }, block_size: { type: integer } } }
-						monte_carlo: { type: object, properties: { n: { type: integer } } }
-						wfo: { type: object, properties: { windows: { type: integer } } }
-				seed: { type: integer }
-				preset_ref: { type: string }
-		RunCreated:
-			type: object
-			properties:
-				run_id: { type: string }
-				hash: { type: string }
-				status: { type: string }
-				reused: { type: boolean }
-		RunSummary:
-			type: object
-			properties:
-				run_id: { type: string }
-				status: { type: string }
-				hash: { type: string }
-				created_at: { type: integer, format: int64 }
-				metrics_summary: { $ref: '#/components/schemas/MetricsSummary' }
-		RunList:
-			type: object
-			properties:
-				runs:
-					type: array
-					items: { $ref: '#/components/schemas/RunSummary' }
-		RunDetail:
-			allOf:
-				- $ref: '#/components/schemas/RunSummary'
-				- type: object
-					properties:
-						config: { $ref: '#/components/schemas/RunConfig' }
-						artifacts: { $ref: '#/components/schemas/ArtifactManifest' }
-		ArtifactManifest:
-			type: object
-			properties:
-				run_id: { type: string, description: 'Run hash associated with this manifest (alias run_hash in API).' }
-				config_hash: { type: string, description: 'Hash of canonical run configuration (may be omitted in minimal response).' }
-				created_at: { type: integer, format: int64, description: 'UTC timestamp (epoch ms) manifest finalized.' }
-				chain_prev: { type: string, nullable: true, description: 'Canonical hash of previous run\'s manifest (integrity chain head->tail). Null for first link.' }
-				manifest_hash: { type: string, description: 'Canonical hash of this manifest (stable over idempotent rewrites).' }
-				files:
-					type: array
-					items:
-						type: object
-						required: [name, path, sha256, size]
-						properties:
-							name: { type: string }
-							path: { type: string }
-							sha256: { type: string }
-							size: { type: integer }
-							mime: { type: string, description: 'Optional mime-type; may be omitted for internal JSON assets.' }
-		CandleResponse:
-			type: object
-			properties:
-				symbol: { type: string }
-				timeframe: { type: string }
-				candles:
-					type: array
-					items:
-						type: object
-						properties:
-							ts: { type: integer, format: int64 }
-							o: { type: number }
-							h: { type: number }
-							l: { type: number }
-							c: { type: number }
-							v: { type: number }
-		FeaturePreview:
-			type: object
-			additionalProperties: true
-			description: Dynamic keys for features
-		MetricsSummary:
-			type: object
-			properties:
-				total_return: { type: number }
-				sharpe: { type: number }
-				sortino: { type: number }
-				max_drawdown: { type: number }
-				trade_count: { type: integer }
-				win_rate: { type: number }
-				exposure_pct: { type: number }
-				turnover: { type: number }
-		PresetCreate:
-			type: object
-			required: [name, config]
-			properties:
-				name: { type: string }
-				config: { type: object, additionalProperties: true }
-		Preset:
-			type: object
-			properties:
-				preset_id: { type: string }
-				name: { type: string }
-				config: { type: object }
-		PresetList:
-			type: object
-			properties:
-				items:
-					type: array
-					items: { $ref: '#/components/schemas/Preset' }
-		EventEnvelope:
-			type: object
-			properties:
-				run_id: { type: string }
-				seq: { type: integer }
-				ts: { type: integer, format: int64 }
-				type: { type: string }
-				stage: { type: string }
-				progress: { type: number }
-				message: { type: string }
-				data: { type: object }
-		Health:
-			type: object
-			properties:
-				status: { type: string }
-				version: { type: string }
-		ErrorEnvelope:
-			type: object
-			properties:
-				error:
-					type: object
-					required: [code, message]
-					properties:
-						code: { type: string }
-						message: { type: string }
-						details: { type: object }
-						retryable: { type: boolean }
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            runMissing:
+              summary: Run not found
+              value:
+                error:
+                  code: NOT_FOUND
+                  message: run not found
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            invalidParam:
+              summary: Invalid parameter
+              value:
+                error:
+                  code: BAD_REQUEST
+                  message: timeframe unsupported
+                  details: { field: timeframe, allowed: ["1m","5m"] }
+  schemas:
+    RunConfig:
+      type: object
+      required: [symbol, timeframe, start, end, provider, indicators, strategy, risk, execution, seed]
+      description: Core configuration users send to start a backtest (instrument, time range, models, and randomness seed).
+      properties:
+        symbol:
+          type: string
+          description: Trading symbol (e.g. NVDA, TEST)
+        timeframe:
+          type: string
+          description: Candle interval (e.g. 1m, 5m, 1h)
+        start:
+          type: integer
+          format: int64
+          description: Inclusive start timestamp (epoch ms)
+        end:
+          type: integer
+          format: int64
+          description: Exclusive end timestamp (epoch ms)
+        provider:
+          type: string
+          description: Data provider identifier
+        indicators:
+          type: array
+          items:
+            type: object
+            required: [name, params]
+            properties:
+              name:
+                type: string
+                description: Indicator registry name
+              params:
+                type: object
+                description: Free-form parameter map for indicator
+                additionalProperties: true
+        strategy:
+          type: object
+          required: [name, params]
+          properties:
+            name:
+              type: string
+              description: Strategy name
+            params:
+              type: object
+              description: Strategy parameter key/value map
+              additionalProperties: true
+        risk:
+          type: object
+          required: [model, params]
+          properties:
+            model:
+              type: string
+              enum: [fixed_fraction, volatility_target, kelly_fraction]
+              description: Risk model identifier
+            params:
+              type: object
+              description: |
+                Parameters by model:
+                  fixed_fraction:
+                    fraction: float (0,1]
+                  volatility_target:
+                    target_vol: float (desired annualized volatility, e.g. 0.15)
+                    lookback: int (>1)
+                    base_fraction: float base sizing fraction prior to scaling
+                  kelly_fraction:
+                    p_win: float [0,1]
+                    payoff_ratio: float (>0)
+                    base_fraction: float dampening multiplier on Kelly fraction
+              additionalProperties: true
+        execution:
+          type: object
+          properties:
+            commission_per_share:
+              type: number
+              description: Commission per share traded
+            slippage_bps:
+              type: number
+              description: Fixed slippage in basis points (1 bp = 0.0001)
+            borrow_bps:
+              type: number
+              description: Annualized borrow cost in basis points
+            fill_price:
+              type: string
+              enum: [open_next, mid_next, vwap_next]
+              default: open_next
+              description: Price model for fills
+            slippage_model:
+              type: object
+              required: [model]
+              properties:
+                model:
+                  type: string
+                  enum: [spread_pct, participation_rate]
+                  description: Slippage model identifier
+                params:
+                  type: object
+                  description: |
+                    Parameters by model:
+                      spread_pct:
+                        spread_pct: float (fraction; 0.001 = 10 bps total spread width)
+                      participation_rate:
+                        participation_pct: float (impact scaling factor relative to size/volume)
+                  additionalProperties: true
+        validation:
+          type: object
+          properties:
+            permutation:
+              type: object
+              properties:
+                n:
+                  type: integer
+                  minimum: 1
+            block_bootstrap:
+              type: object
+              properties:
+                n:
+                  type: integer
+                block_size:
+                  type: integer
+            monte_carlo:
+              type: object
+              properties:
+                n:
+                  type: integer
+            wfo:
+              type: object
+              properties:
+                windows:
+                  type: integer
+        seed:
+          type: integer
+          description: RNG seed for deterministic results
+        preset_ref:
+          type: string
+          description: Optional preset identifier being referenced
+    RunCreated:
+      type: object
+      properties:
+        run_id:
+          type: string
+          description: Server-generated run identifier
+        hash:
+          type: string
+          description: Deterministic hash of canonical configuration
+        status:
+          type: string
+          description: Current run status
+        reused:
+          type: boolean
+          description: True if idempotent create returned existing run
+    RunSummary:
+      type: object
+      description: Lightweight view of a run including identity, status and optional performance summary.
+      properties:
+        run_id:
+          type: string
+        status:
+          type: string
+        hash:
+          type: string
+        created_at:
+          type: integer
+          format: int64
+        metrics_summary:
+          $ref: '#/components/schemas/MetricsSummary'
+    RunList:
+      type: object
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunSummary'
+    RunDetail:
+      description: Detailed run record combining summary, configuration, artifacts, and dataset validation linkage.
+      allOf:
+        - $ref: '#/components/schemas/RunSummary'
+        - type: object
+          description: Full run detail including original configuration, artifacts manifest and dataset linkage metadata.
+          properties:
+            config: { $ref: '#/components/schemas/RunConfig' }
+            artifacts: { $ref: '#/components/schemas/ArtifactManifest' }
+            data_hash:
+              type: string
+              description: Canonical sha256 of normalized dataset used.
+            calendar_id:
+              type: string
+              description: Exchange calendar identifier applied during ingestion.
+            validation_summary:
+              type: object
+              description: Lightweight anomaly & integrity counters (subset of validation.json artifact).
+              properties:
+                symbol: { type: string }
+                data_hash: { type: string }
+                counters:
+                  type: object
+                  additionalProperties: { type: integer }
+                unexpected_gaps: { type: integer }
+                expected_closures: { type: integer }
+    ArtifactManifest:
+      type: object
+      description: Integrity-preserving list of files produced by a run with hashes for reproducibility.
+      properties:
+        run_id:
+          type: string
+          description: Run hash associated with this manifest (alias run_hash in API).
+        config_hash:
+          type: string
+          description: Hash of canonical run configuration (may be omitted in minimal response).
+        created_at:
+          type: integer
+          format: int64
+          description: UTC timestamp (epoch ms) manifest finalized.
+        chain_prev:
+            type: string
+            nullable: true
+            description: Canonical hash of previous run's manifest (integrity chain head->tail). Null for first link.
+        manifest_hash:
+          type: string
+          description: Canonical hash of this manifest (stable over idempotent rewrites).
+        data_hash:
+          type: string
+          description: Canonical sha256 of normalized dataset used (dataset provenance linkage).
+        calendar_id:
+          type: string
+          description: Exchange calendar identifier applied during ingestion.
+        files:
+          type: array
+          items:
+            type: object
+            required: [name, path, sha256, size]
+            properties:
+              name:
+                type: string
+              path:
+                type: string
+              sha256:
+                type: string
+              size:
+                type: integer
+              mime:
+                type: string
+                description: Optional mime-type; may be omitted for internal JSON assets.
+    ValidationSummary:
+      type: object
+      description: Complete validation details available in validation.json artifact.
+      properties:
+        symbol:
+          type: string
+        data_hash:
+          type: string
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              count:
+                type: integer
+              sample:
+                type: array
+                items: { type: integer, format: int64 }
+              resolution:
+                type: string
+        counters:
+          type: object
+          additionalProperties: { type: integer }
+        expected_closures:
+          type: integer
+        unexpected_gaps:
+          type: integer
+        generated_at:
+          type: integer
+          format: int64
+    CandleResponse:
+      type: object
+      properties:
+        symbol:
+          type: string
+        timeframe:
+          type: string
+        candles:
+          type: array
+          items:
+            type: object
+            properties:
+              ts:
+                type: integer
+                format: int64
+              o:
+                type: number
+              h:
+                type: number
+              l:
+                type: number
+              c:
+                type: number
+              v:
+                type: number
+    FeaturePreview:
+      type: object
+      additionalProperties: true
+      description: Dynamic keys for features
+    MetricsSummary:
+      type: object
+      description: Key performance and risk metrics aggregated over the full run horizon.
+      properties:
+        total_return:
+          type: number
+        sharpe:
+          type: number
+        sortino:
+          type: number
+        max_drawdown:
+          type: number
+        trade_count:
+          type: integer
+        win_rate:
+          type: number
+        exposure_pct:
+          type: number
+        turnover:
+          type: number
+    PresetCreate:
+      type: object
+      required: [name, config]
+      properties:
+        name:
+          type: string
+        config:
+          type: object
+          additionalProperties: true
+    Preset:
+      type: object
+      properties:
+        preset_id:
+          type: string
+        name:
+          type: string
+        config:
+          type: object
+    PresetList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Preset'
+    EventEnvelope:
+      type: object
+      description: Server-sent event entry describing progress, stage changes, heartbeats, or messages.
+      properties:
+        run_id:
+          type: string
+        seq:
+          type: integer
+        ts:
+          type: integer
+          format: int64
+        type:
+          type: string
+        stage:
+          type: string
+        progress:
+          type: number
+        message:
+          type: string
+        data:
+          type: object
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+            retryable:
+              type: boolean
 

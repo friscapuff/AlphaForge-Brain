@@ -86,3 +86,4 @@ presets/*.json
 # Misc
 *.swp
 *~
+node_modules
