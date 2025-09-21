@@ -8,8 +8,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
-_data_conftest = Path(__file__).parent / "data" / "conftest.py"
-spec = importlib.util.spec_from_file_location("_nvda_data_conftest", _data_conftest)
+_data_fixtures = Path(__file__).parent / "data" / "nvda_fixtures.py"
+spec = importlib.util.spec_from_file_location("_nvda_data_fixtures", _data_fixtures)
 if spec and spec.loader:  # pragma: no cover - import wiring
 	module = importlib.util.module_from_spec(spec)
 	sys.modules[spec.name] = module
