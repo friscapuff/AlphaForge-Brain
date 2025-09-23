@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) and this project adheres (prospectively) to Semantic Versioning.
 
+## [0.3.1-dev] - 2025-09-23
+### Added
+- Guarantee: When querying Run Detail with `?include_anomalies=true`, `summary.anomaly_counters` is now always present (empty object if no counters) and documented in OpenAPI.
+- Regression guard tests for `to_epoch_ms` covering multi-row localization and explicit DST ambiguous/nonexistent handling (baseline case + dedicated DST tests added).
+- Deterministic testing infrastructure: `freeze_time` fixture (subclasses `datetime` inside project modules) for exact timestamp assertions in manifest & SSE tests.
+- Central `random_seed_fixture` eliminating scattered ad-hoc seeding for permutation / bootstrap invariants.
+- Parameterized walk-forward segmentation unit tests covering multiple stride/warmup combinations plus insufficient-total edge case.
+- README Section 7.a documenting deterministic testing infrastructure and contributor guidelines.
+- README Section 7.b "Robustness & Validation" detailing statistical validation guarantees & usage pattern.
+- OpenAPI additive diff contract test (`tests/contract/test_openapi_diff.py`) with snapshot for future additive-only evolution.
+- Snapshot placeholder (`openapi_snapshot.json`) to be expanded incrementally as endpoints stabilize (initial minimal schema ensures new paths reported as additive).
+- Planned replay verification script placeholder task (T075) tracked; upcoming `scripts/verify_replay.py` will perform dual-run hash & artifact hash assertion.
+
+### Changed
+- Walk-forward segmentation test now derives expected segment counts algorithmically instead of brittle hard-coded numbers.
+- Tasks spec updated with rationale table for new infrastructure.
+- API overview annotated with timestamp determinism addendum.
+
+### Fixed
+- Removed prior brittle timestamp prefix assertions; now full equality under frozen time ensuring zero flake baseline.
+
+### Internal
+- Test factories expanded to guarantee timezone-aware datetime defaults across models.
+ - Task spec Phase 3.9 partially advanced: T069-T071 completed (quickstart updated, README robustness section added, OpenAPI diff test in place).
+
+
 ## [0.3.0] - 2025-09-21
 ### Added
 - Multi-symbol data abstraction & registry (Phase J G01-G08) enabling future portfolio expansion without breaking existing contracts.

@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
-from zoneinfo import ZoneInfo
 
 from infra.time.timestamps import to_epoch_ms
 
@@ -46,7 +46,7 @@ def test_nonexistent_spring_forward_shift_forward() -> None:
 
 
 def test_preserve_nat_and_future_clip() -> None:
-    future = datetime.utcnow() + timedelta(days=5)
+    future = datetime.now(timezone.utc) + timedelta(days=5)
     series = pd.Series(["2024-01-01 00:00:00", pd.NaT, future])
     out = to_epoch_ms(series, clip_future=True)
     # Future removed, NaT preserved as <NA>

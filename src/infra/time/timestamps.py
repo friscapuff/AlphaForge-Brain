@@ -1,8 +1,3 @@
-from __future__ import annotations
-
-import pandas as pd
-from zoneinfo import ZoneInfo
-
 """Central timestamp conversion helpers.
 
 Provides stable, pandas-friendly utilities for converting datetime-like Series/Index to
@@ -14,14 +9,28 @@ UTC epoch millisecond int64 values while handling:
 These helpers reduce repeated patterns and avoid deprecated usage (.view("int64")).
 """
 
+from __future__ import annotations
+
+from zoneinfo import ZoneInfo
+from datetime import timedelta
+
+import pandas as pd
+import numpy as np
+from numpy.typing import NDArray
+from typing import overload, Literal, Iterable, Sequence
+
+
+AmbiguousType = Literal["infer", "NaT", "raise"] | NDArray[np.bool_]
+NonExistentType = Literal["shift_forward", "shift_backward", "NaT", "raise"] | pd.Timedelta | timedelta
+
 
 def to_epoch_ms(
     values: pd.Series | pd.DatetimeIndex,
     *,
     assume_tz: str | None = None,
     clip_future: bool = False,
-    ambiguous: str | int | bool | pd.Series | None = "raise",
-    nonexistent: str | int | pd.Timedelta | None = "raise",
+    ambiguous: AmbiguousType = "raise",
+    nonexistent: NonExistentType = "raise",
 ) -> pd.Series:
     """Convert datetime-like values to UTC epoch milliseconds (int64) with DST safety.
 
@@ -59,48 +68,52 @@ def to_epoch_ms(
 
     # Normalize to DatetimeIndex (retain original index for Series)
     orig_index = getattr(values, "index", None)
-    dt = pd.to_datetime(values, utc=False, errors="coerce")  # returns Series or DatetimeIndex matching input
-
-    # Always work with a DatetimeIndex for uniform tz operations
-    if isinstance(dt, pd.Series):
-        dti = pd.DatetimeIndex(dt)
+    # Parse to object Series first to allow mixed tz handling safely
+    # If all values appear naive and no assume_tz specified, we can parse with utc=True directly
+    # to avoid pandas mixed-timezone FutureWarning and gain a vectorized fast path.
+    try:
+        if assume_tz is None:
+            parsed = pd.to_datetime(values, utc=True, errors="coerce")
+        else:
+            parsed = pd.to_datetime(values, utc=False, errors="coerce")
+    except Exception:  # fallback conservative path
+        parsed = pd.to_datetime(values, utc=False, errors="coerce")
+    if isinstance(parsed, pd.DatetimeIndex):
+        parsed_series = parsed.to_series(index=orig_index)
     else:
-        dti = dt
+        parsed_series = parsed  # already Series
+
+    # Normalize each element to UTC preserving NaT; mixed tz-aware/naive supported
+    norm_list: list[pd.Timestamp] = []
+    for v in parsed_series.tolist():  # iteration size small in tests; acceptable
+        if pd.isna(v):  # NaT
+            norm_list.append(pd.NaT)
+            continue
+        ts = v
+        if getattr(ts, "tzinfo", None) is None:
+            if assume_tz:
+                # mypy: pandas typeshed is conservative; runtime accepts broader ambiguous/nonexistent.
+                ts = pd.DatetimeIndex([ts]).tz_localize(  # pandas accepts our broader runtime types
+                    ZoneInfo(assume_tz), ambiguous=ambiguous, nonexistent=nonexistent
+                )[0]
+            else:
+                # Localize naive timestamp directly to UTC
+                ts = ts.tz_localize("UTC")
+        # Convert any tz-aware (localized above or already) to UTC (skip NaT)
+        if not pd.isna(ts):
+            ts = ts.astimezone(ZoneInfo("UTC"))
+        norm_list.append(ts)
+    dti = pd.DatetimeIndex(norm_list)
 
     # Preserve original NaT positions prior to localization
     orig_is_nat = pd.isna(dti)
 
-    # Localize / convert only non-NaT subset to avoid warnings
-    if orig_is_nat.any():
-        working = dti[~orig_is_nat]
-    else:
-        working = dti
-
-    if working.tz is None:
-        if assume_tz:
-            working = working.tz_localize(ZoneInfo(assume_tz), ambiguous=ambiguous, nonexistent=nonexistent)
-        else:
-            working = working.tz_localize("UTC")
-    dt_utc = working.tz_convert("UTC")
-
-    # Reconstruct full aligned array with NaT where applicable
-    if orig_is_nat.any():
-        # create empty tz-aware index to align
-        rebuilt = []
-        j = 0
-        for is_na in orig_is_nat:
-            if is_na:
-                rebuilt.append(pd.NaT)
-            else:
-                rebuilt.append(dt_utc[j])
-                j += 1
-        dt_utc_full = pd.DatetimeIndex(rebuilt)
-    else:
-        dt_utc_full = dt_utc
+    dt_utc_full = dti  # already UTC-normalized element-wise
 
     # Vectorized epoch ms
-    epoch_ms_array = (dt_utc_full.view("int64") // 1_000_000)
-    out = pd.Series(epoch_ms_array, index=orig_index, name=getattr(values, "name", None))
+    # view is untyped in stubs
+    epoch_ms_array = (dt_utc_full.view("int64") // 1_000_000)  # type: ignore[no-untyped-call]
+    out: pd.Series = pd.Series(epoch_ms_array, index=orig_index, name=getattr(values, "name", None))
     if orig_is_nat.any():
         out = out.astype("Int64")
         out[orig_is_nat] = pd.NA

@@ -8,19 +8,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 from typing import Any
-import sys
 
-# Lightweight bootstrap so running as a module or script finds the 'domain' package under src/
-ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
 
-from domain.data.ingest_csv import load_generic_csv
-from domain.data.registry import DatasetEntry, get_dataset, register_dataset
+def _ensure_src_on_path() -> None:
+    root = Path(__file__).resolve().parents[2]
+    src = root / "src"
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+
+_ensure_src_on_path()
+
+from domain.data.ingest_csv import load_generic_csv  # noqa: E402  (path bootstrap above)
+from domain.data.registry import DatasetEntry, get_dataset, register_dataset  # noqa: E402
 
 
 def run(symbol: str, timeframe: str, start: str | None, end: str | None) -> dict[str, Any]:

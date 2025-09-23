@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from .config import get_settings
+from . import config as _config_mod
 from .logging import get_logger
 
 LOGGER = get_logger(__name__)
@@ -47,7 +47,7 @@ def _apply_migrations(conn: sqlite3.Connection) -> None:
 
 @contextmanager
 def get_connection() -> Iterator[sqlite3.Connection]:
-    settings = get_settings()
+    settings = _config_mod.get_settings()
     path = settings.sqlite_path
     _init_db(path)
     conn = sqlite3.connect(path)

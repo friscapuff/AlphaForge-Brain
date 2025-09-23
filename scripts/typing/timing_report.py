@@ -11,8 +11,9 @@ import json
 import subprocess
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence, TypedDict
+from typing import TypedDict
 
 
 class CmdResult(TypedDict):

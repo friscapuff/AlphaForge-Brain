@@ -287,6 +287,77 @@ Reproduce Checklist:
 4. Submit via `/runs`; identical `run_hash` indicates reuse.
 5. Fetch artifacts; verify manifest hash & `chain_prev` alignment.
 
+### 7.a Deterministic Testing Infrastructure (2025-09-23 refresh)
+
+Recent hardening introduced a unified layer ensuring tests asserting time, randomness, and structural segmentation remain fully reproducible:
+
+| Concern | Mechanism | Location | Notes |
+|---------|-----------|----------|-------|
+| Wall-clock timestamps | `freeze_time` fixture replaces module-level `datetime` class with subclass overriding `now()/utcnow()` | `tests/conftest.py` | Avoids mutating CPython built-in; patches only project modules so third-party libs unaffected. |
+| Random permutations / bootstrap | Central `random_seed_fixture` seeds `random` and feeds explicit seed args to engines | `tests/conftest.py` & permutation tests | Eliminates ad-hoc seeding scattered across tests. |
+| Walk-forward segmentation variance | Parameterized tests derive expected segment counts algorithmically | `tests/unit/test_walk_forward_splits.py` | Edge case of insufficient bars (< train+test) explicitly allowed to return zero segments. |
+| Object creation boilerplate | Factory helpers for configs & models | `tests/factories.py` | Ensures consistent defaults (timezone-aware datetimes) & reduces duplication. |
+| Timezone correctness | All runtime datetimes use `datetime.now(timezone.utc)` | throughout models/services | Legacy `utcnow()` calls removed; fixtures align with aware datetimes. |
+
+Benefits:
+* Zero flake baseline—any failure now indicates a regression rather than incidental timing drift.
+* Reduced test verbosity; factories encapsulate canonical defaults (dataset snapshot, execution, cost, validation config, etc.).
+* Clear extension pattern: new validation module only needs deterministic seed derivation + factory hook.
+
+Guidelines for Contributors:
+1. Do not call `datetime.now()` or `datetime.utcnow()` directly in tests—rely on model defaults or request `freeze_time` if you must assert exact instants.
+2. For new randomness-dependent logic, accept an explicit `seed: int | None` argument (do not read global state inside the function).
+3. Add parametric coverage (small/edge/typical) rather than multiple near-duplicate test functions.
+4. When asserting collections with hashes or timestamps, prefer full equality if fixture-provided; avoid prefix / substring unless intentionally focusing format.
+5. If a test needs true variability, document why deterministic seeding would hide a class of bugs and add a comment `# nondeterministic-by-design`.
+
+Future Enhancements (not yet implemented):
+* Global fixture for numpy / pandas random seeding (currently deterministic paths do not depend on their RNGs).
+* Snapshot-based artifact schema diffing (augmenting contract tests) to catch unapproved field additions.
+
+
+---
+## 7.b Robustness & Validation
+This system embeds a multi-layer statistical validation framework so performance claims are contextualized rather than cherry‑picked:
+
+| Component | Purpose | Determinism Hook |
+|-----------|---------|------------------|
+| Permutation Test | Break temporal signal structure to estimate null distribution of performance | Seeded structural shuffles (stable seed list derived from base seed) |
+| Bootstrap Resample (planned) | Resample segments to quantify sampling variability | Deterministic segment index generation |
+| Monte Carlo (planned) | Perturb returns or fills for distributional stress | Seeded RNG & fixed perturbation policy |
+| Walk-Forward Segmentation | Evaluate OOS stability across rolling windows | Segment boundaries computed algorithmically (size, stride, warmup) |
+| Robustness Score | Composite of p_value (permutation), tail behavior, OOS consistency | Pure function of deterministic components |
+
+Key Guarantees:
+1. Validation modules never mutate primary artifacts (metrics, trades); they only append structured results.
+2. All randomness sources accept explicit seeds; sub-seeds use `base_seed + offset` for stable trial ordering.
+3. The permutation engine preserves gap structure (no synthetic timestamps) preventing temporal compression artifacts.
+4. Walk-forward segmentation yields deterministic non-overlapping windows or zero segments—never ambiguous partials.
+5. `robustness_score` is recomputable at any time from manifest-linked inputs; no hidden mutable state.
+
+Interpreting Outputs:
+- `p_value`: Probability under the null (randomized structure) of observing a result at least as extreme.
+- `extreme_tail_ratio`: Realized performance / high quantile of null distribution (guards against overstated small p-values).
+- `oos_consistency_score`: Stability of out-of-sample segment returns.
+- `robustness_score`: Weighted aggregate balancing evidence strength & OOS stability.
+
+Usage Pattern:
+1. Run a deterministic baseline with small permutation trial count.
+2. Inspect `validation.json` (permutation distribution, summary fields).
+3. Scale trials (e.g., 30 → 100) only if early evidence warrants.
+4. Add walk-forward config to measure OOS degradation once base logic stable.
+5. Track `robustness_score` deltas rather than raw Sharpe to avoid variance noise.
+
+Anti-Patterns Avoided:
+- No p-hacking loops (trial count fixed per run).
+- No adaptive early stopping biasing p-values.
+- No mutation of fill/trade series during validation phases.
+
+Planned (Next Minor): bootstrap & Monte Carlo modules—schema additions remain additive.
+
+See `specs/003-elevate-project-a/research.md` and upcoming `docs/architecture/truthful_run.md` for deeper rationale.
+
+
 ---
 ## 8. Risk & Slippage Model Usage
 Example risk config (volatility target):

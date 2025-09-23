@@ -60,7 +60,10 @@ def _infer_trades(fills: pd.DataFrame) -> pd.DataFrame:
             else:  # short
                 pnl = (avg_entry - f.price) * entry_qty
             return_pct = (pnl / (entry_value)) if entry_value else 0.0
-            holding = int((exit_ts - entry_ts).total_seconds() // 60) if isinstance(exit_ts, pd.Timestamp) else 0
+            if isinstance(exit_ts, pd.Timestamp) and isinstance(entry_ts, pd.Timestamp):
+                holding = int((exit_ts - entry_ts).total_seconds() // 60)
+            else:
+                holding = 0
             trades.append({
                 "entry_ts": entry_ts,
                 "exit_ts": exit_ts,

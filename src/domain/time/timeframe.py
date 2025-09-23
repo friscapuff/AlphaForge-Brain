@@ -39,7 +39,6 @@ _CANONICAL: dict[str, tuple[int, str]] = {
 _ALIASES: dict[str, str] = {
     "1min": "1m",
     "01m": "1m",
-    "1M": "1m",
     "60m": "1h",
     "60min": "1h",
     "120m": "2h",

@@ -5,11 +5,11 @@ from typing import Any, cast
 
 import structlog
 
-from .config import get_settings
+from . import config as _config_mod
 
 
 def _configure_structlog() -> None:
-    settings = get_settings()
+    settings = _config_mod.get_settings()
 
     timestamper = structlog.processors.TimeStamper(fmt="iso", utc=True)
 

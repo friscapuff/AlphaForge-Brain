@@ -1,9 +1,8 @@
+import argparse
 import json
 import re
 import sys
-import argparse
 from pathlib import Path
-from contextlib import asynccontextmanager
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -59,12 +58,13 @@ async def probe_health(expected: str) -> dict:
     """
     try:
         import importlib
-        import httpx  # type: ignore
+
+        import httpx  # third-party; types provided via stub dependency
     except Exception as e:  # pragma: no cover - dependency missing
-        raise SystemExit(f"FAILED: health probe dependencies missing: {e}")
+        raise SystemExit(f"FAILED: health probe dependencies missing: {e}") from e
 
     app_mod = importlib.import_module("api.app")
-    create_app = getattr(app_mod, "create_app")
+    create_app = app_mod.create_app
     app = create_app()
 
     async with httpx.AsyncClient(app=app, base_url="http://testserver") as client:
@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> None:
         except SystemExit:
             raise
         except Exception as e:  # pragma: no cover
-            raise SystemExit(f"FAILED: health probe exception: {e}")
+            raise SystemExit(f"FAILED: health probe exception: {e}") from e
 
     if mismatches:
         details = ", ".join(f"{f}={v}" for f, v in mismatches)

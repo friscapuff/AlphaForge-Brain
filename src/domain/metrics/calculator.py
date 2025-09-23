@@ -21,7 +21,8 @@ get_dataset_metadata: Callable[[], _MetadataProto] | None = _get_dataset_metadat
 try:  # Optional timeframe scaling hook
     from domain.risk.timeframe_scaling import maybe_scale
 except Exception:  # pragma: no cover - defensive
-    def maybe_scale(metric: float, bar_seconds: int | None) -> float:  # type: ignore
+    def maybe_scale(metric: float, bar_seconds: int | None) -> float:
+        """Fallback no-op scaling when optional timeframe module absent."""
         return metric
 
 
@@ -116,8 +117,7 @@ def compute_metrics(trades_df: pd.DataFrame, equity_curve: pd.DataFrame, *, incl
     max_dd = _max_drawdown(eq)
     out: dict[str, Any] = {
         "total_return": total_return,
-    "sharpe": sharpe,
-    "sharpe_raw": sharpe_raw,
+        "sharpe": sharpe,
         "max_drawdown": max_dd,
         "trade_count": len(trades_df),
     }

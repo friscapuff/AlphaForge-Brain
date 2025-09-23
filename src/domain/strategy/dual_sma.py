@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from .base import strategy
+from typing import Callable
 
 
 @strategy("dual_sma")

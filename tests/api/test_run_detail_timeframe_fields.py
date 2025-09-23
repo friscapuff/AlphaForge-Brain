@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import os
 import json
 from pathlib import Path
+from pathlib import Path as _PathType
 
+from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from api.app import create_app
-from domain.schemas.run_config import RunConfig, StrategySpec, RiskSpec, IndicatorSpec
+from domain.schemas.run_config import IndicatorSpec, RiskSpec, RunConfig, StrategySpec
 
 
 def _write_manifest(run_hash: str) -> None:
@@ -22,7 +23,10 @@ def _write_manifest(run_hash: str) -> None:
     (artifacts_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
-def test_run_detail_contains_timeframe_fields(tmp_path, monkeypatch):
+...  # moved to top to satisfy import ordering (E402)
+
+
+def test_run_detail_contains_timeframe_fields(tmp_path: _PathType, monkeypatch: MonkeyPatch) -> None:
     # Ensure artifacts directory isolated
     monkeypatch.chdir(tmp_path)
     app = create_app()

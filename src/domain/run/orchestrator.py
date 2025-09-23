@@ -176,6 +176,9 @@ class Orchestrator:
                 eq_curve = build_equity_curve(positions)
                 metrics = compute_metrics(trades, eq_curve, include_anomalies=False)
                 summary["metrics"] = metrics
+            else:
+                # Build equity curve anyway for artifact layer if not already built
+                eq_curve = build_equity_curve(positions)
 
             self._transition(OrchestratorState.VALIDATING, {"trade_count": summary.get("trade_count", 0)})
             if self._cancel_requested:
@@ -188,6 +191,7 @@ class Orchestrator:
                 "trades": trades,
                 "summary": summary,
                 "validation": validation,  # raw validation with distributions (where provided)
+                "equity_df": eq_curve,
             }
             self._result = result
             self._transition(OrchestratorState.COMPLETE, {"p_values": {

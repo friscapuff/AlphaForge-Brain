@@ -7,21 +7,26 @@ from __future__ import annotations
 
 import argparse
 import json
+import runpy
+import sys
 from pathlib import Path
 from typing import Any
-import sys
 
-# Bootstrap sys.path similar to ingestion_perf so this script works standalone.
+
+# Defer path bootstrap into a helper to keep imports at top (E402 compliant)
+def _ensure_src_on_path() -> None:
+    ROOT = Path(__file__).resolve().parents[2]
+    SRC = ROOT / "src"
+    if str(SRC) not in sys.path:
+        sys.path.insert(0, str(SRC))
+    return None
+
+_ensure_src_on_path()
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-import runpy
 
 INGEST_PATH = ROOT / "scripts" / "bench" / "ingestion_perf.py"
 ns = runpy.run_path(str(INGEST_PATH))
-run_ingestion = ns["run"]  # type: ignore
+run_ingestion = ns["run"]  # runtime dynamic; expected to be callable
 
 
 def main() -> None:  # pragma: no cover

@@ -59,6 +59,7 @@ def create_or_get(
     registry: InMemoryRunRegistry,
     *,
     seed: int | None = None,
+    artifacts_base: Path | None = None,
 ) -> tuple[str, dict[str, Any], bool]:
     """Return (hash, record, created_flag).
 
@@ -83,6 +84,9 @@ def create_or_get(
     result = orchestrate(config, seed=seed, callbacks=[cb])
     summary = result.get("summary", {})
     validation = result.get("validation", {})
+    # Derive equity & trades frames for artifact layer if available (exposed directly by orchestrator)
+    equity_df = result.get("equity_df")
+    trades_df = result.get("trades")
     # Build validation detail (distributions & folds) for artifact layer
     try:  # pragma: no cover - small integration guard
         from domain.artifacts.validation_merge import merge_validation
@@ -90,6 +94,7 @@ def create_or_get(
     except Exception:
         validation_detail = None
 
+    from datetime import datetime, timezone
     record = {
         "hash": h,
         "summary": summary,
@@ -101,15 +106,46 @@ def create_or_get(
             "mc": validation.get("monte_carlo_slippage", {}).get("p_value"),
         },
         "progress_events": len(progress_events),
+        "created_at": datetime.now(timezone.utc).timestamp(),
     }
     if validation_detail is not None:
         record["validation_detail"] = validation_detail
     registry.set(h, record)
-    # Write artifacts (idempotent) - base path 'artifacts' relative root for now
+    # Write artifacts (AlphaForgeB Brain) - centralized root resolution
     try:  # pragma: no cover simple integration guard
+        import pandas as _pd  # local alias
+
         from domain.artifacts.writer import write_artifacts
-        base_path = Path("artifacts")
+        from infra.artifacts_root import resolve_artifact_root
+        from lib.artifacts import artifact_index, write_equity, write_trades
+        from lib.plot_equity import plot_equity
+        base_path = resolve_artifact_root(artifacts_base)
+        # Persist equity & trades if structures convertible to DataFrame
+        try:
+            if equity_df is not None and isinstance(equity_df, _pd.DataFrame):
+                write_equity(h, equity_df, base_dir=base_path)
+        except Exception:
+            pass
+        try:
+            if trades_df is not None and isinstance(trades_df, list):
+                tdf = _pd.DataFrame(trades_df)
+                if not tdf.empty:
+                    write_trades(h, tdf, base_dir=base_path)
+        except Exception:
+            pass
+        # Plot equity if present
+        try:
+            if equity_df is not None and isinstance(equity_df, _pd.DataFrame) and not equity_df.empty:
+                plot_equity(
+                    h,
+                    equity_df.set_index(equity_df.columns[0]) if equity_df.index.name is None else equity_df,
+                    base_path / h,
+                )
+        except Exception:
+            pass
         write_artifacts(h, record, base_path=base_path)
+        # Augment record with artifact index for API consumers (not persisted separately yet)
+        record["artifact_index"] = artifact_index(h, base_dir=base_path)
     except Exception:
         pass
     # Append completed snapshot to buffer (after artifacts) for SSE consumers

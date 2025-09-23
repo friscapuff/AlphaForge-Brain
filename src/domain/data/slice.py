@@ -58,9 +58,12 @@ def get_candles_slice(
         cache.load(symbol=symbol, start=start_epoch, end=end_epoch, frame=window)
 
     if memoized is not None:
-        return memoized.copy()
+        memo_copy = memoized.copy()
+        assert isinstance(memo_copy, pd.DataFrame)
+        return memo_copy
 
     _MEMO[memo_key] = window.copy()
+    assert isinstance(window, pd.DataFrame)
     return window
 
 __all__ = ["get_candles_slice"]

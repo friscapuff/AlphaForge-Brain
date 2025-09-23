@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pandas as pd
-
-from domain.data.ingest_csv import GenericDatasetMetadata
 from domain.data.ingest_nvda import DatasetMetadata
 from domain.validation.summary.model import build_validation_summary
 

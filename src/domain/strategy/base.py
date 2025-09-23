@@ -4,10 +4,11 @@ from typing import Any, Callable, Protocol
 
 
 class Strategy(Protocol):  # pragma: no cover - structural
-    def run(self, features: Any) -> Any:  # domain will refine later
-        ...
+    def __call__(self, df: Any, params: dict[str, Any] | None = None) -> Any: ...
 
-_StrategyFactory = Callable[..., Strategy]
+StrategyFactory = Callable[[Any, dict[str, Any] | None], Any]
+
+_StrategyFactory = Callable[..., Any]
 _REGISTRY: dict[str, _StrategyFactory] = {}
 
 

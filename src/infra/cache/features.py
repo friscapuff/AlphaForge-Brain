@@ -83,7 +83,9 @@ class FeaturesCache:
 
     def _read(self, path: Path) -> pd.DataFrame:
         table = pq.read_table(path)
-        return table.to_pandas()
+        df = table.to_pandas()
+        assert isinstance(df, pd.DataFrame)
+        return df
 
 
 __all__ = ["FeaturesCache"]

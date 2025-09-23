@@ -5,7 +5,6 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 from domain.time.timeframe import parse_timeframe
-
 from infra.utils.hash import canonical_json, hash_canonical
 
 
@@ -67,8 +66,8 @@ class RunConfig(BaseModel):
         try:
             spec = parse_timeframe(self.timeframe)
             object.__setattr__(self, "timeframe", spec.canonical)
-        except ValueError as e:  # surface original message
-            raise ValueError(str(e))
+        except ValueError as e:  # surface original message while preserving context
+            raise ValueError(str(e)) from e
         return self
 
     def canonical_dict(self) -> dict[str, Any]:

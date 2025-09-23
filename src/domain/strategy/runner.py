@@ -9,6 +9,11 @@ import pandas as pd
 from domain.indicators.registry import IndicatorRegistry
 from domain.schemas.run_config import RunConfig
 from domain.strategy.base import StrategyRegistry
+from typing import Protocol, Callable
+
+
+class _StrategyCallable(Protocol):  # pragma: no cover - typing helper
+    def __call__(self, df: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame: ...
 
 # Ensure legacy function-style indicators are registered (e.g., dual_sma) by importing their module.
 try:  # pragma: no cover - defensive import
@@ -118,6 +123,7 @@ def run_strategy(
 
     # Strategy factories in this codebase currently take (df, params)
     result = factory(features, strategy_params)
+    assert isinstance(result, pd.DataFrame)
 
     # Enforce no lookahead by ensuring signal at row i only derived from <= i features.
     # Dual SMA strategy already respects this (iterative loop). For future strategies we could
