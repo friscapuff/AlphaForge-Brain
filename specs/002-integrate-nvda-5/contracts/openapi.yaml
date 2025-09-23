@@ -5,7 +5,8 @@ info:
   description: >-
     Additive contract notes for NVDA 5-year dataset integration.
     Version 0.2.3 (finalized): formalizes exposure of data_hash, calendar_id, validation_summary and legacy alias `validation` (identical content for transition).
-    Also documents optional anomaly_counters expansion when include_anomalies=true (purely additive, no breaking field removals).
+    Also documents optional anomaly_counters expansion when include_anomalies=true (purely additive, no breaking field removals). When the
+    include_anomalies flag is provided the server guarantees `summary.anomaly_counters` is present (may be an empty object) for consistency.
 servers:
   - url: http://localhost:8000
 paths:
@@ -33,10 +34,52 @@ paths:
           required: false
           schema:
             type: boolean
-          description: When true, embed anomaly_counters into summary metrics.
+          description: When true, embed anomaly_counters into summary metrics (always present as object, possibly empty).
       responses:
         '200':
           description: Run detail with dataset metadata & optional anomaly counters
+          content:
+            application/json:
+              example:
+                run_id: "4f2c9b1e6d7a"
+                run_hash: "4f2c9b1e6d7a"
+                status: "SUCCEEDED"
+                phase: "finalize"
+                data_hash: "ab12cd34ef..."
+                calendar_id: "NASDAQ"
+                artifacts:
+                  - name: "manifest.json"
+                    sha256: "d41d8cd98f00b204e9800998ecf8427e"
+                    size: 512
+                  - name: "validation.json"
+                    sha256: "3b5d5c3712955042212316173ccf37be"
+                    size: 2048
+                summary:
+                  return_pct: 0.1234
+                  sharpe: 1.87
+                  anomaly_counters: {}
+                validation_summary:
+                  symbol: "NVDA"
+                  data_hash: "ab12cd34ef..."
+                  counters:
+                    unexpected_gaps: 0
+                    duplicates_dropped: 0
+                  unexpected_gaps: 0
+                  expected_closures: 569
+                  observed_bar_seconds: 86400
+                  declared_bar_seconds: 86400
+                  timeframe_ok: true
+                validation:
+                  symbol: "NVDA"
+                  data_hash: "ab12cd34ef..."
+                  counters:
+                    unexpected_gaps: 0
+                    duplicates_dropped: 0
+                  unexpected_gaps: 0
+                  expected_closures: 569
+                  observed_bar_seconds: 86400
+                  declared_bar_seconds: 86400
+                  timeframe_ok: true
   /runs/{run_hash}/artifacts:
     get:
       summary: List artifact manifest (includes data_hash & calendar)
@@ -103,7 +146,7 @@ components:
                 timeframe_ok: { type: boolean, nullable: true }
             anomaly_counters:
               $ref: '#/components/schemas/AnomalyCounters'
-              description: Present when include_anomalies=true; mirrors anomaly counters from dataset metadata.
+              description: Present when include_anomalies=true; mirrors anomaly counters from dataset metadata (empty object if none recorded).
     ArtifactManifest:
       description: NVDA extension adding dataset provenance fields to base ArtifactManifest.
       allOf:
