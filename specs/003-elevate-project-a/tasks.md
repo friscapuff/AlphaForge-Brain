@@ -119,9 +119,9 @@ Rationale: Ensure static analysis signal quality before public API & persistence
 - [x] T075 Final deterministic replay smoke script -> `scripts/verify_replay.py` (run twice, compare hashes) FR-024. (Implemented.)
 
 ## Phase 3.10: Future Placeholders (Non-Executable Now)
-- [ ] T076 Document adaptive validation placeholder structures in validation.json (future_methods) FR-049.
-- [ ] T077 Stub distributed permutation backend interface -> `src/services/permutation_backends.py` FR-044 (deferred) – ensure no execution path yet.
-- [ ] T078 Stub strategy registry governance expansion doc -> `docs/roadmap/strategy_registry.md` FR-045.
+- [x] T076 Document adaptive validation placeholder structures in validation.json (future_methods) FR-049. (Added future_methods placeholder will be injected when validation artifact assembled; spec clarified—no runtime logic yet.)
+- [x] T077 Stub distributed permutation backend interface -> `src/services/permutation_backends.py` FR-044 (deferred) – ensure no execution path yet. (Protocol + DEFAULT_BACKEND None stub created.)
+- [x] T078 Stub strategy registry governance expansion doc -> `docs/roadmap/strategy_registry.md` FR-045. (Roadmap placeholder with governance outline added.)
 
 ## Dependencies Summary
 - Setup (T001-T006) precedes all.
