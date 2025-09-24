@@ -4,6 +4,8 @@
 
 AlphaForge Brain is a deterministic, modular backend for running strategy backtests, risk-adjusted simulations, and statistical validations. It targets a single power user who wants **repeatable experiments**, **artifact integrity**, and **low-friction iteration** without premature multi-user overhead. A future UI (out of scope here) will sit on top of these APIs. The codebase has recently completed a full **strict typing & lint hardening phase** (upcoming v0.3.0) and now exposes multi-symbol abstractions preparing for future portfolio-level extensions.
 
+Note on architecture migration (2025-09-24): The repository has moved to a dual-root layout. Backend code now lives under `alphaforge-brain/src` with tests under `alphaforge-brain/tests`. A placeholder `alphaforge-mind/` root exists for future UI/visualization work. See `alphaforge-brain/ARCH_MIGRATION_STATUS.md` for exit criteria evidence and `ARCH_MIGRATION_RETROSPECTIVE.md` for lessons learned. An architecture diagram will be linked here in a future revision.
+
 ---
 ## 1. Executive Overview
 AlphaForge Brain executes an orchestrated pipeline: load candles → compute indicators/features → derive strategy signals → size positions (risk models) → simulate fills (slippage, fees, T+1) → compute metrics → perform validation (permutation, bootstrap, Monte Carlo, walk-forward) → assemble artifacts → emit ordered events (SSE) → persist manifest with integrity hash + chain linkage. Every run is **idempotent**: submitting the same canonical configuration returns the same `run_hash` and reuses existing artifacts.
@@ -496,6 +498,12 @@ poetry run ruff check .
 ```
 Zero warnings are tolerated (CI treats warnings as errors). Type & lint gates must be green before merging changes.
 
+Note on pytest-asyncio: defaults are pinned to silence deprecation warnings. See `pytest.ini`:
+```
+asyncio_mode = auto
+asyncio_default_fixture_loop_scope = function
+```
+
 Dev Script Helper:
 ```powershell
 pwsh scripts/dev/run_api.ps1 -Port 8000 -Reload
@@ -528,7 +536,7 @@ Virtualization Checks (Windows):
 ```powershell
 pwsh scripts/env/check_virtualization.ps1 -Json virt_report.json
 ```
-Inspect `virt_report.json` for readiness flags.
+`virt_report.json` is a local-only artifact and is ignored by git.
 
 ---
 ## 16. Roadmap (Indicative)
@@ -565,3 +573,27 @@ curl -X POST http://localhost:8000/runs -H "Content-Type: application/json" -d '
 ```
 
 > Keep this README as a living contract: update Data Flow & Extensibility sections first when architecture evolves.
+
+## Persistence (Run → Query)
+AlphaForge Brain records each run’s inputs and results in a small, file‑based database (SQLite). You can:
+- Inspect high‑level run info (manifest, seeds, version)
+- Review the equity curve and list of trades
+- Check validation summaries and timing markers
+
+Start here for a friendly walkthrough: `specs/004-alphaforge-brain-refinement/persistence-quickstart.md`.
+
+## Validation: Bootstrap and Walk‑Forward
+To check that results are reliable, the system runs statistical validations:
+- Bootstrap (with HADJ‑BB block selection and deterministic seeds)
+- Walk‑forward (performance across rolling time windows)
+
+Learn the policies and plain‑language background:
+- Contracts appendix: `specs/004-alphaforge-brain-refinement/contracts-appendix.md`
+- HADJ‑BB & CI Width Policy: `specs/004-alphaforge-brain-refinement/hadj-bb-ci-width-policy.md`
+
+## Chunk Mode: Memory‑Friendly Feature Building
+Feature construction can run in chunks to reduce memory usage while preserving correctness and determinism. This mode uses overlapping windows to avoid any peek into the future.
+
+## Architecture Overview
+A high‑level diagram that shows how pieces fit together is available at:
+- `specs/004-alphaforge-brain-refinement/architecture-diagram.md`
