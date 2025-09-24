@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) and this project adheres (prospectively) to Semantic Versioning.
 
+## [0.3.2-dev] - 2025-09-25
+### Documentation
+- Phase G (Docs): Added plain-language artifacts under `specs/004-alphaforge-brain-refinement/`:
+	- `contracts-appendix.md` (schemas, entities, error codes, determinism overview)
+	- `persistence-quickstart.md` (run → query guide)
+	- `hadj-bb-ci-width-policy.md` (heuristic and CI gate explained)
+	- `architecture-diagram.md` (Mermaid overview + narrative)
+- README updated with Persistence, Validation, Chunk Mode, and Architecture links.
+
+### Acceptance / Governance
+- Phase H completed:
+	- `validation-checklist.md` mapping FRs to concrete test/CI evidence
+	- `ACCEPTANCE.md` summarizing targets vs observed outcomes and sign-off recommendation
+	- Constitution updated with Phase H governance record referencing acceptance artifacts
+
+### Validation
+- All test suites remain green (unit, integration, validation, e2e). CI acceptance suite (determinism replay + width gate) passing.
+
+### Internal
+- No functional code changes; documentation and governance records only.
+
 ## [0.3.1-dev] - 2025-09-23
 ### Added
 - Guarantee: When querying Run Detail with `?include_anomalies=true`, `summary.anomaly_counters` is now always present (empty object if no counters) and documented in OpenAPI.
@@ -26,6 +47,15 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) a
 - Removed prior brittle timestamp prefix assertions; now full equality under frozen time ensuring zero flake baseline.
 
 ### Internal
+
+### Housekeeping (2025-09-24)
+- Completed dual-root architecture migration; added `alphaforge-brain/ARCH_MIGRATION_STATUS.md` and `ARCH_MIGRATION_RETROSPECTIVE.md`.
+- Updated constitution governance record referencing migration status.
+- Removed root archive `Alphaforge Brain.zip`; cleaned generated artifacts from repo root.
+- Pinned pytest-asyncio defaults in `pytest.ini` to silence deprecation warnings.
+- Added CI guard to fail if generated artifacts are tracked; added pre-commit cleanup/block hooks to keep working tree clean.
+
+Tagging: create tag `migration-complete-v1` upon merge of the refinement branch.
 - Test factories expanded to guarantee timezone-aware datetime defaults across models.
  - Task spec Phase 3.9 partially advanced: T069-T071 completed (quickstart updated, README robustness section added, OpenAPI diff test in place).
 
@@ -137,3 +167,9 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) a
 - Initial deterministic single-user backtest engine: data loading, indicator registry (+1 bar shift), dual SMA strategy, fixed fraction risk sizing, T+1 execution simulator with commissions/slippage/borrow, metrics suite, validation framework (permutation, block bootstrap, Monte Carlo slippage noise, simplified walk-forward), artifacts & manifest, presets, retention policy, SSE event streaming, idempotent runs API, Docker packaging, and documentation.
 
 [0.2.0]: https://example.com/compare/v0.1.0...v0.2.0
+
+### Type Hygiene Sweep
+- Promoted strict-plus mypy flags into primary config; baseline and strict-plus both at 0 errors.
+- CI includes strict-plus ratchet (no regression in strict-plus error count) and metrics provenance (SHA256 of config files).
+- Annotation coverage enforced per Profile B: functions 100%, methods 100%, class attrs ≥95% (constants excluded from gating).
+- Metrics snapshot updated with strict-plus completion and config hashes (see `zz_artifacts/type_hygiene/metrics_history.json`).
