@@ -10,7 +10,14 @@ version = "0.3.0"
 description = "Single-user deterministic backtesting & validation engine"
 authors = ["Project A <devnull@example.com>"]
 readme = "README.md"
-packages = [{ include = "api", from = "src" }, { include = "domain", from = "src" }, { include = "infra", from = "src" }]
+packages = [
+  { include = "api", from = "alphaforge-brain/src" },
+  { include = "domain", from = "alphaforge-brain/src" },
+  { include = "infra", from = "alphaforge-brain/src" },
+  { include = "services", from = "alphaforge-brain/src" },
+  { include = "models", from = "alphaforge-brain/src" },
+  { include = "lib", from = "alphaforge-brain/src" },
+]
 
 [tool.poetry.dependencies]
 python = "3.11.*"  # Tightened for deterministic runtime (avoid 3.12 drift)
@@ -75,7 +82,7 @@ visualization = ["matplotlib"]
 data-sources = ["yfinance"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["alphaforge-brain/src"]
 addopts = "-q"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
@@ -107,7 +114,10 @@ unfixable = []
 preview = true
 
 [tool.ruff.lint.per-file-ignores]
-"src/api/routes/runs.py" = ["B008"]
+"alphaforge-brain/src/api/routes/*.py" = ["B008"]
+"alphaforge-brain/tests/**/*.py" = ["PLR2004","FBT001","FBT002","F841"]
+"alphaforge-brain/scripts/**/*.py" = ["E402"]
+"scripts/**/*.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -125,4 +135,3 @@ disallow_any_unimported = true
 disallow_any_decorated = true
 disallow_any_explicit = true
 disallow_any_expr = true
-
