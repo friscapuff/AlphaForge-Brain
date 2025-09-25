@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 import pandas as pd
 
-from infra.utils.hash import sha256_hex
-
 from .metrics import cache_metrics
+
+
+def sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
 
 _KEY_PREFIX_LEN = 12
 
@@ -19,7 +23,9 @@ def _frame_content_hash(frame: pd.DataFrame) -> str:
     return digest
 
 
-def _compose_key(symbol: str, start: int | None, end: int | None, content_hash: str) -> str:
+def _compose_key(
+    symbol: str, start: int | None, end: int | None, content_hash: str
+) -> str:
     return f"{symbol}:{start}:{end}:{content_hash[:_KEY_PREFIX_LEN]}"
 
 
@@ -29,12 +35,12 @@ class CandleCache:
     on_store: Callable[[], None] | None = None
 
     def __post_init__(self) -> None:
-        if isinstance(self.root, str):  # pragma: no cover
-            self.root = Path(self.root)
         self.root.mkdir(parents=True, exist_ok=True)
         self._last_key: str | None = None
 
-    def store(self, *, symbol: str, start: int | None, end: int | None, frame: pd.DataFrame) -> Path:
+    def store(
+        self, *, symbol: str, start: int | None, end: int | None, frame: pd.DataFrame
+    ) -> Path:
         content_hash = _frame_content_hash(frame)
         key = _compose_key(symbol, start, end, content_hash)
         self._last_key = key
@@ -53,7 +59,9 @@ class CandleCache:
         cache_metrics.record_write()
         return path
 
-    def load(self, *, symbol: str, start: int | None, end: int | None, frame: pd.DataFrame) -> pd.DataFrame:
+    def load(
+        self, *, symbol: str, start: int | None, end: int | None, frame: pd.DataFrame
+    ) -> pd.DataFrame:
         content_hash = _frame_content_hash(frame)
         key = _compose_key(symbol, start, end, content_hash)
         path = self._path_for_key(key)
