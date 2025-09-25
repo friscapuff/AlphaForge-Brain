@@ -1,0 +1,142 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://alphaforge.local/specs/004/manifest.schema.json",
+  "title": "AlphaForge Extended Run Manifest",
+  "description": "Schema for the extended manifest persisted with each run (provenance, persistence, causality, bootstrap metadata).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_hash",
+    "db_version",
+    "created_at",
+    "updated_at",
+    "status",
+    "data_hash",
+    "seed_root",
+    "provenance",
+    "causality_guard",
+    "bootstrap",
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Logical schema version of the manifest itself (not the DB)."
+    },
+    "run_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Deterministic hash of the run configuration and seed root."
+    },
+    "db_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Database schema version recorded at run time."
+    },
+    "created_at": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Epoch milliseconds when the run was created."
+    },
+    "updated_at": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Epoch milliseconds when the run was last updated."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "failed", "completed"],
+      "description": "Lifecycle status of the run."
+    },
+    "data_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "sha256 of normalized input dataset."
+    },
+    "seed_root": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "description": "Derived uint32 master RNG seed."
+    },
+    "config": {
+      "type": "object",
+      "description": "Canonical run configuration object (structure intentionally unconstrained).",
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest_content_hash"],
+      "properties": {
+        "manifest_content_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "sha256 of canonical JSON (sorted keys, UTF-8, compact separators)."
+        },
+        "config_content_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "sha256 of canonicalized config JSON."
+        },
+        "code_version": {
+          "type": "string",
+          "description": "Git commit short SHA or tag identifying the code version."
+        }
+      }
+    },
+    "causality_guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "violations"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["STRICT", "PERMISSIVE"],
+          "description": "Guard mode used during the run."
+        },
+        "violations": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of future access violations encountered."
+        }
+      }
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seed", "trials", "ci_level", "method", "fallback"],
+      "properties": {
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "trials": { "type": "integer", "minimum": 0 },
+        "ci_level": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "method": { "type": "string", "enum": ["hadj_bb", "simple"] },
+        "block_length": { "type": ["integer", "null"], "minimum": 2 },
+        "jitter": { "type": ["integer", "null"], "minimum": -1, "maximum": 1 },
+        "fallback": { "type": "boolean" }
+      }
+    },
+    "walk_forward": {
+      "description": "Walk-forward specification if enabled; structure is implementation-defined.",
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "features_cache": {
+      "type": "array",
+      "description": "Zero or more cached feature artifacts referenced by this run.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["meta_hash", "digest", "rows", "columns"],
+        "properties": {
+          "meta_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "rows": { "type": "integer", "minimum": 0 },
+          "columns": { "type": "integer", "minimum": 0 },
+          "path": { "type": "string" }
+        }
+      }
+    }
+  }
+}
