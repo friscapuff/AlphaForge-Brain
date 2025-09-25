@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-REQUIRED_COLUMNS = {"timestamp","open","high","low","close","volume"}
+REQUIRED_COLUMNS = {"timestamp", "open", "high", "low", "close", "volume"}
 
 
 def sha256_file(path: Path) -> str:
@@ -44,6 +44,7 @@ def main() -> None:  # pragma: no cover
         report["sha256"] = sha256_file(found)
         try:
             import pandas as pd
+
             df = pd.read_csv(found, nrows=1)
             report["required_columns_ok"] = REQUIRED_COLUMNS.issubset(df.columns)
         except Exception:
@@ -54,6 +55,7 @@ def main() -> None:  # pragma: no cover
         sys.exit(2)
     if not report["required_columns_ok"]:
         sys.exit(3)
+
 
 if __name__ == "__main__":
     main()

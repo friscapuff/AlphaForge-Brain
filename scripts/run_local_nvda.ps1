@@ -69,7 +69,7 @@ print(json.dumps({'run_hash':run_hash,'detail':detail.json()}, separators=(',','
   return $stdout
 }
 
-$payload = @{ 
+$payload = @{
   start = $Start; end = $End; symbol = $Symbol; timeframe = $Timeframe;
   indicators = @(
     @{ name = 'sma'; params = @{ window = 5 } },

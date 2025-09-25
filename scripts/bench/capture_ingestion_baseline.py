@@ -21,6 +21,7 @@ def _ensure_src_on_path() -> None:
         sys.path.insert(0, str(SRC))
     return None
 
+
 _ensure_src_on_path()
 ROOT = Path(__file__).resolve().parents[2]
 

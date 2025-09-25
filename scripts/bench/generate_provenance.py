@@ -25,7 +25,9 @@ def main() -> None:  # pragma: no cover
     ap.add_argument("--symbol", default="NVDA")
     ap.add_argument("--timeframe", default="1d")
     ap.add_argument("--out", default="benchmarks/dataset_provenance_nvda_1d.json")
-    ap.add_argument("--path", default=None, help="Explicit dataset CSV path; auto-detect if omitted")
+    ap.add_argument(
+        "--path", default=None, help="Explicit dataset CSV path; auto-detect if omitted"
+    )
     args = ap.parse_args()
     candidates = [
         Path(args.path) if args.path else None,

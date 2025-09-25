@@ -32,7 +32,13 @@ def main() -> None:  # pragma: no cover
     base = load_json(Path(args.baseline))
     cur = load_json(Path(args.current))
     breaking_fields = []
-    for field in ["symbol", "timeframe", "row_count_canonical", "row_count_raw", "data_hash"]:
+    for field in [
+        "symbol",
+        "timeframe",
+        "row_count_canonical",
+        "row_count_raw",
+        "data_hash",
+    ]:
         if base.get(field) != cur.get(field):
             breaking_fields.append(field)
     if breaking_fields:
@@ -44,7 +50,9 @@ def main() -> None:  # pragma: no cover
     elapsed_base = base.get("elapsed_seconds")
     elapsed_cur = cur.get("elapsed_seconds")
     if elapsed_base != elapsed_cur:
-        print(f"MINOR drift (elapsed_seconds) baseline={elapsed_base} current={elapsed_cur}")
+        print(
+            f"MINOR drift (elapsed_seconds) baseline={elapsed_base} current={elapsed_cur}"
+        )
         sys.exit(20)
     print("PERFECT match (including elapsed_seconds)")
     sys.exit(0)

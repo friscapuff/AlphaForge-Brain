@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Ingestion performance benchmark (T032)
 
 Measures ingestion + normalization time for a configured symbol/timeframe slice.
@@ -20,13 +21,22 @@ def _ensure_src_on_path() -> None:
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
 
+
 _ensure_src_on_path()
 
-from domain.data.ingest_csv import load_generic_csv  # noqa: E402  (path bootstrap above)
-from domain.data.registry import DatasetEntry, get_dataset, register_dataset  # noqa: E402
+from domain.data.ingest_csv import (
+    load_generic_csv,
+)
+from domain.data.registry import (
+    DatasetEntry,
+    get_dataset,
+    register_dataset,
+)
 
 
-def run(symbol: str, timeframe: str, start: str | None, end: str | None) -> dict[str, Any]:
+def run(
+    symbol: str, timeframe: str, start: str | None, end: str | None
+) -> dict[str, Any]:
     t0 = time.perf_counter()
     # Attempt to retrieve existing dataset registration; if missing try to auto-register.
     try:
@@ -40,13 +50,25 @@ def run(symbol: str, timeframe: str, start: str | None, end: str | None) -> dict
         found: Path | None = next((p for p in candidates if p.exists()), None)
         if not found:
             raise FileNotFoundError(
-                f"Dataset for {symbol} {timeframe} not registered and no CSV found at: " + ", ".join(str(c) for c in candidates)
+                f"Dataset for {symbol} {timeframe} not registered and no CSV found at: "
+                + ", ".join(str(c) for c in candidates)
             ) from err
-        entry = DatasetEntry(symbol=symbol.upper(), timeframe=timeframe, provider="local_csv", path=str(found), calendar_id="NASDAQ")
+        entry = DatasetEntry(
+            symbol=symbol.upper(),
+            timeframe=timeframe,
+            provider="local_csv",
+            path=str(found),
+            calendar_id="NASDAQ",
+        )
         register_dataset(entry)
     if not entry.path:
         raise RuntimeError("Dataset entry missing path; cannot load CSV")
-    _, meta = load_generic_csv(symbol=symbol, timeframe=timeframe, path=Path(entry.path), calendar_id=entry.calendar_id)
+    _, meta = load_generic_csv(
+        symbol=symbol,
+        timeframe=timeframe,
+        path=Path(entry.path),
+        calendar_id=entry.calendar_id,
+    )
     elapsed = time.perf_counter() - t0
     return {
         "symbol": symbol,
