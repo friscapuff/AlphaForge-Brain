@@ -52,4 +52,3 @@ Provide an idempotent backtesting service producing reproducible artifacts (metr
 - Risks enumerated with mitigation.
 - Hashing, retention, SSE replay mechanics planned.
 - Minimal v1 feature/strategy sets defined (SMA variants, Dual SMA).
-

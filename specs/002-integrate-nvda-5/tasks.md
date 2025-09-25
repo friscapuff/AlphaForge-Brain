@@ -266,4 +266,3 @@ Deliverables Artifacts:
 Exit Criteria for Phase K: All T051–T066 completed, CI green, OpenAPI diff additive, baseline & provenance committed, README updated.
 
 <!-- END AUTO-GENERATED -->
-

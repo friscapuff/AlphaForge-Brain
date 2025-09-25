@@ -115,4 +115,3 @@ Executing abstraction and typing hardening together avoids duplicate churn on ev
 
 ### Follow-On (Post Phase J)
 Proceed to Metrics & Validation Extensions (Phase E tasks) with confidence that multi-symbol + typing foundations are locked and reproducible.
-

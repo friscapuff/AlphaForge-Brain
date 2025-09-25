@@ -215,4 +215,3 @@ Serialized JSON file capturing ValidationSummary + additional context.
 ## Out of Scope
 - Corporate action adjustment beyond provided data
 - Real-time incremental ingestion
-

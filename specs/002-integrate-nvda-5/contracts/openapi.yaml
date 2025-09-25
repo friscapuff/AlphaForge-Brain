@@ -197,4 +197,3 @@ components:
         future_rows_dropped: 0
         unexpected_gaps: 1
         expected_closures: 120
-  

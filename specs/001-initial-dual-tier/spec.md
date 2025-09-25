@@ -96,4 +96,3 @@ Ingestion & validation paths surface anomaly counts (e.g., `unexpected_gaps`, `d
 
 ---
 See `plan.md` for expanded operational detail and `data-model.md` for precise schema definitions.
-

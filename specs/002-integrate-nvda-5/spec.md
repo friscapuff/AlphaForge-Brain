@@ -1,8 +1,8 @@
 # Feature Specification: NVDA 5‑Year Historical Dataset Integration
 
-**Feature Branch**: `002-integrate-nvda-5`  
-**Created**: 2025-09-20  
-**Status**: Active  
+**Feature Branch**: `002-integrate-nvda-5`
+**Created**: 2025-09-20
+**Status**: Active
 **Input**: User description: "Integrate NVDA 5-year historical CSV dataset into pipeline: load, clean, validate timestamps/anomalies, make it default data source while keeping modular multi-asset design. Support end-to-end backtest (indicators, strategy, risk, execution, metrics, validation) and enable downstream visualization readiness."
 
 ## Execution Flow (main)
@@ -174,7 +174,7 @@ Co-locating abstraction and static analysis hardening reduces duplicated refacto
 
 ---
 ## Success Definition (Business Framing)
-"A researcher can point the system at the NVDA 5‑year dataset, submit a run, and obtain a complete set of artifacts (metrics, validation, manifest) with anomaly transparency and deterministic reproduction, without manual preprocessing." 
+"A researcher can point the system at the NVDA 5‑year dataset, submit a run, and obtain a complete set of artifacts (metrics, validation, manifest) with anomaly transparency and deterministic reproduction, without manual preprocessing."
 
 ---
 ## Out of Scope
@@ -182,4 +182,3 @@ Co-locating abstraction and static analysis hardening reduces duplicated refacto
 - Multi-symbol portfolio aggregation (future extension)
 - Corporate action adjustments beyond what the static CSV encodes
 - Data vendor API integration (CSV is local static source only)
-

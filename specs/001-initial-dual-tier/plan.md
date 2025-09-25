@@ -632,5 +632,3 @@ POST /presets body = RunConfig-like (excluding seed optional). Upsert semantics.
 
 ### Health
 GET /health -> { "status": "ok", "version": "git_sha_or_semver" }
-
-
