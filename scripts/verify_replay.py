@@ -12,6 +12,7 @@ Usage (PowerShell):
 Exit codes:
  0 success, 1 failure (hash mismatch), 2 network/protocol error.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,21 +24,27 @@ import urllib.request
 from typing import Any
 
 
-def _request(method: str, url: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
+def _request(
+    method: str, url: str, data: dict[str, Any] | None = None
+) -> dict[str, Any]:
     body = None
     headers = {"Content-Type": "application/json"}
     if data is not None:
         body = json.dumps(data, separators=(",", ":")).encode("utf-8")
     req = urllib.request.Request(url, method=method, data=body, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310 (controlled host)
+        with urllib.request.urlopen(
+            req, timeout=30
+        ) as resp:  # nosec B310 (controlled host)
             return json.loads(resp.read().decode("utf-8"))
     except Exception as exc:  # pragma: no cover - network errors
         print(f"[ERROR] Request failed {method} {url}: {exc}", file=sys.stderr)
         sys.exit(2)
 
 
-def _fetch_run(host: str, run_hash: str, include_anomalies: bool = False) -> dict[str, Any]:
+def _fetch_run(
+    host: str, run_hash: str, include_anomalies: bool = False
+) -> dict[str, Any]:
     suffix = "?include_anomalies=true" if include_anomalies else ""
     return _request("GET", f"{host}/runs/{run_hash}{suffix}")
 
@@ -125,7 +132,9 @@ def main(argv: list[str] | None = None) -> int:
     second = _request("POST", f"{args.host}/runs", base_body)
     run_hash_2 = second.get("run_hash") or second.get("hash")
     if run_hash_1 != run_hash_2:
-        print(f"[FAIL] run_hash mismatch: {run_hash_1} vs {run_hash_2}", file=sys.stderr)
+        print(
+            f"[FAIL] run_hash mismatch: {run_hash_1} vs {run_hash_2}", file=sys.stderr
+        )
         return 1
     wait_completed(args.host, run_hash_2)
     artifacts_2 = collect_manifest_artifacts(args.host, run_hash_2)
@@ -137,7 +146,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {k}: {artifacts_1.get(k)} != {artifacts_2.get(k)}")
         return 1
 
-    print(f"[OK] Deterministic replay verified for {run_hash_1} (artifacts {len(artifacts_1)-1} + manifest)")
+    print(
+        f"[OK] Deterministic replay verified for {run_hash_1} (artifacts {len(artifacts_1)-1} + manifest)"
+    )
     return 0
 
 

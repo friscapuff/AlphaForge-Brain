@@ -4,6 +4,7 @@
 Usage:
   poetry run python scripts/typing/timing_report.py --out-json typing_timing.json --out-md typing_timing.md
 """
+
 from __future__ import annotations
 
 import argparse
@@ -54,9 +55,16 @@ def main(argv: list[str]) -> int:
         "total_duration_sec": round(sum(r["duration_sec"] for r in results), 4),
         "results": results,
     }
-    Path(ns.out_json).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    Path(ns.out_json).write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
-    md_lines = ["# Typing & Lint Timing", "", f"Total: {summary['total_duration_sec']}s", ""]
+    md_lines = [
+        "# Typing & Lint Timing",
+        "",
+        f"Total: {summary['total_duration_sec']}s",
+        "",
+    ]
     for r in results:
         md_lines.append(f"- {r['label']}: {r['duration_sec']}s (rc={r['returncode']})")
     Path(ns.out_md).write_text("\n".join(md_lines) + "\n", encoding="utf-8")
@@ -66,6 +74,7 @@ def main(argv: list[str]) -> int:
     if any(r["returncode"] != 0 for r in results):
         return 1
     return 0
+
 
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(main(sys.argv[1:]))

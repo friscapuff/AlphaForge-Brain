@@ -8,6 +8,7 @@ Exit codes:
   0 if no regressions.
   1 if new errors introduced or error count increased.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,7 +28,9 @@ def load_snapshot(p: Path) -> dict[str, Any]:
     return raw
 
 
-def index_errors(errors: list[dict[str, Any]]) -> dict[tuple[str, int, int, str], dict[str, Any]]:
+def index_errors(
+    errors: list[dict[str, Any]]
+) -> dict[tuple[str, int, int, str], dict[str, Any]]:
     idx: dict[tuple[str, int, int, str], dict[str, Any]] = {}
     for e in errors:
         key = (e["path"], e["line"], e["col"], e["type"])
@@ -49,7 +52,7 @@ def diff(base: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
 
 
 def format_md(d: dict[str, Any]) -> str:
-    lines = ["# Mypy Diff Report",""]
+    lines = ["# Mypy Diff Report", ""]
     lines.append(f"Base errors: {d['base_count']}  New errors: {d['new_count']}")
     delta = d["new_count"] - d["base_count"]
     lines.append(f"Delta: {delta:+d}")
@@ -57,11 +60,15 @@ def format_md(d: dict[str, Any]) -> str:
     if d["added"]:
         lines.append("## Added Errors")
         for e in d["added"]:
-            lines.append(f"- {e['path']}:{e['line']}:{e['col']} {e['type']}: {e['message']}")
+            lines.append(
+                f"- {e['path']}:{e['line']}:{e['col']} {e['type']}: {e['message']}"
+            )
     if d["removed"]:
         lines.append("## Resolved Errors")
         for e in d["removed"]:
-            lines.append(f"- {e['path']}:{e['line']}:{e['col']} {e['type']}: {e['message']}")
+            lines.append(
+                f"- {e['path']}:{e['line']}:{e['col']} {e['type']}: {e['message']}"
+            )
     if not d["added"] and not d["removed"]:
         lines.append("No changes in mypy error set.")
     lines.append("")
@@ -84,6 +91,7 @@ def main(argv: list[str]) -> int:
     if d["new_count"] > d["base_count"]:
         return 1
     return 0
+
 
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(main(sys.argv[1:]))

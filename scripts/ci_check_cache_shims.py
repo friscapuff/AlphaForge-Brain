@@ -5,13 +5,20 @@ Intended usage in CI pipeline before running full tests:
     python scripts/ci_check_cache_shims.py
 Exits non-zero if parity fails.
 """
+
 from __future__ import annotations
 
 import importlib
 import inspect
 import sys
 
-EXPECTED = {"CandleCache","FeaturesCache","cache_metrics","CacheMetrics","CacheMetricsRecorder"}
+EXPECTED = {
+    "CandleCache",
+    "FeaturesCache",
+    "cache_metrics",
+    "CacheMetrics",
+    "CacheMetricsRecorder",
+}
 
 legacy = importlib.import_module("infra.cache")
 src = importlib.import_module("src.infra.cache")
@@ -26,6 +33,7 @@ def public(mod):
             continue
         out.add(k)
     return out
+
 
 legacy_pub = public(legacy)
 src_pub = public(src)

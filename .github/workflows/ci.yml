@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  schedule:
+    # Nightly at 06:00 UTC
+    - cron: '0 6 * * *'
 
 jobs:
   build-test:
@@ -12,6 +15,48 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Echo status file SHA256
+        run: |
+          echo "Computing SHA-256 for alphaforge-brain/ARCH_MIGRATION_STATUS.md"
+          python -c "import hashlib, pathlib; p=pathlib.Path('alphaforge-brain/ARCH_MIGRATION_STATUS.md'); print('ARCH_MIGRATION_STATUS_SHA256=', hashlib.sha256(p.read_bytes()).hexdigest())"
+        shell: bash
+
+      - name: "Guard: Block committed/generated artifacts"
+        run: |
+          echo "Checking for disallowed generated artifacts in repo..."
+          set -euo pipefail
+          patterns=(
+            'coverage.xml'
+            'typing_timing.json'
+            'typing_timing.md'
+            'mypy_baseline.txt'
+            'mypy_final.txt'
+            'mypy_diff.md'
+            'diff_test.md'
+            'virt_report.json'
+          )
+          found=0
+          for p in "${patterns[@]}"; do
+            if git ls-files --error-unmatch "$p" >/dev/null 2>&1; then
+              echo "Disallowed artifact tracked in git: $p" >&2
+              found=1
+            fi
+            if [ -e "$p" ]; then
+              echo "Note: artifact present in working tree (ok if untracked): $p"
+            fi
+          done
+          # Also block patternized files that might have slipped in
+          # base-*.yaml and head-*.json
+          for f in $(git ls-files 'base-*.yaml' 'head-*.json' 2>/dev/null || true); do
+            echo "Disallowed artifact tracked in git: $f" >&2
+            found=1
+          done
+          if [ "$found" = "1" ]; then
+            echo "CI guard failure: remove generated artifacts from VCS." >&2
+            exit 1
+          fi
+        shell: bash
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
@@ -40,6 +85,10 @@ jobs:
         run: |
           poetry install --no-interaction --no-root
 
+      - name: Cross-root integrity check (Brain does not import Mind)
+        run: |
+          poetry run python scripts/ci/check_cross_root.py
+
       - name: Lock checksum verify
         run: |
           python scripts/env/check_env.py --strict --dev | tee env_check.json
@@ -50,7 +99,7 @@ jobs:
         env:
           PYTHONWARNINGS: error::UserWarning
         run: |
-          poetry run pytest --cov=src --cov-report=xml --cov-report=term-missing -q --disable-warnings
+          poetry run pytest --cov=alphaforge-brain/src --cov-report=xml --cov-report=term-missing -q --disable-warnings
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -60,22 +109,90 @@ jobs:
 
       - name: Type check
         run: |
-          poetry run mypy src
+          poetry run mypy alphaforge-brain/src
 
-      - name: Mypy snapshot (src)
+      - name: Mypy snapshot (brain src)
         run: |
-          poetry run python scripts/typing/snapshot_mypy.py --output .mypy_snapshot_src.json --paths src || true
-          echo "Snapshot error_count=$(jq '.error_count' .mypy_snapshot_src.json)"
+          poetry run python scripts/typing/snapshot_mypy.py --output .mypy_snapshot_brain.json --paths alphaforge-brain/src || true
+          echo "Snapshot error_count=$(jq '.error_count' .mypy_snapshot_brain.json)"
 
-      - name: Enforce zero mypy regression (src)
+      - name: Enforce zero mypy regression (brain)
         run: |
-          ec=$(jq '.error_count' .mypy_snapshot_src.json)
+          ec=$(jq '.error_count' .mypy_snapshot_brain.json)
           if [ "$ec" != "0" ]; then
             echo "Mypy regression: expected 0 errors, found $ec";
-            cat .mypy_snapshot_src.json;
+            cat .mypy_snapshot_brain.json;
             exit 1;
           fi
         shell: bash
+
+      - name: Strict-plus mypy (allow-fail)
+        continue-on-error: true
+        run: |
+          echo "Running strict-plus overlay (informational)."
+          poetry run mypy --config-file mypy.strictplus.ini alphaforge-brain/src > .mypy_strictplus_output.txt || echo "Strict-plus reported issues (tolerated pre-promotion)"
+          issues=$(grep -c ": error:" .mypy_strictplus_output.txt || true)
+          echo "strictplus_error_count=$issues" >> $GITHUB_ENV
+          head -n 25 .mypy_strictplus_output.txt | grep ": error:" || true > .mypy_strictplus_sample.txt
+          echo "{\"mode\":\"strict-plus\",\"error_count\":$issues}" | jq '.' > .mypy_strictplus_summary.json
+          echo "Strict-plus summary written ($issues errors)"
+      - name: Upload strict-plus mypy artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-strictplus
+          path: |
+            .mypy_strictplus_output.txt
+            .mypy_strictplus_summary.json
+
+      - name: Ruff strict-plus (allow-fail)
+        continue-on-error: true
+        run: |
+          echo "Running ruff strict-plus overlay (informational)."
+          poetry run ruff check --config ruff.strictplus.toml alphaforge-brain/src > .ruff_strictplus_output.txt || echo "Ruff strict-plus reported issues (tolerated pre-promotion)"
+          ruff_issues=$(grep -E "^[^ ]+:[0-9]+:[0-9]+:" .ruff_strictplus_output.txt | wc -l | tr -d ' ')
+          echo "strictplus_ruff_issue_count=$ruff_issues" >> $GITHUB_ENV
+          head -n 25 .ruff_strictplus_output.txt | grep -E "^[^ ]+:[0-9]+:[0-9]+:" || true > .ruff_strictplus_sample.txt
+          echo "{\"mode\":\"ruff-strict-plus\",\"violation_count\":$ruff_issues}" | jq '.' > .ruff_strictplus_summary.json
+          echo "Ruff strict-plus summary written ($ruff_issues violations)"
+      - name: Upload ruff strict-plus artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-strictplus
+          path: |
+            .ruff_strictplus_output.txt
+            .ruff_strictplus_summary.json
+
+      - name: Append type hygiene metrics history (allow-fail)
+        continue-on-error: true
+        run: |
+          base_errors=$(jq '.error_count' .mypy_snapshot_brain.json 2>/dev/null || echo 0)
+          poetry run python scripts/type_hygiene/ci_append_metrics.py \
+            --baseline-errors ${base_errors:-0} \
+            --strictplus-errors ${strictplus_error_count:-0} \
+            --strictplus-ruff-violations ${strictplus_ruff_issue_count:-0}
+
+      - name: Strict-plus ratchet (fail on regression)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Evaluating strict-plus ratchet versus main..."
+          # Fetch main to compare
+          git fetch origin main:refs/remotes/origin/main --depth=1
+          # Get last metrics entry strict-plus error count on main (best-effort)
+          mkdir -p /tmp/main_ref
+          git show origin/main:zz_artifacts/type_hygiene/metrics_history.json > /tmp/main_ref/metrics_history.json 2>/dev/null || echo '[]' > /tmp/main_ref/metrics_history.json
+          main_strict=$(jq '[.[] | select(.strictplus_errors!=null)] | last.strictplus_errors' /tmp/main_ref/metrics_history.json 2>/dev/null || echo null)
+          if [ "$main_strict" = "null" ]; then
+            echo "No strict-plus baseline on main; ratchet passes (bootstrap phase).";
+            exit 0;
+          fi
+          pr_strict=${strictplus_error_count:-0}
+          echo "main strict-plus errors: $main_strict";
+            echo "PR   strict-plus errors: $pr_strict";
+          if [ "$pr_strict" -gt "$main_strict" ]; then
+            echo "Regression: strict-plus error count increased ($pr_strict > $main_strict)";
+            exit 1;
+          fi
+          echo "Ratchet OK (no increase)."
 
       - name: Mypy diff report (PR only)
         if: github.event_name == 'pull_request'
@@ -83,7 +200,7 @@ jobs:
           # Attempt to fetch base snapshot artifact (if stored) - placeholder logic
           BASE_SNAPSHOT=.mypy_base.json
           echo '{"error_count":0,"errors":[]}' > $BASE_SNAPSHOT
-          poetry run python scripts/typing/diff_mypy.py --base $BASE_SNAPSHOT --new .mypy_snapshot_src.json --out mypy_diff.md || echo "Diff indicates regression"
+          poetry run python scripts/typing/diff_mypy.py --base $BASE_SNAPSHOT --new .mypy_snapshot_brain.json --out mypy_diff.md || echo "Diff indicates regression"
           cat mypy_diff.md
       - name: Upload mypy diff artifact
         if: github.event_name == 'pull_request'
@@ -132,6 +249,10 @@ jobs:
         run: |
           poetry run python scripts/ci/check_version_sync.py
 
+      - name: Verify migrations HEAD checksum
+        run: |
+          poetry run python scripts/ci/check_migrations_head.py
+
       - name: Upload OpenAPI artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -142,6 +263,15 @@ jobs:
             openapi.deref.json
             openapi.html
 
+      - name: Dump SQLite schema (artifact)
+        run: |
+          poetry run python alphaforge-brain/scripts/ci/dump_schema.py --out zz_artifacts/schema.sql
+      - name: Upload schema artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-schema
+          path: zz_artifacts/schema.sql
+
       - name: Enforce spec changelog entry
         if: github.event_name == 'pull_request'
         run: |
@@ -151,6 +281,29 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           poetry run python scripts/changelog/enforce_constitution_fragment.py
+
+      - name: Bootstrap CI width gate (STRICT)
+        env:
+          BOOT_CI_WIDTH_MAX: "0.05"
+          BOOT_CI_MODE: "STRICT"
+        run: |
+          # Attempt to locate most recent run artifacts directory under ./artifacts
+          # For this repository, artifacts are written under the default root unless overridden.
+          # Best-effort discovery: pick the newest directory under artifacts/ that contains validation.json
+          set -euo pipefail
+          root="artifacts"
+          if [ ! -d "$root" ]; then
+            echo "No artifacts directory found; skipping CI width gate (no validation.json)." ; exit 0
+          fi
+          latest=""
+          for d in $(find "$root" -maxdepth 1 -mindepth 1 -type d | sort); do
+            if [ -f "$d/validation.json" ]; then latest="$d"; fi
+          done
+          if [ -z "$latest" ]; then
+            echo "No validation.json found; skipping CI width gate." ; exit 0
+          fi
+          echo "Running CI width gate on $latest"
+          poetry run python alphaforge-brain/scripts/ci/bootstrap_ci_width_gate.py "$latest"
 
       - name: Upload env check artifact
         uses: actions/upload-artifact@v4
@@ -195,6 +348,45 @@ jobs:
         with:
           name: perf-benchmark
           path: benchmark.json
+
+  observability-overhead:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.x'
+          cache: 'poetry'
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install deps
+        run: poetry install --no-interaction --no-root
+      - name: Observability overhead (allow-fail on PR)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          poetry run python alphaforge-brain/scripts/bench/observability_overhead.py --rows 200000 --repeat 3 --threshold 0.03 | tee bench_overhead_pr.txt
+      - name: Observability overhead (strict on schedule)
+        if: github.event_name == 'schedule'
+        run: |
+          poetry run python alphaforge-brain/scripts/bench/observability_overhead.py --rows 200000 --repeat 3 --threshold 0.03 | tee bench_overhead_nightly.txt
+      - name: Upload observability overhead artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observability-overhead
+          path: |
+            bench_overhead_pr.txt
+            bench_overhead_nightly.txt
+          if-no-files-found: ignore
 
   ingestion-baseline:
     runs-on: ubuntu-latest
@@ -272,3 +464,98 @@ jobs:
         with:
           name: ingestion-smoke
           path: smoke_ingestion.json
+
+  migration-parity:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.x'
+          cache: 'poetry'
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install deps
+        run: poetry install --no-interaction --no-root
+      - name: Verify post-move parity (allow-fail)
+        continue-on-error: true
+        run: |
+          poetry run python scripts/migration/verify_post_move.py || true
+      - name: Upload parity artifact (best-effort)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-parity
+          path: |
+            zz_artifacts/migration_verification.json
+
+  determinism-replay:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.x'
+          cache: 'poetry'
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install deps
+        run: poetry install --no-interaction --no-root
+      - name: Run determinism replay (FR-151)
+        run: |
+          poetry run python alphaforge-brain/scripts/ci/determinism_replay.py --out zz_artifacts/determinism_replay.json
+      - name: Upload determinism replay artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: determinism-replay
+          path: zz_artifacts/determinism_replay.json
+
+  acceptance-suite:
+    runs-on: ubuntu-latest
+    needs: [build-test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.x'
+          cache: 'poetry'
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install deps
+        run: poetry install --no-interaction --no-root
+      - name: Run acceptance suite
+        env:
+          BOOT_CI_WIDTH_MAX: "0.05"
+          BOOT_CI_MODE: "STRICT"
+        run: |
+          poetry run python alphaforge-brain/scripts/ci/acceptance_suite.py --artifacts-root artifacts --out zz_artifacts/acceptance_summary.json
+      - name: Upload acceptance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-suite
+          path: zz_artifacts/acceptance_summary.json

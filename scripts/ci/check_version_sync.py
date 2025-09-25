@@ -79,8 +79,14 @@ async def probe_health(expected: str) -> dict:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Check version synchronization across artifacts")
-    p.add_argument("--probe-health", action="store_true", help="Also import app and GET /health to verify runtime version")
+    p = argparse.ArgumentParser(
+        description="Check version synchronization across artifacts"
+    )
+    p.add_argument(
+        "--probe-health",
+        action="store_true",
+        help="Also import app and GET /health to verify runtime version",
+    )
     return p
 
 
@@ -103,6 +109,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.probe_health:
         try:
             import asyncio
+
             health_payload = asyncio.run(probe_health(py_version))
         except SystemExit:
             raise
@@ -111,7 +118,9 @@ def main(argv: list[str] | None = None) -> None:
 
     if mismatches:
         details = ", ".join(f"{f}={v}" for f, v in mismatches)
-        raise SystemExit(f"FAILED: Version drift vs pyproject ({py_version}): {details}")
+        raise SystemExit(
+            f"FAILED: Version drift vs pyproject ({py_version}): {details}"
+        )
 
     output = {
         "status": "ok",
@@ -120,11 +129,14 @@ def main(argv: list[str] | None = None) -> None:
             "pyproject.toml": py_version,
             "openapi.yaml": yaml_version,
             "openapi.html": html_version,
-            "README.md": "present"
+            "README.md": "present",
         },
     }
     if health_payload is not None:
-        output["health"] = {"version": health_payload.get("version"), "status": health_payload.get("status")}
+        output["health"] = {
+            "version": health_payload.get("version"),
+            "status": health_payload.get("status"),
+        }
 
     print(json.dumps(output))
 

@@ -4,6 +4,7 @@ Runs mypy over src/ and tests/ and exits non-zero on any error.
 Captures simple timing & error count summary so we can persist a baseline hash/timing
 in typing_timing.json (updated manually after gate passes).
 """
+
 from __future__ import annotations
 
 import json
@@ -17,7 +18,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 def run_mypy() -> dict[str, object]:
     start = time.perf_counter()
-    proc = subprocess.run(["poetry", "run", "mypy", "src", "tests"], capture_output=True, text=True)
+    proc = subprocess.run(
+        ["poetry", "run", "mypy", "src", "tests"], capture_output=True, text=True
+    )
     duration = time.perf_counter() - start
     stdout = proc.stdout
     stderr = proc.stderr
