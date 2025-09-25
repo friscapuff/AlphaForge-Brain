@@ -1,6 +1,6 @@
 # Tasks: Elevate Project A to Truthful Backtest Simulator (Truthful Run Foundation)
 
-**Feature Dir**: `specs/003-elevate-project-a/`  
+**Feature Dir**: `specs/003-elevate-project-a/`
 **Input Artifacts**: plan.md, research.md, data-model.md, quickstart.md, contracts/ (runs.post.json, runs.get.json, runs.events.sse.md, versioning.md)
 **Tech Stack**: Python 3.11, FastAPI, Pydantic, numpy/pandas, matplotlib, pytest, mypy (strict), ruff
 

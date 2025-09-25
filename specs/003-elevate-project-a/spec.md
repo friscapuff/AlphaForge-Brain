@@ -1,8 +1,8 @@
 # Feature Specification: Elevate Project A to Truthful Backtest Simulator (Truthful Run Foundation)
 
-**Feature Branch**: `003-elevate-project-a`  
-**Created**: 2025-09-22  
-**Status**: In Implementation (Post-services revision; Type Hygiene Gate COMPLETE)  
+**Feature Branch**: `003-elevate-project-a`
+**Created**: 2025-09-22
+**Status**: In Implementation (Post-services revision; Type Hygiene Gate COMPLETE)
 **Input**: User description: "Elevate Project A from framework to truthful simulator by implementing an end-to-end backtest loop that consumes the 5-year NVDA CSV and produces reproducible, realism-aware results. The system must load and validate NVDA data (UTC index, exchange calendar alignment, gap/duplicate checks) and record a dataset checksum so every run is tied to a specific, immutable input. Indicators should be computed through a registry with an optional global +1 bar shift for backtests to guarantee causality, while strategies declare their required features and emit signals based only on information available at time t; positions must be applied at t+1 with a controllable fill policy (open/next-tick). We will add a minimal but honest execution simulator with spread, commission, and borrow cost models, a consistent rounding/lot policy, and a trade ledger that reconciles prices, trades, and costs into bar-level PnL. The engine should output artifact sets per run (summary.json, metrics.json, validation.json placeholder, equity.parquet, trades.parquet, plots.png, manifest.json with config hash, dataset SHA-256, calendar_id, tz, library versions, seeds) to guarantee determinism and future replay. A first validation sentinel—an in-sample permutation test with a configurable number of shuffles—must produce an empirical p-value so we can differentiate luck from structure before we invest more time; walk-forward can follow in the next iteration. Finally, expose a no-code run path through stable API contracts (POST /runs with idempotency, GET /runs/{id}, SSE /runs/{id}/events with heartbeats and milestones), enabling the future UI to stream progress, fetch artifacts, and visualize signals and equity without touching code. The outcome is a staging-quality backend where pressing “run” on NVDA yields reproducible, cost-aware results and a clear statistical sanity check, making subsequent feature/strategy additions safe and boring."
 
 ## Execution Flow (main)
@@ -234,4 +234,3 @@ Artifacts Impacted: `spec.md`, `plan.md`, `quickstart.md`, `tasks.md`, `typing_t
 
 ### Acceptance to Move to Planning
 All clarifications resolved or formally deferred with issue tracking (ISSUE-GUARD-001, ISSUE-CANCEL-001, ISSUE-API-VERS-001). No [NEEDS CLARIFICATION] markers remain. Ready for implementation planning.
-

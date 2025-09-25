@@ -48,15 +48,15 @@ Non-functional goals:
 Out-of-scope (kept minimal): partial fills, multi-asset portfolio, cancellation endpoint (deferred), advanced walk-forward validation.
 
 ## Technical Context
-**Language/Version**: Python 3.11 (Constitution Additional Constraints #1)  
-**Primary Dependencies**: FastAPI (API), Pydantic (schemas), numpy/pandas (data/metrics), matplotlib (plots), typing/mypy, ruff, pytest  
-**Storage**: Local filesystem artifacts (manifest + parquet + json) under run-specific directories; no DB  
-**Testing**: pytest (unit, integration, contract), mypy strict type checks, spectral/OpenAPI diff for contract  
-**Target Platform**: Linux & Windows dev parity via Docker and local Python; containerized CI  
-**Project Type**: Single backend domain-oriented Python service (no separate frontend)  
-**Performance Goals**: Baseline single-symbol NVDA 5-year run completes < 5s on dev machine; permutation N=100 < 30s (parallel seeds); guard overhead <1% (ISSUE-GUARD-001 acceptance)  
-**Constraints**: Deterministic seeds; no nondeterministic multithreading; SSE heartbeat ≤15s; memory footprint <1GB for 5-year daily (ample headroom)  
-**Scale/Scope**: Single asset initial; baseline for future multi-asset & orchestration  
+**Language/Version**: Python 3.11 (Constitution Additional Constraints #1)
+**Primary Dependencies**: FastAPI (API), Pydantic (schemas), numpy/pandas (data/metrics), matplotlib (plots), typing/mypy, ruff, pytest
+**Storage**: Local filesystem artifacts (manifest + parquet + json) under run-specific directories; no DB
+**Testing**: pytest (unit, integration, contract), mypy strict type checks, spectral/OpenAPI diff for contract
+**Target Platform**: Linux & Windows dev parity via Docker and local Python; containerized CI
+**Project Type**: Single backend domain-oriented Python service (no separate frontend)
+**Performance Goals**: Baseline single-symbol NVDA 5-year run completes < 5s on dev machine; permutation N=100 < 30s (parallel seeds); guard overhead <1% (ISSUE-GUARD-001 acceptance)
+**Constraints**: Deterministic seeds; no nondeterministic multithreading; SSE heartbeat ≤15s; memory footprint <1GB for 5-year daily (ample headroom)
+**Scale/Scope**: Single asset initial; baseline for future multi-asset & orchestration
 
 No remaining NEEDS CLARIFICATION markers—guard mode, float precision, versioning resolved.
 
@@ -121,9 +121,9 @@ frontend/
 **Constraints**: Determinism: Float serialization (precision=8), stable plot rendering, seed management. Pre-API Type Hygiene Gate (Phase 3.4H) required.
 api/
 └── [same as backend above]
-**Phase 3**: Task execution (/tasks command creates tasks.md)  
-**Phase 4**: Implementation (execute tasks.md following constitutional principles)  
-**Phase 4H**: Type Hygiene Gate (inserted between service completion & API exposure)  
+**Phase 3**: Task execution (/tasks command creates tasks.md)
+**Phase 4**: Implementation (execute tasks.md following constitutional principles)
+**Phase 4H**: Type Hygiene Gate (inserted between service completion & API exposure)
 **Phase 5**: Validation (run tests, execute quickstart.md, performance validation)
 └── [platform-specific structure]
 ```
@@ -261,12 +261,12 @@ All user-stated baseline gaps are either covered by existing FRs/entities or exp
 - Load `.specify/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
 - Each contract → contract test task [P]
-- Each entity → model creation task [P] 
+- Each entity → model creation task [P]
 - Each user story → integration test task
 - Implementation tasks to make tests pass
 
 **Ordering Strategy**:
-- TDD order: Tests before implementation 
+- TDD order: Tests before implementation
 - Dependency order: Models before services before UI
 - Mark [P] for parallel execution (independent files)
 
@@ -277,8 +277,8 @@ All user-stated baseline gaps are either covered by existing FRs/entities or exp
 ## Phase 3+: Future Implementation
 *These phases are beyond the scope of the /plan command*
 
-**Phase 3**: Task execution (/tasks command creates tasks.md)  
-**Phase 4**: Implementation (execute tasks.md following constitutional principles)  
+**Phase 3**: Task execution (/tasks command creates tasks.md)
+**Phase 4**: Implementation (execute tasks.md following constitutional principles)
 **Phase 5**: Validation (run tests, execute quickstart.md, performance validation)
 
 ## Complexity Tracking

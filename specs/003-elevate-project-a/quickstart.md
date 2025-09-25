@@ -102,4 +102,3 @@ Example SSE Snapshot (truncated):
 | Mypy errors appear before API dev | Gate not satisfied | Complete T080–T086 hygiene tasks before exposing endpoints |
 | Import errors in tests | Missing tests/conftest.py path setup | Ensure Phase 3.4H T080 applied adding PYTHONPATH fix |
 | Low robustness_score despite low p_value | Unstable OOS segments | Investigate per-segment variance in walk_forward.json |
-
