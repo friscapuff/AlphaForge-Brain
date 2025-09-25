@@ -67,7 +67,9 @@ SSE tests assert:
 2. If using time or randomness, import the needed fixture in signature.
 3. Use factories for model construction.
 4. Parameterize when covering dimension-like variations (sizes, windows, seeds) rather than duplicating functions.
-5. Run `pytest -q`; ensure no warnings.
+5. Run `pytest -q`; ensure no warnings. pytest-asyncio defaults are pinned in `pytest.ini` to silence deprecation warnings:
+    - `asyncio_mode = auto`
+    - `asyncio_default_fixture_loop_scope = function`
 6. Run `mypy` if new types added to models/services.
 
 ## Performance Tests (Future Gating)
@@ -95,5 +97,7 @@ Ensure any doc change reflecting test behavior also updates:
 - README Section 7 / 7.a
 - CHANGELOG unreleased section
 - tasks.md rationale table (if infrastructure-level change)
+
+Note: CI uploads coverage/timing artifacts, but these are not committed locally (`coverage.xml`, typing timing files, and similar are in `.gitignore`).
 
 Happy testing – deterministic by default.

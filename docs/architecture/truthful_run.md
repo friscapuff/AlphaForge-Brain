@@ -11,8 +11,8 @@ This document summarizes the deterministic "truthful run" pipeline — the contr
 ## Phase Diagram
 ```
 Config -> Hash (idempotent) -> Orchestrator
-  |                                      
-  v                                      
+  |
+  v
 Data Load -> Feature Build -> Strategy -> Risk -> Execution -> Metrics -> Validation -> Artifacts -> Manifest (hashed + chain_prev)
                                               ^                                    |
                                               |                                    v
