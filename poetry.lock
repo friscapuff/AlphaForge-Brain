@@ -578,7 +578,7 @@ markers = {main = "platform_system == \"Windows\" or sys_platform == \"win32\"",
 name = "contourpy"
 version = "1.3.2"
 description = "Python library for calculating contours of 2D quadrilateral grids"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"visualization\""
@@ -760,7 +760,7 @@ toml = ["tomli ; python_full_version <= \"3.11.0a6\""]
 name = "cycler"
 version = "0.12.1"
 description = "Composable style cycles"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 markers = "extra == \"visualization\""
@@ -865,7 +865,7 @@ tornado = ">=5.0.0,<7.0.0"
 name = "fonttools"
 version = "4.60.0"
 description = "Tools to manipulate font files"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 markers = "extra == \"visualization\""
@@ -1438,7 +1438,7 @@ files = [
 name = "kiwisolver"
 version = "1.4.9"
 description = "A fast implementation of the Cassowary constraint solver"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"visualization\""
@@ -1879,7 +1879,7 @@ files = [
 name = "matplotlib"
 version = "3.9.2"
 description = "Python plotting package"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 markers = "extra == \"visualization\""
@@ -2444,7 +2444,7 @@ files = [
 name = "pillow"
 version = "11.3.0"
 description = "Python Imaging Library (Fork)"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 markers = "extra == \"visualization\""
@@ -3033,7 +3033,7 @@ test = ["beautifulsoup4", "flake8", "pytest", "pytest-cov"]
 name = "pyparsing"
 version = "3.2.4"
 description = "pyparsing - Classes and methods to define and execute parsing grammars"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 markers = "extra == \"visualization\""
@@ -4270,4 +4270,4 @@ visualization = ["matplotlib"]
 [metadata]
 lock-version = "2.1"
 python-versions = "3.11.*"
-content-hash = "b92a167e53ba800eafbda1df0f2bb0dcd61aa5673b6dedfa7fd6f140ad480553"
+content-hash = "5e36bb46d8e80d4939b5414a87e5f792cb8f566704c4ea26ce9708cead99c009"
