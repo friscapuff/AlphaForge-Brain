@@ -31,8 +31,9 @@ structlog = "25.4.0"           # Structured logging (bumped)
 rich = "13.9.2"                # Dev-time pretty logs / CLI (runtime safe)
 python-dotenv = "1.0.1"        # Env file loading
 typing-extensions = "4.12.2"
-numpy = ">=2.0,<2.1"            # Narrow range for determinism & numba compat
-pandas = "2.2.3"
+# NOTE: numba 0.60.0 requires numpy <2.1; keep within deterministic band and align with version guard (adjust guard if changed).
+numpy = "<2.1,>=2.0.0"            # Determinism window; update infra/version_pins.py & hashes tests if shifted
+pandas = "2.2.3"            # Aligned with numpy 2.1.x; pandas-ta 0.4.67 requires >=2.2.0 but works with 2.2.3
 pyarrow = "17.0.0"             # Parquet / Arrow
 matplotlib = "3.9.2"  # Visualization (now core for deterministic plots FR-014/FR-041)
 polars = { version = "1.9.0", optional = true }
@@ -53,7 +54,12 @@ redis = { version = "5.0.8", optional = true }
 flower = { version = "2.0.1", optional = true }
 sse-starlette = "2.1.0"        # SSE support for events
 boto3 = { version = "1.35.36", optional = true }
+google-cloud-storage = { version = "2.18.2", optional = true }
 click = "8.1.7"                # CLI entrypoints
+Pillow = { version = "10.4.0", optional = true }  # (indicators with image export; optional)
+# pandas-ta requires Python >=3.12 in current releases; gate it so 3.11 users aren't broken.
+# Users on 3.12+ can install via: poetry install --with indicators (see [tool.poetry.extras]).
+"pandas-ta" = { version = "0.4.71b0", python = ">=3.12", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.3.2"
@@ -67,19 +73,24 @@ mypy = "1.11.2"
 types-requests = "2.32.0.20240914"  # Type stubs
 types-python-dateutil = "2.9.0.20240906"
 pre-commit = "3.8.0"
+jsonschema = "4.23.0"
 
 [tool.poetry.scripts]
 api = "api.app:app"            # For uvicorn: poetry run uvicorn api.app:app --reload
 run-server = "api.app:app"
+run-hash = "services.cli.run_hash:main"
+health-check = "scripts.post_install_health_check:main"
+poetry-self-check = "scripts.poetry_self_check:main"
 
 [tool.poetry.extras]
 polars = ["polars"]
 performance = ["numba"]
 distributed = ["celery", "redis", "flower"]
-storage = ["boto3"]
+storage = ["boto3", "google-cloud-storage"]
 analytics = ["scipy", "statsmodels"]
 visualization = ["matplotlib"]
 data-sources = ["yfinance"]
+indicators = ["pandas-ta"]
 
 [tool.pytest.ini_options]
 pythonpath = ["alphaforge-brain/src"]

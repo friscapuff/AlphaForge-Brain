@@ -35,7 +35,6 @@ def iter_chunk_slices(
     """
     if n_rows <= 0:
         return
-        yield  # type: ignore[misc]  # pragma: no cover - generator formality
     if chunk_size <= 0 or chunk_size >= n_rows:
         yield (0, n_rows, 0)
         return
@@ -160,3 +159,49 @@ def compute_required_overlap_for_functions(
 
 
 __all__.append("compute_required_overlap_for_functions")
+
+
+# ---- Adaptive chunk sizing helpers (T007/T008) ----
+
+
+def estimate_row_size_bytes_from_df(df: pd.DataFrame) -> int:
+    """Estimate average bytes per row based on dtypes.
+
+    Heuristics for common pandas dtypes; object columns are approximated.
+    """
+    total = 0
+    for dtype in df.dtypes:
+        if pd.api.types.is_integer_dtype(dtype) or pd.api.types.is_float_dtype(dtype):
+            total += int(dtype.itemsize)
+        elif pd.api.types.is_bool_dtype(dtype):
+            total += 1
+        elif pd.api.types.is_datetime64_any_dtype(dtype):
+            total += 8
+        elif pd.api.types.is_categorical_dtype(dtype):
+            # pointer + category code ~ 8 bytes
+            total += 8
+        else:
+            # object/string: rough average payload
+            total += 64
+    return max(1, total)
+
+
+def choose_chunk_size(
+    df: pd.DataFrame,
+    *,
+    target_chunk_mb: int = 256,
+    max_rows_cap: int = 2_000_000,
+) -> int:
+    """Choose a chunk size in rows given a target memory per chunk.
+
+    - Uses dtype-based row size estimate
+    - Caps at max_rows_cap
+    - Returns at least 1
+    """
+    row_bytes = estimate_row_size_bytes_from_df(df)
+    budget_bytes = max(1, int(target_chunk_mb) * 1024 * 1024)
+    rows = max(1, min(int(budget_bytes // row_bytes), int(max_rows_cap)))
+    return rows
+
+
+__all__.extend(["estimate_row_size_bytes_from_df", "choose_chunk_size"])

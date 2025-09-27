@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from math import sqrt
 from statistics import mean, pstdev
 
-from ..models.equity_bar import EquityBar
+from models.equity_bar import EquityBar
 
 
 def _returns(bars: list[EquityBar]) -> list[float]:

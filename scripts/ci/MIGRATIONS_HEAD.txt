@@ -1,2 +1,2 @@
-HEAD=002_core_schema
-SHA256=2e1bee3abf798d71d5ca5651e8d3900da0ba216b5a1d3edea807ec4d33b87fa8
+HEAD=003_canonical_schema
+SHA256=9077b269edd1177d0cd83dcde5058fb762dd9543289baccc770ebf2cef071248

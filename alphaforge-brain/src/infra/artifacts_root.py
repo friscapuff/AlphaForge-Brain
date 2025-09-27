@@ -32,3 +32,20 @@ def resolve_artifact_root(explicit: Path | None = None) -> Path:
 
 
 __all__ = ["resolve_artifact_root"]
+
+
+def run_artifact_dir(run_hash: str) -> Path:
+    """Return path to a run's artifact directory (ensured)."""
+    base = resolve_artifact_root(None)
+    d = base / run_hash
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def evicted_dir(run_hash: str) -> Path:
+    """Directory holding evicted artifacts for a run (physical demotion)."""
+    d = run_artifact_dir(run_hash) / ".evicted"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+__all__.extend(["run_artifact_dir", "evicted_dir"])

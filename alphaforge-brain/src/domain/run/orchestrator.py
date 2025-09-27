@@ -13,8 +13,12 @@ from domain.execution.state import build_state
 from domain.metrics.calculator import build_equity_curve, compute_metrics
 from domain.risk.engine import apply_risk
 from domain.schemas.run_config import RunConfig
+from domain.strategy import buy_hold  # noqa: F401  # ensure registration side-effect
 from domain.strategy.runner import run_strategy
 from domain.validation.runner import run_all as validation_run_all
+from services.causality_guard import CausalityGuard, CausalityMode, guard_context
+
+from infra.persistence import insert_validation, record_causality_stats
 
 # Phase J (G01) NOTE:
 # Synthetic candle generation removed. Orchestrator now expects upstream data ingestion pipeline
@@ -38,6 +42,8 @@ Callback = Callable[[OrchestratorState, dict[str, Any]], None]
 class Orchestrator:
     config: RunConfig
     seed: int | None = None
+    guard_mode: str | None = None
+    run_hash: str | None = None
     _state: OrchestratorState = OrchestratorState.PENDING
     _callbacks: list[Callback] = field(default_factory=list)
     _started: bool = False
@@ -123,8 +129,20 @@ class Orchestrator:
                         "SSE",
                     }:
                         # Synthesize candles directly; skip registry-driven load path.
-                        start_dt = pd.Timestamp(self.config.start).tz_localize("UTC")
-                        end_dt = pd.Timestamp(self.config.end).tz_localize("UTC")
+                        # Robust timezone handling: pd.Timestamp on an ISO string with 'Z' yields tz-aware UTC already.
+                        # tz_localize on an aware timestamp raises TypeError. Use tz_convert if already tz-aware.
+                        _s_ts = pd.Timestamp(self.config.start)
+                        _e_ts = pd.Timestamp(self.config.end)
+                        start_dt = (
+                            _s_ts
+                            if _s_ts.tzinfo is not None
+                            else _s_ts.tz_localize("UTC")
+                        )
+                        end_dt = (
+                            _e_ts
+                            if _e_ts.tzinfo is not None
+                            else _e_ts.tz_localize("UTC")
+                        )
                         rng = pd.date_range(
                             start_dt, end_dt, freq="1min", inclusive="left"
                         )
@@ -231,7 +249,13 @@ class Orchestrator:
                 candles[f"sma_long_{long_w}"] = (
                     candles["close"].rolling(window=long_w, min_periods=long_w).mean()
                 )
-            signals = run_strategy(self.config, candles, candle_hash="orchestrator")
+            # Establish a single causality guard for strategy, risk, and execution
+            mode = self.guard_mode or CausalityMode.PERMISSIVE
+            guard = CausalityGuard(mode)
+            with guard_context(guard):
+                signals = run_strategy(
+                    self.config, candles, candle_hash="orchestrator", guard=guard
+                )
             if bool(self._cancel_requested):  # mypy: make condition explicit
                 return self._finish_cancel()
             sized = apply_risk(self.config, signals)
@@ -261,6 +285,85 @@ class Orchestrator:
             validation = validation_run_all(
                 trades, None, seed=self.seed, config=val_cfg
             )
+            # Persist validation summary (best-effort) if run_hash provided
+            if self.run_hash is not None:
+                try:
+                    # Build a JSON-serializable, slim payload (drop large arrays)
+                    perm = validation.get("permutation") or {}
+                    bb = validation.get("block_bootstrap") or {}
+                    wf = validation.get("walk_forward") or {}
+                    slim_payload = {
+                        "summary": validation.get("summary"),
+                        "permutation": {
+                            "p_value": perm.get("p_value"),
+                            "observed_mean": perm.get("observed_mean"),
+                            "null_mean": perm.get("null_mean"),
+                            "null_std": perm.get("null_std"),
+                        },
+                        "block_bootstrap": {
+                            "p_value": bb.get("p_value"),
+                            "ci": bb.get("ci"),
+                            "trials": bb.get("trials"),
+                            "method": bb.get("method"),
+                            "block_length": bb.get("block_length"),
+                            "jitter": bb.get("jitter"),
+                            "fallback": bb.get("fallback"),
+                        },
+                        "walk_forward": {
+                            "summary": (
+                                wf.get("summary") if isinstance(wf, dict) else None
+                            ),
+                            "n_folds": (
+                                wf.get("summary", {}).get("n_folds")
+                                if isinstance(wf, dict)
+                                else None
+                            ),
+                        },
+                        "seed": validation.get("seed"),
+                    }
+                    ci_val = bb.get("ci") if isinstance(bb, dict) else None
+                    if isinstance(ci_val, (list, tuple)) and len(ci_val) == 2:
+                        sharpe_ci = (ci_val[0], ci_val[1])
+                    else:
+                        sharpe_ci = None
+
+                    def _to_int(v: object) -> int | None:
+                        if isinstance(v, (int,)):
+                            return int(v)
+                        if isinstance(v, float) and v.is_integer():
+                            return int(v)
+                        return None
+
+                    block_length_val = (
+                        _to_int(bb.get("block_length"))
+                        if isinstance(bb, dict)
+                        else None
+                    )
+                    jitter_val = (
+                        _to_int(bb.get("jitter")) if isinstance(bb, dict) else None
+                    )
+                    fallback_val = (
+                        bool(bb.get("fallback"))
+                        if isinstance(bb, dict) and bb.get("fallback") is not None
+                        else None
+                    )
+                    insert_validation(
+                        run_hash=self.run_hash,
+                        payload_json=slim_payload,
+                        permutation_pvalue=(
+                            validation.get("permutation", {}).get("p_value")
+                            if isinstance(validation.get("permutation"), dict)
+                            else None
+                        ),
+                        method=(bb.get("method") if isinstance(bb, dict) else None),
+                        sharpe_ci=sharpe_ci,
+                        cagr_ci=None,
+                        block_length=block_length_val,
+                        jitter=jitter_val,
+                        fallback=fallback_val,
+                    )
+                except Exception:
+                    pass
             result: dict[str, Any] = {
                 "config": self.config.model_dump(),
                 "trades": trades,
@@ -269,6 +372,17 @@ class Orchestrator:
                 "equity_df": eq_curve,
             }
             self._result = result
+            # Persist consolidated causality stats once per run (best-effort)
+            if self.run_hash is not None:
+                try:
+                    record_causality_stats(
+                        run_hash=self.run_hash,
+                        mode=mode,
+                        violations=len(guard.violations),
+                        phase="run",
+                    )
+                except Exception:
+                    pass
             self._transition(
                 OrchestratorState.COMPLETE,
                 {
@@ -305,8 +419,10 @@ def orchestrate(
     seed: int | None = None,
     *,
     callbacks: list[Callback] | None = None,
+    guard_mode: str | None = None,
+    run_hash: str | None = None,
 ) -> dict[str, Any]:
-    orch = Orchestrator(config, seed=seed)
+    orch = Orchestrator(config, seed=seed, guard_mode=guard_mode, run_hash=run_hash)
     for cb in callbacks or []:
         orch.on_progress(cb)
     return orch.run()

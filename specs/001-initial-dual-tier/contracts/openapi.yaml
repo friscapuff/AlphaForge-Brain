@@ -96,6 +96,30 @@ paths:
           description: Cancellation requested
         '404':
           $ref: '#/components/responses/NotFound'
+  /runs/{run_id}/restore:
+    post:
+      summary: Restore run artifacts from cold storage (or local evicted dir fallback)
+      operationId: restoreRun
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restore attempt result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run_hash: { type: string }
+                  restored: { type: boolean }
+                  noop: { type: boolean }
+                  api_version: { type: string }
+        '404':
+          $ref: '#/components/responses/NotFound'
   /runs/{run_id}/events:
     get:
       summary: Fetch buffered run events (one-shot SSE, ETag cacheable)
@@ -364,6 +388,87 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
+  /settings/retention:
+    get:
+      summary: Get retention configuration
+      operationId: getRetentionSettings
+      responses:
+        '200':
+          description: Retention settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionSettings'
+    post:
+      summary: Update retention configuration (applies immediately)
+      operationId: updateRetentionSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionSettingsUpdate'
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionSettings'
+  /retention/metrics:
+    get:
+      summary: Retention state counts and byte usage
+      operationId: getRetentionMetrics
+      responses:
+        '200':
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionMetrics'
+  /retention/plan:
+    get:
+      summary: Dry-run retention plan (no side-effects)
+      operationId: getRetentionPlan
+      responses:
+        '200':
+          description: Plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionPlan'
+  /retention/plan/diff:
+    post:
+      summary: Diff current retention plan vs hypothetical configuration
+      operationId: diffRetentionPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                keep_last: { type: integer }
+                top_k_per_strategy: { type: integer }
+                max_full_bytes: { type: integer, nullable: true }
+      responses:
+        '200':
+          description: Diff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionPlanDiff'
+  /runs/retention/apply:
+    post:
+      summary: Apply retention plan and perform demotions
+      operationId: applyRetention
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionApplyResult'
 
 components:
   responses:
@@ -771,6 +876,116 @@ components:
           type: string
         version:
           type: string
+    RetentionSettings:
+      type: object
+      properties:
+        keep_last: { type: integer, minimum: 1 }
+        top_k_per_strategy: { type: integer, minimum: 0 }
+        max_full_bytes: { type: integer, nullable: true }
+        api_version: { type: string }
+      required: [keep_last, top_k_per_strategy, api_version]
+    RetentionSettingsUpdate:
+      type: object
+      properties:
+        keep_last: { type: integer }
+        top_k_per_strategy: { type: integer }
+        max_full_bytes: { type: integer, nullable: true }
+    RetentionMetrics:
+      type: object
+      properties:
+        api_version: { type: string }
+        counts:
+          type: object
+          additionalProperties: { type: integer }
+        bytes:
+          type: object
+          additionalProperties: { type: integer }
+        max_full_bytes: { type: integer, nullable: true }
+        budget_remaining: { type: integer, nullable: true }
+        audit_rotation:
+          type: object
+          nullable: true
+          properties:
+            rotation_count: { type: integer }
+            rotated_original_bytes: { type: integer }
+            rotated_compressed_bytes: { type: integer }
+            compression_ratio: { type: number, nullable: true }
+      required: [api_version, counts, bytes]
+    RetentionPlan:
+      type: object
+      properties:
+        api_version: { type: string }
+        keep_full:
+          type: array
+          items: { type: string }
+        demote:
+          type: array
+          items: { type: string }
+        pinned:
+          type: array
+          items: { type: string }
+        top_k:
+          type: array
+          items: { type: string }
+        summary:
+          type: object
+          properties:
+            kept: { type: integer }
+            demoted: { type: integer }
+            pinned: { type: integer }
+            top_k: { type: integer }
+        max_full_bytes: { type: integer, nullable: true }
+      required: [api_version, keep_full, demote, pinned, top_k]
+    RetentionApplyResult:
+      type: object
+      properties:
+        api_version: { type: string }
+        kept:
+          type: array
+          items: { type: string }
+        demoted:
+          type: array
+          items: { type: string }
+        pinned:
+          type: array
+          items: { type: string }
+        top_k:
+          type: array
+          items: { type: string }
+      required: [api_version, kept, demoted, pinned, top_k]
+    RetentionPlanDiff:
+      type: object
+      properties:
+        api_version: { type: string }
+        current:
+          type: object
+          properties:
+            kept: { type: integer }
+            demoted: { type: integer }
+        alternative:
+          type: object
+          properties:
+            kept: { type: integer }
+            demoted: { type: integer }
+            config:
+              type: object
+              properties:
+                keep_last: { type: integer }
+                top_k_per_strategy: { type: integer }
+                max_full_bytes: { type: integer, nullable: true }
+        diff:
+          type: object
+          properties:
+            new_demotions:
+              type: array
+              items: { type: string }
+            new_full:
+              type: array
+              items: { type: string }
+            lost_full:
+              type: array
+              items: { type: string }
+      required: [api_version, current, alternative, diff]
     ErrorEnvelope:
       type: object
       properties:

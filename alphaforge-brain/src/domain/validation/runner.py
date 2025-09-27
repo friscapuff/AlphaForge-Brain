@@ -138,6 +138,19 @@ def run_all(
         "walk_forward_folds": len(results["walk_forward"]["folds"]),
     }
     results["seed"] = base_seed
+    # Optional CI gate: add pass/fail flag (no exception)
+    gates = config.get("gates") if isinstance(config, dict) else None
+    gate_passed: bool | None = None
+    if isinstance(gates, dict):
+        bb_gate = gates.get("block_bootstrap")
+        if isinstance(bb_gate, dict):
+            max_width = bb_gate.get("max_ci_width")
+            if max_width is not None and bb_ci_width is not None:
+                try:
+                    gate_passed = float(bb_ci_width) <= float(max_width)
+                except Exception:
+                    gate_passed = None
+    results["summary"]["block_bootstrap_gate_passed"] = gate_passed
     return results
 
 

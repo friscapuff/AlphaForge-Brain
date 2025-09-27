@@ -40,3 +40,22 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
+      - id: lock-sync
+        name: pyproject / lock sync
+        entry: poetry run python scripts/verify_lock_sync.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: health-check
+        name: minimal health check
+        entry: poetry run python scripts/post_install_health_check.py
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: forbid-raw-parquet
+        name: Forbid raw pd.read_parquet without fallback
+        entry: poetry run python scripts/lint/forbid_raw_parquet.py
+        language: system
+        pass_filenames: true
+        files: \.(py)$
+        stages: [pre-commit]

@@ -11,8 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import ceil, floor
 
-from ..models.execution_config import ExecutionConfig, RoundingMode
-from ..models.trade import Trade, TradeSide
+from models.execution_config import ExecutionConfig, RoundingMode
+from models.trade import Trade, TradeSide
 
 
 @dataclass

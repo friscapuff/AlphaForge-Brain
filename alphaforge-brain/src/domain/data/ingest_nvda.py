@@ -30,6 +30,14 @@ import pandas as pd
 
 from infra.time.timestamps import to_epoch_ms
 
+from .adjustments import (
+    AdjustmentFactors,
+    AdjustmentPolicy,
+    apply_full_adjustments,
+    compute_factors_digest,
+    incorporate_policy_into_hash,
+)
+
 # G14 modernization: removed legacy typing.Dict / Tuple usage (using builtins)
 
 DATA_DIR_DEFAULT = Path("data")
@@ -60,12 +68,15 @@ class DatasetMetadata:
     observed_bar_seconds: int | None = None
     declared_bar_seconds: int | None = None
     timeframe_ok: bool | None = None
+    # FR-104 additions
+    adjustment_policy: str | None = None
+    adjustment_factors_digest: str | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), separators=(",", ":"), sort_keys=True)
 
 
-_DATASET_CACHE: dict[str, tuple[pd.DataFrame, DatasetMetadata]] = {}
+_DATASET_CACHE: dict[tuple[str, str, str], tuple[pd.DataFrame, DatasetMetadata]] = {}
 _CACHE_DIR = Path(".cache/datasets")
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -157,6 +168,9 @@ def _persist_metadata(meta: DatasetMetadata) -> None:
 
 def load_canonical_dataset(
     data_dir: Path | None = None,
+    *,
+    adjustment_policy: AdjustmentPolicy = "none",
+    adjustment_factors: AdjustmentFactors | None = None,
 ) -> tuple[pd.DataFrame, DatasetMetadata]:
     """Load (or return cached) canonical NVDA dataset with normalization + metadata.
 
@@ -165,8 +179,15 @@ def load_canonical_dataset(
     data_dir : Path | None
         Root directory containing NVDA_5y.csv. Defaults to ./data.
     """
-    if SYMBOL in _DATASET_CACHE:
-        return _DATASET_CACHE[SYMBOL]
+    # Compute factors digest early to build cache key
+    factors_digest_key = (
+        compute_factors_digest(adjustment_policy, adjustment_factors)
+        if adjustment_policy == "full_adjusted"
+        else None
+    )
+    cache_key = (SYMBOL, adjustment_policy, factors_digest_key or "none")
+    if cache_key in _DATASET_CACHE:
+        return _DATASET_CACHE[cache_key]
 
     root = data_dir or DATA_DIR_DEFAULT
     csv_path = root / DATA_FILE_NAME
@@ -210,7 +231,17 @@ def load_canonical_dataset(
     canonical_cols = ["ts", "open", "high", "low", "close", "volume", "zero_volume"]
     canonical = df[canonical_cols].copy()
 
-    data_hash = _stable_dataframe_hash(canonical)
+    # Apply adjustments if requested
+    factors_digest: str | None = factors_digest_key
+    if adjustment_policy == "full_adjusted":
+        canonical = apply_full_adjustments(canonical, adjustment_factors)  # type: ignore[arg-type]
+    # Compute raw digest on (possibly adjusted) canonical and incorporate policy
+    raw_digest = _stable_dataframe_hash(canonical)
+    data_hash = (
+        incorporate_policy_into_hash(raw_digest, adjustment_policy, factors_digest)
+        if adjustment_policy != "none"
+        else raw_digest
+    )
 
     anomaly_counters: dict[str, int] = {
         "duplicates_dropped": duplicates_dropped,
@@ -250,17 +281,19 @@ def load_canonical_dataset(
         observed_bar_seconds=observed_bar_seconds,
         declared_bar_seconds=declared_bar_seconds,
         timeframe_ok=timeframe_ok,
+        adjustment_policy=adjustment_policy,
+        adjustment_factors_digest=factors_digest,
     )
 
-    _DATASET_CACHE[SYMBOL] = (canonical, meta)
+    _DATASET_CACHE[cache_key] = (canonical, meta)
     _persist_metadata(meta)
     return canonical, meta
 
 
 def get_dataset_metadata() -> DatasetMetadata:
-    if SYMBOL not in _DATASET_CACHE:
-        load_canonical_dataset()
-    return _DATASET_CACHE[SYMBOL][1]
+    # Ensure default (none policy) is loaded
+    canonical, meta = load_canonical_dataset()
+    return meta
 
 
 def slice_canonical(start_ms: int | None, end_ms: int | None) -> pd.DataFrame:

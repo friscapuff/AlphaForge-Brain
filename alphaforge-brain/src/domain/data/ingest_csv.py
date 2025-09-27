@@ -16,6 +16,14 @@ import pandas as pd
 
 from infra.time.timestamps import to_epoch_ms
 
+from .adjustments import (
+    AdjustmentFactors,
+    AdjustmentPolicy,
+    apply_full_adjustments,
+    compute_factors_digest,
+    incorporate_policy_into_hash,
+)
+
 REQUIRED_COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"]
 
 
@@ -35,6 +43,9 @@ class GenericDatasetMetadata:
     observed_bar_seconds: int | None = None
     declared_bar_seconds: int | None = None
     timeframe_ok: bool | None = None
+    # FR-104 additions
+    adjustment_policy: str | None = None
+    adjustment_factors_digest: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return self.__dict__.copy()
@@ -137,7 +148,13 @@ def _compute_observed_bar_seconds(canonical: pd.DataFrame) -> int | None:
 
 
 def load_generic_csv(
-    symbol: str, timeframe: str, path: Path, calendar_id: str | None
+    symbol: str,
+    timeframe: str,
+    path: Path,
+    calendar_id: str | None,
+    *,
+    adjustment_policy: AdjustmentPolicy = "none",
+    adjustment_factors: AdjustmentFactors | None = None,
 ) -> tuple[pd.DataFrame, GenericDatasetMetadata]:
     key = (symbol.upper(), timeframe)
     if key in _DATASET_CACHE:
@@ -162,7 +179,16 @@ def load_generic_csv(
     expected_closures, unexpected_gaps = _classify_calendar_gaps(df, calendar_id)
     canonical_cols = ["ts", "open", "high", "low", "close", "volume", "zero_volume"]
     canonical = df[canonical_cols].copy()
-    data_hash = _stable_dataframe_hash(canonical)
+    factors_digest: str | None = None
+    if adjustment_policy == "full_adjusted":
+        factors_digest = compute_factors_digest(adjustment_policy, adjustment_factors)
+        canonical = apply_full_adjustments(canonical, adjustment_factors)  # type: ignore[arg-type]
+    raw_digest = _stable_dataframe_hash(canonical)
+    data_hash = (
+        incorporate_policy_into_hash(raw_digest, adjustment_policy, factors_digest)
+        if adjustment_policy != "none"
+        else raw_digest
+    )
     counters: dict[str, int] = {
         "duplicates_dropped": duplicates_dropped,
         "rows_dropped_missing": rows_dropped_missing,
@@ -191,6 +217,8 @@ def load_generic_csv(
         observed_bar_seconds=observed,
         declared_bar_seconds=declared,
         timeframe_ok=timeframe_ok,
+        adjustment_policy=adjustment_policy,
+        adjustment_factors_digest=factors_digest,
     )
     _DATASET_CACHE[key] = (canonical, meta)
     return canonical, meta

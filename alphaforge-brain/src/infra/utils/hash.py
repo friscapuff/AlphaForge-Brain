@@ -85,4 +85,24 @@ def hash_canonical(obj: Any) -> str:
     return sha256_hex(canonical_json(obj).encode("utf-8"))
 
 
-__all__ = ["canonical_json", "hash_canonical", "sha256_hex", "sha256_of_text"]
+def row_digest(row: Any) -> str:
+    """Compute a stable digest for a DB row-like object.
+
+    Accepts dict-like rows; callers should convert ORM objects to plain dicts.
+    Uses canonical_json to ensure deterministic ordering/formatting.
+    """
+    # If it's a sqlite3.Row, dict(row) will coerce; otherwise expect mapping/dict
+    try:
+        data = dict(row)  # row is Mapping-like; best effort coercion
+    except Exception:
+        data = row
+    return hash_canonical(data)
+
+
+__all__ = [
+    "canonical_json",
+    "hash_canonical",
+    "sha256_hex",
+    "sha256_of_text",
+    "row_digest",
+]

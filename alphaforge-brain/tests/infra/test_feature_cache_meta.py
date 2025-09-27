@@ -53,10 +53,14 @@ def test_record_feature_cache_artifact_updates_manifest_and_table(
         walk_forward_spec=None,
     )
 
-    # Create a tiny parquet artifact
+    # Create a tiny 'parquet' artifact. If parquet engines unavailable, write CSV with parquet extension
     df = pd.DataFrame({"a": [1, 2, 3]})
     pq = tmp_path / "feat.parquet"
-    df.to_parquet(pq, index=False)
+    try:
+        df.to_parquet(pq, index=False)  # type: ignore[no-untyped-call]
+    except Exception:
+        # Fallback: write CSV bytes so downstream size/row counting still works
+        df.to_csv(pq, index=False)
 
     spec = {
         "candle_hash": "c" * 16,

@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from ..models.equity_bar import EquityBar
-from ..models.trade import Trade, TradeSide
+from models.equity_bar import EquityBar
+from models.trade import Trade, TradeSide
 
 
 @dataclass

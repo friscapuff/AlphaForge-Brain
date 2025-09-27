@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "backtest-result.v1.schema.json",
+  "title": "BacktestResultPayloadV1",
+  "type": "object",
+  "required": ["run_id", "metrics", "equity", "trades_summary", "validation"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "metrics": { "type": "object" },
+    "equity": {
+      "type": "array",
+      "items": {"type": "object", "required": ["t", "equity"], "properties": {"t": {"type": "integer"}, "equity": {"type": "number"}}, "additionalProperties": false}
+    },
+    "trades_summary": { "type": "object" },
+    "validation": { "type": "object" }
+  },
+  "additionalProperties": false
+}

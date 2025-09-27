@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) and this project adheres (prospectively) to Semantic Versioning.
 
 ## [0.3.2-dev] - 2025-09-25
+### Added
+- Run retention policy groundwork (T017/T018): new module `domain/run/retention_policy.py` with configurable `keep_last` + per-strategy top-k + pin override semantics and demotion marking (`retention_state`).
+- Retention application endpoint `POST /runs/retention/apply` returning classification (kept, demoted, pinned, top_k).
+- Pin / Unpin endpoints (`/runs/{run_hash}/pin`, `/runs/{run_hash}/unpin`) recompute retention plan to keep invariants consistent.
+- Content hash fields for Run Create & Detail responses (`content_hash`) with contract tests ensuring deterministic canonical hashing.
+- OpenAPI contract tests asserting new fields (`pinned`, `retention_state`, `content_hash`) present and retention endpoint documented.
+- SSE long‑lived stream test covering `/runs/{hash}/events/stream` snapshot + completion sequence (guards against regression / hang).
+- Minimal test-only `mean_rev` strategy to exercise multi-strategy retention ranking.
+- Feature 006: Additive versioned API namespace `/api/v1` (no removals of legacy endpoints) including:
+	- `GET /api/v1/market/candles` (initial scaffold)
+	- `POST /api/v1/backtests` (idempotent run submission returns `run_id`)
+	- `GET /api/v1/backtests/{run_id}` (run detail with `seed`, `strategy_hash`, `trades_summary`)
+	- `POST /api/v1/backtests/{run_id}/montecarlo` (deterministic Monte Carlo fan + percentiles with optional `extended_percentiles` p5/p95)
+	- `GET /api/v1/backtests/{run_id}/walkforward` (walk-forward split scaffold)
+	- `GET /api/v1/backtests/{run_id}/config` (canonical request echo)
+	- `GET /api/v1/backtests` (recent run listing)
+- Advanced validation toggle passthrough (`extended_validation_toggles`, `advanced` blocks) now accepted & echoed in backtest submission (future analytical modules placeholder).
+- Observability middleware injecting `x-correlation-id` and `x-processing-time-ms` headers.
+- Simple in-memory rate limit guard for Monte Carlo endpoint (8 calls / 10s window) returning HTTP 429 on excess.
+- Deterministic seeding precedence (MC request seed > stored run seed > derived hash) with tests ensuring identical percentile curves.
+- Extended percentile support (p5, p95) behind `extended_percentiles` flag.
+
+### Changed
+- Run detail hashing excludes heavy nested artifacts/summary objects by substituting key names in canonical hash input (explicitly mirrored in tests).
+
+### Internal
+- Added retention policy unit tests (`test_retention_policy.py`) validating demotion & state tagging rules.
+
 ### Documentation
 - Phase G (Docs): Added plain-language artifacts under `specs/004-alphaforge-brain-refinement/`:
 	- `contracts-appendix.md` (schemas, entities, error codes, determinism overview)

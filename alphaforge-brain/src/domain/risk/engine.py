@@ -65,8 +65,16 @@ def apply_risk(
     Ignores direction for now (execution simulator can apply sign in T025).
     """
     model = config.risk.model
+    # Back-compat alias
+    if model == "fixed":
+        model = "fixed_fraction"
     params = config.risk.params or {}
     out = signals_df.copy()
+
+    if model == "none":
+        # Passthrough sizing: provide neutral position_size=0 preserving signals for downstream hashing.
+        out["position_size"] = [0.0] * len(out)
+        return out
 
     if model == "fixed_fraction":
         fraction = float(params.get("fraction", 0.1))

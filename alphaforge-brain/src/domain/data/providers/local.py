@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from lib.artifacts import read_parquet_or_csv
 
 from .. import registry as data_registry
 from .base import REQUIRED_CANDLE_COLUMNS, validate_candles
@@ -67,7 +68,8 @@ def load_local(
         if f.suffix.lower() == ".csv":
             df = pd.read_csv(f)
         else:
-            df = pd.read_parquet(f)
+            # Use unified helper to allow CSV-under-parquet fallback in minimal envs
+            df = read_parquet_or_csv(f)
         frames.append(df)
 
     combined = pd.concat(frames, ignore_index=True)

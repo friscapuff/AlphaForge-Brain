@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 import pandas as pd
+from lib.artifacts import read_parquet_or_csv
 
 from .metrics import cache_metrics
 
@@ -68,9 +69,9 @@ class CandleCache:
         if not path.exists():
             cache_metrics.record_miss()
             self.store(symbol=symbol, start=start, end=end, frame=frame)
-            return pd.read_parquet(path)
+            return read_parquet_or_csv(path)
         cache_metrics.record_hit()
-        return pd.read_parquet(path)
+        return read_parquet_or_csv(path)
 
     def _path_for_key(self, key: str) -> Path:
         hash_part = key.split(":")[-1]

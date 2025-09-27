@@ -8,6 +8,7 @@ Heuristic:
 
 Assumes constitution file contains line: **Version**: X.Y.Z |
 """
+
 from __future__ import annotations
 
 import re
@@ -32,7 +33,9 @@ def get_current_version() -> str:
 
 def constitution_changed() -> bool:
     try:
-        diff = subprocess.check_output(["git", "diff", "--name-only", "origin/main...HEAD"], text=True)
+        diff = subprocess.check_output(
+            ["git", "diff", "--name-only", "origin/main...HEAD"], text=True
+        )
     except subprocess.CalledProcessError as e:
         print(f"WARN: git diff failed ({e}); assuming no change.")
         return False

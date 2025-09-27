@@ -16,6 +16,7 @@ from src.domain.schemas.run_config import (
 )
 from src.domain.strategy.runner import run_strategy
 from src.infra.utils.seed import derive_seed
+from src.services.metrics_hash import equity_curve_hash, metrics_hash
 
 
 def _candles(n: int = 60) -> pd.DataFrame:
@@ -70,6 +71,27 @@ def test_two_runs_identical_outputs() -> None:
     pd.testing.assert_frame_equal(sized1, sized2)
     pd.testing.assert_frame_equal(fills1, fills2)
     pd.testing.assert_frame_equal(pos1, pos2)
+    # Metrics hash determinism (T087): compute metrics hash & equity curve hash (synthetic) deterministically
+    # Build synthetic equity bars list from fills pnl cumulative if present; else skip silently.
+    if "pnl" in fills1.columns:
+        curve1_series = fills1["pnl"].cumsum()
+        curve2_series = fills2["pnl"].cumsum()
+        equity_bars1 = [
+            type("Bar", (), {"nav": float(v), "drawdown": 0.0})() for v in curve1_series
+        ]
+        equity_bars2 = [
+            type("Bar", (), {"nav": float(v), "drawdown": 0.0})() for v in curve2_series
+        ]
+        mhash1 = metrics_hash(
+            {"final_pnl": float(curve1_series.iloc[-1]), "n_fills": int(len(fills1))}
+        )
+        mhash2 = metrics_hash(
+            {"final_pnl": float(curve2_series.iloc[-1]), "n_fills": int(len(fills2))}
+        )
+        echash1 = equity_curve_hash(equity_bars1)
+        echash2 = equity_curve_hash(equity_bars2)
+        assert mhash1 == mhash2, "metrics_hash mismatch for identical runs"
+        assert echash1 == echash2, "equity_curve_hash mismatch for identical runs"
 
 
 def test_derive_seed_stability_across_subseeds() -> None:

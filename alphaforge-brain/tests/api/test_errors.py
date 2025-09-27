@@ -35,7 +35,16 @@ def test_get_missing_run_plain_404_no_domain_envelope() -> None:
     # This route raises HTTPException directly, so response shape differs
     assert r.status_code == 404
     body = r.json()
-    assert body == {"detail": "run not found"}
+    # After structured error handler enhancement, HTTPException also gains 'error' envelope.
+    if "error" in body:
+        err = body["error"]
+        # Accept either legacy NOT_FOUND or more specific RUN_NOT_FOUND code.
+        assert err.get("code") in {"RUN_NOT_FOUND", "NOT_FOUND"}
+        assert err.get("retryable") is False
+        assert "run not found" in err.get("message", "")
+        assert body.get("detail") == "run not found"
+    else:  # Legacy path (pre-enhancement)
+        assert body == {"detail": "run not found"}
 
 
 def test_create_run_invalid_strategy_params_fast_ge_slow() -> None:
@@ -86,4 +95,11 @@ def test_create_run_missing_symbol_field_schema_error() -> None:
     body = r.json()
     # Standard validation error structure
     assert "detail" in body
-    assert any(err.get("loc", [])[0:1] == ["body"] for err in body.get("detail", []))
+    det = body.get("detail")
+    if isinstance(det, list):
+        assert any(
+            isinstance(err, dict) and err.get("loc", [])[0:1] == ["body"] for err in det
+        )
+    else:
+        # Custom handler path returns string detail; ensure symbol mentioned
+        assert isinstance(det, str) and "symbol" in det

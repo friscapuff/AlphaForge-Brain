@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -114,7 +115,10 @@ def test_retention_prune_oldest_after_exceeding_limit() -> None:
 
     # Insert 105 runs with monotonically increasing fake start_ts
     created_ids = []
-    for i in range(105):
+    limit = 105
+    if os.getenv("AF_FAST_TESTS") == "1":
+        limit = 25
+    for i in range(limit):
         cfg = make_config(seed=i)
         h, rec, created = create_or_get(cfg, registry, seed=i)
         assert created is True

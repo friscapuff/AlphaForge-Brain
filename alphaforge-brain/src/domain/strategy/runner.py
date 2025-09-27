@@ -9,6 +9,14 @@ import pandas as pd
 from domain.indicators.registry import IndicatorRegistry
 from domain.schemas.run_config import RunConfig
 from domain.strategy.base import StrategyRegistry
+from services.causality_guard import (
+    CausalityGuard,
+    CausalityMode,
+    causality_context,
+    guard_context,
+)
+
+from infra.persistence import record_causality_stats
 
 
 class _StrategyCallable(Protocol):  # pragma: no cover - typing helper
@@ -39,6 +47,9 @@ def run_strategy(
     cache_root: str | None = None,
     engine_version: str = "v1",
     stats: RunnerStats | None = None,
+    guard_mode: str | None = None,
+    guard: CausalityGuard | None = None,
+    run_hash: str | None = None,
 ) -> pd.DataFrame:
     """Generate strategy signals timeline.
 
@@ -101,25 +112,7 @@ def run_strategy(
         build_features as _bf,  # local import for monkeypatch visibility
     )
 
-    if features is not None:
-        feat = features.copy()
-        for frame in indicator_frames:
-            for col in frame.columns:
-                if col not in feat.columns:
-                    feat[col] = frame[col]
-        features = feat
-    else:
-        features = _bf(
-            candles,
-            use_cache=use_feature_cache,
-            candle_hash=candle_hash,
-            cache_root=(
-                None if cache_root is None else __import__("pathlib").Path(cache_root)
-            ),
-            engine_version=engine_version,
-        )
-        stats.feature_built = True
-
+    # Resolve strategy factory and normalize parameters before executing (may run inside guard context)
     strat_name = config.strategy.name
     # Ensure strategy implementations imported so decorators execute (lazy import pattern)
     try:  # pragma: no cover - defensive
@@ -137,8 +130,52 @@ def run_strategy(
         if "slow" in strategy_params and "long_window" not in strategy_params:
             strategy_params["long_window"] = strategy_params["slow"]
 
-    # Strategy factories in this codebase currently take (df, params)
-    result = factory(features, strategy_params)
+    # Prepare factories for feature handling
+    def _merge_feats() -> pd.DataFrame:
+        assert features is not None
+        feat = features.copy()
+        for frame in indicator_frames:
+            for col in frame.columns:
+                if col not in feat.columns:
+                    feat[col] = frame[col]
+        return feat
+
+    def _build_feats() -> pd.DataFrame:
+        return _bf(
+            candles,
+            use_cache=use_feature_cache,
+            candle_hash=candle_hash,
+            cache_root=(
+                None if cache_root is None else __import__("pathlib").Path(cache_root)
+            ),
+            engine_version=engine_version,
+        )
+
+    # Execute feature building and strategy within a single guard context if provided
+    if guard is not None:
+        _ctx = guard_context(guard)
+    elif guard_mode is not None:
+        _ctx = causality_context(guard_mode)
+    else:
+        _ctx = None
+
+    if _ctx is not None:
+        with _ctx:
+            if features is not None:
+                features = _merge_feats()
+            else:
+                features = _build_feats()
+                stats.feature_built = True
+            result = factory(features, strategy_params)
+    else:
+        if features is not None:
+            features = _merge_feats()
+        else:
+            features = _build_feats()
+            stats.feature_built = True
+        result = factory(features, strategy_params)
+
+    # Strategy already executed in context above; ensure result is a DataFrame
     assert isinstance(result, pd.DataFrame)
 
     # Enforce no lookahead by ensuring signal at row i only derived from <= i features.
@@ -159,6 +196,18 @@ def run_strategy(
             return out
 
     stats.rows_out = len(result)
+    # Persist causality stats if guard provided and run_hash available
+    if guard is not None and run_hash is not None:
+        try:
+            record_causality_stats(
+                run_hash=run_hash,
+                mode=getattr(guard, "_mode", CausalityMode.PERMISSIVE),
+                violations=len(guard.violations or []),
+                phase="strategy",
+            )
+        except Exception:
+            # Persistence is best-effort here; orchestrator has separate persistence path
+            pass
     return result
 
 

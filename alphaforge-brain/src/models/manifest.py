@@ -10,10 +10,10 @@ Purpose:
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from hashlib import sha256
 
 from pydantic import Field, model_validator
 
+from ..infra.utils.hash import canonical_json, sha256_hex
 from .base import BaseModelStrict
 from .run_config import RunConfig
 
@@ -41,11 +41,7 @@ class RunManifest(BaseModelStrict):  # FR-030..FR-034
         return self
 
     def compute_composite_hash(self) -> str:
-        parts = [self.config_signature]
-        for a in sorted(self.artifacts, key=lambda x: x.name):
-            parts.append(f"{a.name}:{a.content_hash}:{a.path}")
-        blob = "|".join(parts)
-        return sha256(blob.encode("utf-8")).hexdigest()
+        return compute_composite_hash_from(self.config_signature, self.artifacts)
 
     @classmethod
     def from_run_config(
@@ -55,4 +51,17 @@ class RunManifest(BaseModelStrict):  # FR-030..FR-034
         return cls(run_id=run_id, config_signature=sig, artifacts=artifacts)
 
 
-__all__ = ["ArtifactDescriptor", "RunManifest"]
+def compute_composite_hash_from(
+    config_signature: str, artifacts: list[ArtifactDescriptor]
+) -> str:
+    # Stable, order-independent canonical payload
+    reduced = [
+        {"name": a.name, "path": a.path, "content_hash": a.content_hash}
+        for a in artifacts
+    ]
+    reduced.sort(key=lambda d: d["name"])  # order independence
+    payload = {"config_signature": config_signature, "artifacts": reduced}
+    return sha256_hex(canonical_json(payload).encode("utf-8"))
+
+
+__all__ = ["ArtifactDescriptor", "RunManifest", "compute_composite_hash_from"]

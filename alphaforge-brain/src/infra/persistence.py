@@ -12,9 +12,9 @@ from .logging import get_logger
 from .utils.hash import canonical_json, hash_canonical, sha256_hex
 
 try:  # lightweight optional import for parquet shape
-    import pyarrow.parquet as _pq  # type: ignore
+    import pyarrow.parquet as _pq  # pragma: no cover
 except Exception:  # pragma: no cover - tests guard presence
-    _pq = None  # type: ignore
+    _pq = None
 
 LOGGER = get_logger(__name__)
 
@@ -261,6 +261,29 @@ def insert_validation(
                 1 if fallback else 0 if fallback is not None else None,
             ),
         )
+        # Also persist key metrics for quick access
+        try:
+            payload = payload_json
+            if isinstance(payload, dict):
+                summary = payload.get("summary", {})
+                perm_p = summary.get("permutation_p")
+                bb_p = summary.get("block_bootstrap_p")
+                bb_ci_w = summary.get("block_bootstrap_ci_width")
+                wf_folds = summary.get("walk_forward_folds")
+                for key, val, vtype in (
+                    ("validation_perm_p", perm_p, "float"),
+                    ("validation_bb_p", bb_p, "float"),
+                    ("validation_bb_ci_width", bb_ci_w, "float"),
+                    ("validation_wf_folds", wf_folds, "int"),
+                ):
+                    if val is not None:
+                        conn.execute(
+                            "INSERT INTO metrics (run_hash, key, value, value_type, phase) VALUES (?, ?, ?, ?, ?)",
+                            (run_hash, key, str(val), vtype, "validation"),
+                        )
+        except Exception:
+            # best-effort metrics recording
+            pass
         conn.commit()
 
 
@@ -365,11 +388,11 @@ def validate_manifest_object(manifest: dict[str, Any], schema_path: Path) -> Non
     """
     try:
         # Optional dependency pattern: import only if available.
-        import jsonschema  # type: ignore[import-not-found]
+        import jsonschema
 
         with schema_path.open("r", encoding="utf-8") as f:
             schema = json.load(f)
-        jsonschema.validate(instance=manifest, schema=schema)  # type: ignore[attr-defined]
+        jsonschema.validate(instance=manifest, schema=schema)
     except ModuleNotFoundError:
         LOGGER.info("manifest_validation_skipped", reason="jsonschema not installed")
 
@@ -426,13 +449,20 @@ def record_feature_cache_artifact(
     rows: int
     cols: int
     if _pq is not None:
-        table = _pq.read_table(parquet_path)
-        rows = int(table.num_rows)
-        cols = int(table.num_columns)
-    else:  # pragma: no cover
-        import pandas as _pd
+        try:
+            table = _pq.read_table(parquet_path)
+            rows = int(table.num_rows)
+            cols = int(table.num_columns)
+        except Exception:  # fall back to pandas path
+            from lib.artifacts import read_parquet_or_csv
 
-        df = _pd.read_parquet(parquet_path)
+            df = read_parquet_or_csv(parquet_path)
+            rows = int(df.shape[0])
+            cols = int(df.shape[1])
+    else:  # pragma: no cover
+        from lib.artifacts import read_parquet_or_csv
+
+        df = read_parquet_or_csv(parquet_path)
         rows = int(df.shape[0])
         cols = int(df.shape[1])
 

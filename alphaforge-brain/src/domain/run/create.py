@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -90,6 +91,23 @@ def create_or_get(
     if existing is not None:
         return h, existing, False
 
+    # --- single-flight orchestration (per run hash) ---
+    # Prevent concurrent identical submissions from racing to produce divergent artifacts.
+    _locks_attr = "_RUN_LOCKS_SINGLEFLIGHT"
+    global_locks: dict[str, threading.Lock]
+    if not hasattr(create_or_get, _locks_attr):
+        setattr(create_or_get, _locks_attr, {})
+    global_locks = getattr(create_or_get, _locks_attr)
+    lock = global_locks.get(h)
+    if lock is None:
+        lock = threading.Lock()
+        global_locks[h] = lock
+    with lock:
+        # Re-check after acquiring lock to avoid duplicate orchestration.
+        existing2 = registry.get(h)
+        if existing2 is not None:
+            return h, existing2, False
+
     progress_events: list[Any] = []
     buf = get_global_buffer(h)
 
@@ -115,6 +133,28 @@ def create_or_get(
     # Derive equity & trades frames for artifact layer if available (exposed directly by orchestrator)
     equity_df = result.get("equity_df")
     trades_df = result.get("trades")
+    # Deterministic semantic hashes (T087/T088 hardening + provenance):
+    # metrics_hash over summary.metrics; equity_curve_hash over equity_df nav/drawdown
+    metrics_hash_val: str | None = None
+    equity_curve_hash_val: str | None = None
+    try:  # pragma: no cover - guarded to avoid failing run on hash utility issues
+        from services.metrics_hash import metrics_hash as _metrics_hash, equity_curve_hash as _equity_curve_hash  # type: ignore
+        if isinstance(summary, dict):
+            m = summary.get("metrics")
+            if isinstance(m, dict):
+                metrics_hash_val = _metrics_hash(m)
+        if equity_df is not None:
+            import pandas as _pd  # local import to minimize top-level dependency
+            if isinstance(equity_df, _pd.DataFrame) and not equity_df.empty:
+                equity_curve_hash_val = _equity_curve_hash(equity_df)
+    except Exception as e:
+        # Non-fatal: attach diagnostic for debugging; tests can still proceed
+        metrics_hash_val = None
+        equity_curve_hash_val = None
+        try:
+            print("hash_compute_error", type(e).__name__, str(e))
+        except Exception:
+            pass
     # Build validation detail (distributions & folds) for artifact layer
     try:  # pragma: no cover - small integration guard
         from domain.artifacts.validation_merge import merge_validation
@@ -137,10 +177,30 @@ def create_or_get(
         },
         "progress_events": len(progress_events),
         "created_at": datetime.now(timezone.utc).timestamp(),
+        # T078 deterministic seed persistence (store user-provided seed and a simple strategy hash)
+        "seed": config.seed if getattr(config, "seed", None) is not None else seed,
+        "strategy_hash": f"{config.strategy.name}:{':'.join(str(v) for v in config.strategy.params.values())}" if getattr(config, "strategy", None) else None,
+        # Original config metadata (additive for T071,T072,T073)
+        "symbol": config.symbol,
+        "timeframe": config.timeframe,
+        "start": config.start,
+        "end": config.end,
+        "strategy_spec": {
+            "name": config.strategy.name,
+            "params": config.strategy.params,
+        } if getattr(config, "strategy", None) else None,
+        "risk_spec": {
+            "model": config.risk.model,
+            "params": config.risk.params,
+        } if getattr(config, "risk", None) else None,
+        "config_original": config.model_dump(mode="python"),
     }
+    if metrics_hash_val:
+        record["metrics_hash"] = metrics_hash_val
+    if equity_curve_hash_val:
+        record["equity_curve_hash"] = equity_curve_hash_val
     if validation_detail is not None:
         record["validation_detail"] = validation_detail
-    registry.set(h, record)
     # Write artifacts (AlphaForgeB Brain) - centralized root resolution
     try:  # pragma: no cover simple integration guard
         import pandas as _pd  # local alias
@@ -287,11 +347,12 @@ def create_or_get(
         buf.append("completed", {"run_hash": h, "status": "COMPLETE"})
     except Exception:
         pass
-    # Retention pruning (lazy import to avoid circular dependency)
+    # Set record only after artifacts fully materialized to avoid races in concurrent readers
+    registry.set(h, record)
+    # Retention pruning (lazy import to avoid circular dependency) AFTER inserting new record so newest is kept
     if len(registry.store) > 100:
         try:  # pragma: no cover - simple guard
             from .retention import prune as retention_prune  # local import
-
             retention_prune(registry, limit=100)
         except Exception:
             pass

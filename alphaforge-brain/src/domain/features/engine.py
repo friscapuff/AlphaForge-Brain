@@ -217,152 +217,116 @@ def build_features(
     """
     if not use_cache:
         if isinstance(chunk_size, int) and chunk_size > 0:
-            eff_overlap = 0 if overlap is None else int(overlap)
-            if overlap is None:
-                try:
-                    from services.chunking import (
-                        compute_required_overlap,
-                        compute_required_overlap_for_functions,
-                    )
-
-                    if indicators is None:
-                        # Combine object and function registries for completeness
-                        from domain.indicators.registry import (
-                            IndicatorRegistry as _FnReg,
-                        )
-                        from domain.indicators.registry import (
-                            indicator_registry as _reg,
-                        )
-
-                        inds = list(_reg.list())
-                        try:
-                            inds += list(_FnReg.list().values())  # type: ignore[call-arg]
-                        except Exception:
-                            pass
-                    else:
-                        inds = list(indicators)
-                    eff_overlap = compute_required_overlap(inds)
-                    # Also infer from function-style indicators and take the max
-                    try:
-                        fn_map = _FnReg.list()
-                        sample = df.iloc[: max(100, min(len(df), 500))]
-                        fn_ov = compute_required_overlap_for_functions(
-                            fn_map, sample, _engine_singleton.base_columns
-                        )
-                        if fn_ov > eff_overlap:
-                            eff_overlap = fn_ov
-                    except Exception:
-                        pass
-                except Exception:
-                    eff_overlap = 0
-            return _engine_singleton.build_features_chunked(
-                df, chunk_size=chunk_size, overlap=eff_overlap
-            )
+            eff_overlap = _compute_overlap(df, indicators, chunk_size, overlap)
+            return _engine_singleton.build_features_chunked(df, chunk_size=chunk_size, overlap=eff_overlap)
         return _engine_singleton.build_features(df)
     if candle_hash is None or cache_root is None:
-        # Fall back to direct compute if insufficient cache params provided
         if isinstance(chunk_size, int) and chunk_size > 0:
-            eff_overlap = 0 if overlap is None else int(overlap)
-            if overlap is None:
-                try:
-                    from services.chunking import (
-                        compute_required_overlap,
-                        compute_required_overlap_for_functions,
-                    )
-
-                    if indicators is None:
-                        from domain.indicators.registry import (
-                            IndicatorRegistry as _FnReg,
-                        )
-                        from domain.indicators.registry import (
-                            indicator_registry as _reg,
-                        )
-
-                        inds = list(_reg.list())
-                        try:
-                            inds += list(_FnReg.list().values())  # type: ignore[call-arg]
-                        except Exception:
-                            pass
-                    else:
-                        inds = list(indicators)
-                    eff_overlap = compute_required_overlap(inds)
-                    try:
-                        fn_map = _FnReg.list()
-                        sample = df.iloc[: max(100, min(len(df), 500))]
-                        fn_ov = compute_required_overlap_for_functions(
-                            fn_map, sample, _engine_singleton.base_columns
-                        )
-                        if fn_ov > eff_overlap:
-                            eff_overlap = fn_ov
-                    except Exception:
-                        pass
-                except Exception:
-                    eff_overlap = 0
-            return _engine_singleton.build_features_chunked(
-                df, chunk_size=chunk_size, overlap=eff_overlap
-            )
+            eff_overlap = _compute_overlap(df, indicators, chunk_size, overlap)
+            return _engine_singleton.build_features_chunked(df, chunk_size=chunk_size, overlap=eff_overlap)
         return _engine_singleton.build_features(df)
+    # Caching path
+    # Resolve indicators list deterministically
+    if indicators is None:
+        from domain.indicators.registry import indicator_registry as _reg
+
+        indicators = list(_reg.list())
+    # Instantiate cache
+    from infra.cache.features import FeaturesCache
+
+    cache = FeaturesCache(cache_root)
+
+    def _builder(inner_df: pd.DataFrame) -> pd.DataFrame:
+        if isinstance(chunk_size, int) and chunk_size > 0:
+            eff_overlap = _compute_overlap(inner_df, indicators, chunk_size, overlap)
+            return _engine_singleton.build_features_chunked(inner_df, chunk_size=chunk_size, overlap=eff_overlap)
+        return _engine_singleton.build_features(inner_df)
+
+    # Indicators is guaranteed non-None here
+    assert indicators is not None
+    inds_for_cache = indicators
+    return cache.load_or_build(
+        df,
+        inds_for_cache,
+        _builder,
+        candle_hash=candle_hash,
+        engine_version=engine_version,
+    )
+
+
+def build_features_auto_chunk(
+    df: pd.DataFrame,
+    *,
+    target_chunk_mb: int = 256,
+    max_rows_cap: int = 2_000_000,
+    use_cache: bool = False,
+    candle_hash: str | None = None,
+    cache_root: Path | None = None,
+    engine_version: str = "v1",
+    indicators: Iterable[Any] | None = None,
+    overlap: int | None = None,
+) -> pd.DataFrame:
+    """Convenience wrapper: choose chunk size by memory budget and delegate to build_features.
+
+    If use_cache is True, candle_hash and cache_root should be provided; otherwise it
+    will compute directly.
+    """
     try:
-        from infra.cache.features import FeaturesCache
+        from services.chunking import choose_chunk_size
+
+        cs = choose_chunk_size(df, target_chunk_mb=target_chunk_mb, max_rows_cap=max_rows_cap)
+    except Exception:
+        # Fallback to monolithic if estimation fails
+        cs = 0
+    return build_features(
+        df,
+        use_cache=use_cache,
+        candle_hash=candle_hash,
+        cache_root=cache_root,
+        engine_version=engine_version,
+        indicators=indicators,
+        chunk_size=cs,
+        overlap=overlap,
+    )
+
+# --- Internal helpers ---
+def _compute_overlap(
+    df: pd.DataFrame,
+    indicators: Iterable[Any] | None,
+    chunk_size: int,
+    overlap: int | None,
+) -> int:
+    """Infer effective overlap for chunked feature computation.
+
+    Combines object and function-style indicators and takes max required overlap.
+    Returns 0 on any failure (fail-safe) to avoid blocking computation.
+    """
+    eff_overlap = 0 if overlap is None else int(overlap)
+    if overlap is not None:
+        return eff_overlap
+    try:
+        from domain.indicators.registry import IndicatorRegistry as _FnReg
+        from domain.indicators.registry import indicator_registry as _reg
+        from services.chunking import (
+            compute_required_overlap,
+            compute_required_overlap_for_functions,
+        )
 
         if indicators is None:
-            from domain.indicators.registry import indicator_registry
-
-            indicators = list(indicator_registry.list())
-        cache = FeaturesCache(cache_root)
-
-        def builder(inner_df: pd.DataFrame) -> pd.DataFrame:
-            if isinstance(chunk_size, int) and chunk_size > 0:
-                eff_overlap = 0 if overlap is None else int(overlap)
-                if overlap is None:
-                    try:
-                        from services.chunking import (
-                            compute_required_overlap,
-                        )
-
-                        eff_overlap = compute_required_overlap(list(indicators))
-                        # No function registry here (builder is provided indicators), so no extra fn overlap.
-                    except Exception:
-                        eff_overlap = 0
-                return _engine_singleton.build_features_chunked(
-                    inner_df, chunk_size=chunk_size, overlap=eff_overlap
-                )
-            return _engine_singleton.build_features(inner_df)
-
-        return cache.load_or_build(
-            df,
-            indicators,
-            builder,
-            candle_hash=candle_hash,
-            engine_version=engine_version,
-        )
-    except Exception:
-        # Fail-safe: compute directly if cache path has issues
-        if isinstance(chunk_size, int) and chunk_size > 0:
-            eff_overlap = 0 if overlap is None else int(overlap)
-            if overlap is None:
-                try:
-                    from services.chunking import compute_required_overlap
-
-                    if indicators is None:
-                        from domain.indicators.registry import (
-                            IndicatorRegistry as _FnReg,
-                        )
-                        from domain.indicators.registry import (
-                            indicator_registry as _reg,
-                        )
-
-                        inds = list(_reg.list())
-                        try:
-                            inds += list(_FnReg.list().values())  # type: ignore[call-arg]
-                        except Exception:
-                            pass
-                    else:
-                        inds = list(indicators)
-                    eff_overlap = compute_required_overlap(inds)
-                except Exception:
-                    eff_overlap = 0
-            return _engine_singleton.build_features_chunked(
-                df, chunk_size=chunk_size, overlap=eff_overlap
+            objs = list(_reg.list())
+        else:
+            objs = list(indicators)
+        eff_overlap = compute_required_overlap(objs)
+        try:
+            fn_map = _FnReg.list()
+            sample = df.iloc[: max(100, min(len(df), 500))]
+            fn_ov = compute_required_overlap_for_functions(
+                fn_map, sample, _engine_singleton.base_columns
             )
-        return _engine_singleton.build_features(df)
+            if fn_ov > eff_overlap:
+                eff_overlap = fn_ov
+        except Exception:
+            pass
+    except Exception:
+        eff_overlap = 0
+    return eff_overlap

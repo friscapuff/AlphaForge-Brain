@@ -11,6 +11,7 @@ Logic:
 
 Intended to be invoked in CI prior to merging PRs.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,6 +22,7 @@ from pathlib import Path
 
 FRAG_DIR: Path = Path("changelog/fragments")
 PATTERN: re.Pattern[str] = re.compile(r"^\d{8}-[a-z0-9\-]+\.md$")
+
 
 def run(cmd: list[str]) -> str:
     """Run a subprocess command and return stripped stdout.
@@ -51,7 +53,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--spec", required=True)
     ap.add_argument("--base", default="origin/main")
-    ap.add_argument("--allow-any", action="store_true", help="Allow any fragment if naming not matched")
+    ap.add_argument(
+        "--allow-any",
+        action="store_true",
+        help="Allow any fragment if naming not matched",
+    )
     args = ap.parse_args()
 
     if not spec_changed(args.spec, args.base):
@@ -60,21 +66,32 @@ def main() -> int:
 
     frags = list_fragments()
     if not frags:
-        print(f"ERROR: Spec changed but no fragments found in {FRAG_DIR}.", file=sys.stderr)
+        print(
+            f"ERROR: Spec changed but no fragments found in {FRAG_DIR}.",
+            file=sys.stderr,
+        )
         return 2
 
     valid = [f for f in frags if PATTERN.match(f.name)]
     if valid:
-        print(f"Found {len(valid)} valid changelog fragment(s): {[v.name for v in valid]}")
+        print(
+            f"Found {len(valid)} valid changelog fragment(s): {[v.name for v in valid]}"
+        )
         return 0
     if args.allow_any and frags:
-        print(f"No valid pattern matches, but --allow-any set and {len(frags)} fragment(s) found.")
+        print(
+            f"No valid pattern matches, but --allow-any set and {len(frags)} fragment(s) found."
+        )
         return 0
 
-    print("ERROR: Fragment(s) found but none match required pattern YYYYMMDD-slug.md", file=sys.stderr)
+    print(
+        "ERROR: Fragment(s) found but none match required pattern YYYYMMDD-slug.md",
+        file=sys.stderr,
+    )
     for f in frags:
         print(f" - {f.name}", file=sys.stderr)
     return 3
+
 
 if __name__ == "__main__":
     rc = main()

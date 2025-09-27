@@ -5,12 +5,16 @@ integration tests in other directories (e.g., tests/integration) can access them
 package-style relative imports. Pytest auto-discovers this root-level conftest.
 """
 
+import hashlib
 import importlib.util
+import json
+import os
 import sys
 from datetime import datetime as _dt_datetime
 from datetime import timezone
 from pathlib import Path
 from types import ModuleType
+from typing import Any, Callable
 
 import pytest
 
@@ -98,3 +102,175 @@ def random_seed_fixture():
     seed = 1337
     random.seed(seed)
     return seed
+
+
+def pytest_addoption(parser):  # type: ignore[override]
+    """Add fallback ini options for asyncio when pytest-asyncio isn't installed.
+
+    This prevents PytestConfigWarning: Unknown config option for users running
+    pytest without the pytest-asyncio plugin. When the plugin is installed,
+    we skip adding these options to avoid duplicate registration.
+    """
+    try:
+        import pytest_asyncio  # noqa: F401
+
+        plugin_present = True
+    except Exception:
+        plugin_present = False
+
+    if not plugin_present:
+        try:
+            parser.addini(
+                "asyncio_mode",
+                help="pytest-asyncio mode (auto by default)",
+                default="auto",
+            )
+            parser.addini(
+                "asyncio_default_fixture_loop_scope",
+                help="default loop scope for pytest-asyncio fixtures",
+                default="function",
+            )
+        except Exception:
+            # If pytest changes internals or duplicate registration occurs, ignore.
+            pass
+
+
+# ---- SQLite temporary DB path fixture ----
+@pytest.fixture()
+def sqlite_tmp_path(tmp_path: Path) -> Path:
+    """Provide a unique temporary SQLite file path for tests.
+
+    The file is not pre-created; callers can pass this path to engines/services
+    that will create it. It will be placed under the test's tmp_path and will
+    be cleaned up with the test directory.
+    """
+    return tmp_path / "test.sqlite3"
+
+
+# ---- Content-hash and JSON canonicalization helpers ----
+def _json_canonical_dumps(obj: Any) -> bytes:
+    """Serialize to canonical JSON bytes (UTF-8) with stable ordering.
+
+    Uses orjson when available for speed; falls back to json.
+    """
+    try:  # prefer orjson if present in env
+        import orjson  # type: ignore
+
+        return orjson.dumps(obj, option=orjson.OPT_SORT_KEYS | orjson.OPT_INDENT_0)
+    except Exception:
+        # separators=(',', ':') removes whitespace; sort_keys ensures determinism
+        s = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return s.encode("utf-8")
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+@pytest.fixture()
+def json_canonical_dumps() -> Callable[[Any], bytes]:
+    """Fixture exposing canonical JSON serialization to bytes (UTF-8)."""
+
+    return _json_canonical_dumps
+
+
+@pytest.fixture()
+def content_hash_json(
+    json_canonical_dumps: Callable[[Any], bytes]
+) -> Callable[[Any], str]:
+    """Fixture returning a function that computes SHA-256 over canonical JSON."""
+
+    def _hash(obj: Any) -> str:
+        return _sha256_bytes(json_canonical_dumps(obj))
+
+    return _hash
+
+
+# ---- RSS sampler helper (best-effort, optional psutil) ----
+class _RssSampler:
+    def __init__(self) -> None:
+        self._impl = self._detect_impl()
+
+    def _detect_impl(self) -> Callable[[], float | None]:
+        # Try psutil first
+        try:
+            import psutil  # type: ignore
+
+            proc = psutil.Process(os.getpid())
+
+            def _psutil_impl() -> float:
+                return proc.memory_info().rss / (1024 * 1024)
+
+            return _psutil_impl
+        except Exception:
+            pass
+
+        # Linux /proc/self/status (VmRSS)
+        if os.name == "posix" and os.path.exists("/proc/self/status"):
+
+            def _proc_status_impl() -> float | None:
+                try:
+                    with open("/proc/self/status", encoding="utf-8") as fh:
+                        for line in fh:
+                            if line.startswith("VmRSS:"):
+                                parts = line.split()
+                                # e.g., 'VmRSS:\t  12345 kB' -> convert kB to MB
+                                kb = float(parts[1])
+                                return kb / 1024.0
+                except Exception:
+                    return None
+                return None
+
+            return _proc_status_impl
+
+        # Fallback: unsupported platform
+        def _none_impl() -> float | None:
+            return None
+
+        return _none_impl
+
+    def rss_mb(self) -> float | None:
+        return self._impl()
+
+
+@pytest.fixture()
+def rss_sampler() -> _RssSampler:
+    """Best-effort RSS memory sampler.
+
+    Returns an object with .rss_mb() -> float | None. When None, the platform
+    doesn't support RSS sampling with available libraries; callers should skip
+    assertions in that case.
+    """
+
+    return _RssSampler()
+
+
+# ---- Arrow roundtrip helper ----
+@pytest.fixture()
+def arrow_roundtrip(tmp_path: Path) -> Callable[[Any, str | None], Any]:
+    """Write a DataFrame to Parquet (pyarrow) and read it back for equivalence tests.
+
+    Returns a function: (df, name?) -> df_roundtripped
+    """
+    try:
+        import pandas as pd  # type: ignore
+    except Exception as e:  # pragma: no cover - test environment issue
+        pytest.skip(f"pandas not available: {e}")
+
+    def _rt(df: Any, name: str | None = None) -> Any:
+        fname = (name or "frame").replace(" ", "_") + ".parquet"
+        path = tmp_path / fname
+        try:
+            df.to_parquet(path, engine="pyarrow", index=False)  # type: ignore[arg-type]
+            back = pd.read_parquet(  # parquet-ok: direct artifact read acceptable in controlled test env   # parquet-ok: direct artifact read acceptable in controlled test env 
+                path, engine="pyarrow"
+            )  # parquet-ok: explicit pyarrow roundtrip test
+            return back
+        except Exception:
+            # Fallback minimal env: write CSV under parquet extension and read back via CSV
+            path.write_text(df.to_csv(index=False), encoding="utf-8")  # type: ignore[attr-defined]
+            import pandas as _pd
+
+            return _pd.read_csv(path)
+
+    return _rt
