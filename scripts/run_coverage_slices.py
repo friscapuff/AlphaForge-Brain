@@ -23,7 +23,7 @@ Optional env vars:
   AF_COV_SOURCES   Comma separated coverage source paths (default: alphaforge-brain/src)
   AF_COV_REPORT    If set (non-empty) adds a terminal report per slice (slower)
 
-Exit code is non‑zero if any slice fails or times out.
+Exit code is non-zero if any slice fails or times out.
 
 Notes
 -----
@@ -39,12 +39,11 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import List
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECT_SOURCES = os.environ.get("AF_COV_SOURCES", "alphaforge-brain/src")
 
-TEST_ROOTS: List[Path] = []
+TEST_ROOTS: list[Path] = []
 brain_tests = ROOT / "alphaforge-brain" / "tests"
 if brain_tests.exists():
     for p in sorted(brain_tests.iterdir()):
@@ -93,7 +92,7 @@ if not REPORT_PER_SLICE:
     PYTEST_BASE += ["--cov-report="]
 
 results = []
-coverage_files: List[Path] = []
+coverage_files: list[Path] = []
 for directory in TEST_ROOTS:
     label = directory.name.replace("-", "_")
     cov_file = ROOT / f".coverage.slice_{label}"
@@ -104,7 +103,7 @@ for directory in TEST_ROOTS:
     detail_tail = None
     try:
         proc = subprocess.run(
-            PYTEST_BASE + [str(directory)],
+            [*PYTEST_BASE, str(directory)],
             cwd=ROOT,
             env=env,
             stdout=subprocess.PIPE,

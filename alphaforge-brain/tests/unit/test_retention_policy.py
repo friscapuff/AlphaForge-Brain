@@ -75,7 +75,7 @@ def test_retention_apply_marks_states():
     cfg = RetentionConfig(keep_last=2, top_k_per_strategy=1)
     plan = plan_retention(reg, cfg)
     apply_retention_plan(reg, plan)
-    for h, rec in reg.store.items():
+    for _h, rec in reg.store.items():
         assert rec.get("retention_state") in {
             "pinned",
             "top_k",

@@ -11,18 +11,17 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import List
 
 ROOT = Path(__file__).resolve().parent.parent
-TEST_ROOTS: List[Path] = []
+TEST_ROOTS: list[Path] = []
 
 # Primary test root inside alphaforge-brain
 brain_tests = ROOT / "alphaforge-brain" / "tests"
 if brain_tests.exists():
     for p in sorted(brain_tests.iterdir()):
         if (
-            p.is_dir() and (p / "__init__.py").exists() or p.is_dir()
-        ):  # include even w/o __init__
+            p.is_dir() and (p / "__init__.py").exists()
+        ) or p.is_dir():  # include even w/o __init__
             TEST_ROOTS.append(p)
 
 # Optional top-level tests directory (parallel) if exists
@@ -37,15 +36,15 @@ SLICE_TIMEOUT = (
 )  # seconds per slice
 PYTEST_BASE = [sys.executable, "-m", "pytest", "-q", "--maxfail=1"]
 
-results = []
+results: list[dict[str, object]] = []
 for directory in TEST_ROOTS:
     start = time.time()
     proc = None
     status = "pass"
-    detail = None
+    detail: str | None = None
     try:
         proc = subprocess.run(
-            PYTEST_BASE + [str(directory)],
+            [*PYTEST_BASE, str(directory)],
             cwd=ROOT,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -57,7 +56,12 @@ for directory in TEST_ROOTS:
             detail = proc.stdout[-2000:]
     except subprocess.TimeoutExpired as e:
         status = "timeout"
-        detail = (e.stdout or "")[-2000:]
+        raw = e.stdout
+        if isinstance(raw, bytes):  # ensure str for typing
+            raw_text = raw.decode(errors="replace")
+        else:
+            raw_text = raw or ""
+        detail = raw_text[-2000:]
     duration = round(time.time() - start, 2)
     results.append(
         {

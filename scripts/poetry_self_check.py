@@ -18,13 +18,12 @@ Designed to be inexpensive and safe. Avoids importing heavy libs unless needed.
 """
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
 import pathlib
 import re
 import sys
-import hashlib
-from typing import Dict, List
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PYPROJECT = ROOT / "pyproject.toml"
@@ -97,7 +96,7 @@ def safe_version(module: str) -> str | None:
     return None
 
 
-def detect_optionals() -> tuple[List[str], List[str]]:
+def detect_optionals() -> tuple[list[str], list[str]]:
     installed = []
     missing = []
     for mod, extra in OPTIONAL_IMPORTS.items():
@@ -112,15 +111,17 @@ def detect_optionals() -> tuple[List[str], List[str]]:
 def main() -> int:
     pyproject_text = _read_text(PYPROJECT)
     python_spec = extract_python_spec(pyproject_text) or ""
-    py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    py_version = (
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
 
     installed_extras, missing_extras = detect_optionals()
 
-    dependency_versions: Dict[str, str | None] = {
+    dependency_versions: dict[str, str | None] = {
         dep: safe_version(dep) for dep in KEY_DEPENDENCIES
     }
 
-    warnings: List[str] = []
+    warnings: list[str] = []
     exit_code = 0
 
     # Basic python version check (only major.minor vs spec fragment numbers we can parse)
@@ -141,17 +142,19 @@ def main() -> int:
             exit_code = 1
 
     if missing_extras:
-        warnings.append(
-            "Missing optional extras: " + ", ".join(sorted(missing_extras))
-        )
+        warnings.append("Missing optional extras: " + ", ".join(sorted(missing_extras)))
 
     payload = {
         "python_version": py_version,
         "python_spec": python_spec,
-        "package_version": safe_version("project_a_backend") or safe_version("alphaforge_brain") or "unknown",  # adjust name fallback
+        "package_version": safe_version("project_a_backend")
+        or safe_version("alphaforge_brain")
+        or "unknown",  # adjust name fallback
         "installed_extras": sorted(installed_extras),
         "missing_optionals": sorted(missing_extras),
-        "dependency_versions": {k: v for k, v in dependency_versions.items() if v is not None},
+        "dependency_versions": {
+            k: v for k, v in dependency_versions.items() if v is not None
+        },
         "dependency_missing": [k for k, v in dependency_versions.items() if v is None],
         "lock_fingerprint": compute_lock_fingerprint(),
         "warnings": warnings,

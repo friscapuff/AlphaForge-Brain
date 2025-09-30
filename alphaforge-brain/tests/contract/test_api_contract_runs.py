@@ -1,6 +1,5 @@
-import json
-from fastapi.testclient import TestClient
 from api.app import create_app
+from fastapi.testclient import TestClient
 
 
 def make_client():
@@ -14,10 +13,14 @@ def minimal_run_config(seed: int | None = 123):
         "strategy": {"name": "dual_sma", "params": {"fast": 5, "slow": 20}},
         "risk": {"model": "fixed_fraction", "params": {"fraction": 0.1}},
         "execution": {"mode": "sim", "slippage_bps": 1.0, "fee_bps": 0.5},
-        "validation": {"permutation": {"n": 10}, "block_bootstrap": {"n": 10}, "walk_forward": {"splits": 2}},
+        "validation": {
+            "permutation": {"n": 10},
+            "block_bootstrap": {"n": 10},
+            "walk_forward": {"splits": 2},
+        },
         "symbol": "NVDA",
-    # Use canonical supported timeframe (lowercase per parser)
-    "timeframe": "1d",
+        # Use canonical supported timeframe (lowercase per parser)
+        "timeframe": "1d",
         "start": "2024-01-01",
         "end": "2024-02-01",
         "seed": seed,
@@ -72,14 +75,16 @@ def test_artifacts_listing_and_fetch():
 
 def test_events_endpoint_snapshot_sequence():
     client = make_client()
-    run_hash = client.post("/runs", json=minimal_run_config(seed=789)).json()["run_hash"]
+    run_hash = client.post("/runs", json=minimal_run_config(seed=789)).json()[
+        "run_hash"
+    ]
     # First call -> heartbeat + snapshot (ids 0 & 1)
     resp = client.get(f"/runs/{run_hash}/events")
     assert resp.status_code == 200
     text = resp.text.strip().splitlines()
     ids = [ln for ln in text if ln.startswith("id:")]
-    assert any("id: 0" in l for l in ids)
-    assert any("id: 1" in l for l in ids)
+    assert any("id: 0" in line for line in ids)
+    assert any("id: 1" in line for line in ids)
     # Resume after snapshot -> expect 304 or empty depending on etag logic
     etag = resp.headers.get("ETag")
     resp2 = client.get(f"/runs/{run_hash}/events", headers={"If-None-Match": etag})
@@ -88,7 +93,9 @@ def test_events_endpoint_snapshot_sequence():
 
 def test_pin_unpin_rehydrate_cycle():
     client = make_client()
-    run_hash = client.post("/runs", json=minimal_run_config(seed=321)).json()["run_hash"]
+    run_hash = client.post("/runs", json=minimal_run_config(seed=321)).json()[
+        "run_hash"
+    ]
     # Pin
     r_pin = client.post(f"/runs/{run_hash}/pin")
     assert r_pin.status_code == 200

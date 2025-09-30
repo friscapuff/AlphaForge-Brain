@@ -1,7 +1,7 @@
 """Lightweight canonical JSON + hashing utilities.
 
-Goal: Provide a minimal, side‑effect free variant of canonical_json/hash_canonical
-to be safely imported in performance‑sensitive or early‑startup contexts without
+Goal: Provide a minimal, side-effect free variant of canonical_json/hash_canonical
+to be safely imported in performance-sensitive or early-startup contexts without
 triggering heavier infra (DB, settings resolution with environment IO, etc.).
 
 Differences vs hash.py:

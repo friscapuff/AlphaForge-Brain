@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import pandas as pd
 from domain.metrics.calculator import build_equity_curve, compute_metrics
 
@@ -48,7 +50,7 @@ def test_compute_metrics_gain_and_drawdown():
 
 def test_compute_metrics_include_anomalies_populates_defaults(monkeypatch):
     class DummyMD:
-        anomaly_counters = {"duplicates_dropped": 2}
+        anomaly_counters: ClassVar[dict[str, int]] = {"duplicates_dropped": 2}
 
     # monkeypatch get_dataset_metadata symbol in module
     import domain.metrics.calculator as calc

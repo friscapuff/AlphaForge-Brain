@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 
@@ -9,7 +9,7 @@ from .base import strategy
 
 @strategy("buy_hold")
 def buy_hold_signals(
-    df: pd.DataFrame, params: Dict[str, Any] | None = None
+    df: pd.DataFrame, params: dict[str, Any] | None = None
 ) -> pd.DataFrame:
     """Minimal buy & hold strategy producing continuous long signal.
 

@@ -37,9 +37,9 @@ def test_audit_hash_chain_integrity():
     from infra.artifacts_root import resolve_artifact_root
 
     log_path = resolve_artifact_root(None) / "audit.log"
-    lines = [l for l in log_path.read_text("utf-8").splitlines() if l.strip()]
+    lines = [line for line in log_path.read_text("utf-8").splitlines() if line.strip()]
     assert lines, "Audit log empty"
-    events = [json.loads(l) for l in lines]
+    events = [json.loads(line) for line in lines]
     # Verify hash chain
     prev_hash = None
     for ev in events:

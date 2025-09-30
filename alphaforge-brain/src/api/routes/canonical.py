@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 """Canonicalization utility endpoint.
 
-Provides a small helper API to round‑trip arbitrary JSON-like payloads through the
+Provides a small helper API to round-trip arbitrary JSON-like payloads through the
 backend canonical JSON + hashing layer. This allows the frontend (and external
 tools) to verify that a given structure will hash exactly the same way the
 backend does when producing provenance / export artifacts.
@@ -10,6 +8,8 @@ backend does when producing provenance / export artifacts.
 Response contract kept intentionally tiny so it is stable and easy to snapshot
 in tests.
 """
+
+from __future__ import annotations
 
 from typing import Any
 
@@ -20,17 +20,17 @@ router = APIRouter(prefix="/canonical", tags=["canonical"])
 
 # Use absolute imports (package layout: infra.utils.*). On failure fall back to light module.
 try:  # pragma: no cover - import resolution rarely fails
-    from infra.utils.hash import canonical_json, hash_canonical  # type: ignore
+    from infra.utils.hash import canonical_json, hash_canonical
 except Exception:  # pragma: no cover
     try:
-        from infra.utils.hash_light import (  # type: ignore
+        from infra.utils.hash_light import (
             canonical_json_light as canonical_json,
         )
         from infra.utils.hash_light import (
             hash_canonical_light as hash_canonical,
         )
     except Exception as e:  # absolute failure -> raise during startup so tests surface
-        raise RuntimeError(f"canonical hashing modules unavailable: {e}")
+        raise RuntimeError(f"canonical hashing modules unavailable: {e}") from e
 
 
 class CanonicalizeRequest(BaseModel):
