@@ -1,0 +1,14 @@
+{
+  "$comment": "Canonical CompletedTrade example (T093)",
+  "id": "legacy::0",
+  "symbol": "NVDA",
+  "entry_ts": "2024-01-02T14:30:00Z",
+  "exit_ts": "2024-01-03T14:30:00Z",
+  "entry_price": 480.0,
+  "exit_price": 495.5,
+  "quantity": 100.0,
+  "pnl": 1550.0,
+  "return_pct": 0.0322916667,
+  "holding_period_secs": 86400,
+  "fills": null
+}

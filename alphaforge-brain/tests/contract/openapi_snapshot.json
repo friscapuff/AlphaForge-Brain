@@ -1,0 +1,25 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "Project A Backend", "version": "0.3.0"},
+  "paths": {
+    "/health": {},
+    "/runs": {},
+    "/runs/{run_hash}": {},
+    "/runs/{run_hash}/events": {},
+    "/runs/{run_hash}/events/stream": {}
+  },
+  "components": {
+    "schemas": {
+      "ArtifactDescriptor": {},
+      "ExecutionSpec": {},
+      "FeaturePreviewRequest": {},
+      "FeaturePreviewResponse": {},
+      "HTTPValidationError": {},
+      "IndicatorSpec": {},
+      "PresetCreate": {},
+      "PresetList": {},
+      "PresetResponse": {},
+      "RiskSpec": {}
+    }
+  }
+}

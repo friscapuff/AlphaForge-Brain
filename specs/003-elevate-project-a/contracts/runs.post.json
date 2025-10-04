@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PostRunRequest",
+  "type": "object",
+  "required": ["dataset", "strategy", "features", "execution", "costs", "validation", "causality_shift"],
+  "properties": {
+    "dataset": {"type": "object", "required": ["path", "data_hash"], "properties": {
+      "path": {"type": "string"},
+      "data_hash": {"type": "string"},
+      "calendar_id": {"type": "string"}
+    }},
+    "strategy": {"type": "object", "required": ["id", "required_features"], "properties": {
+      "id": {"type": "string"},
+      "required_features": {"type": "array", "items": {"type": "string"}},
+      "parameters": {"type": "object", "additionalProperties": true}
+    }},
+    "features": {"type": "array", "items": {"type": "object", "required": ["name"], "properties": {
+      "name": {"type": "string"},
+      "version": {"type": "string"},
+      "params": {"type": "object", "additionalProperties": true},
+      "shift_applied": {"type": "boolean"}
+    }}},
+    "execution": {"type": "object", "required": ["fill_policy", "lot_size"], "properties": {
+      "fill_policy": {"type": "string", "enum": ["NEXT_BAR_OPEN", "NEXT_TICK_SURROGATE"]},
+      "lot_size": {"type": "integer", "minimum": 1},
+      "rounding_mode": {"type": "string", "enum": ["FLOOR", "ROUND", "CEIL"]}
+    }},
+    "costs": {"type": "object", "required": ["slippage_bps", "fee_bps", "borrow_cost_bps"], "properties": {
+      "slippage_bps": {"type": "number"},
+      "spread_pct": {"type": "number"},
+      "participation_rate": {"type": "number"},
+      "fee_bps": {"type": "number"},
+      "borrow_cost_bps": {"type": "number"}
+    }},
+    "validation": {"type": "object", "required": ["permutation_trials", "seed"], "properties": {
+      "permutation_trials": {"type": "integer", "minimum": 0},
+      "seed": {"type": "integer"},
+      "caution_p_threshold": {"type": "number", "default": 0.1}
+    }},
+    "causality_shift": {"type": "boolean"},
+    "strict_causality_guard": {"type": "boolean", "default": true}
+  },
+  "additionalProperties": false
+}

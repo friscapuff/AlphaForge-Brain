@@ -233,4 +233,3 @@ Single-user: minimal contention. Use SQLite WAL mode. Acquire file locks when wr
 - Compressed zstd Parquet writer settings.
 - External object storage (S3) backend adapter.
 - Incremental candles append service.
-

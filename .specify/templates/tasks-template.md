@@ -7,7 +7,7 @@
 ```
 1. Load plan.md from feature directory
    → If not found: ERROR "No implementation plan found"
-   → Extract: tech stack, libraries, structure
+   → Extract: tech stack, libraries, structure (single, web, mobile, dual brain+mind)
 2. Load optional design documents:
    → data-model.md: Extract entities → model tasks
    → contracts/: Each file → contract test task
@@ -15,9 +15,9 @@
 3. Generate tasks by category:
    → Setup: project init, dependencies, linting
    → Tests: contract tests, integration tests
-   → Core: models, services, CLI commands
-   → Integration: DB, middleware, logging
-   → Polish: unit tests, performance, docs
+   → Core: models, services/controllers, views (frontend) respecting MVC
+   → Integration: DB, middleware, logging, cross-project contract adapters
+   → Polish: unit tests, performance, docs, benchmarks
 4. Apply task rules:
    → Different files = mark [P] for parallel
    → Same file = sequential (no [P])
@@ -26,102 +26,78 @@
 6. Generate dependency graph
 7. Create parallel execution examples
 8. Validate task completeness:
-   → All contracts have tests?
-   → All entities have models?
-   → All endpoints implemented?
+   → All contracts have tests
+   → All entities have models
+   → Cross-project contracts have version bump tasks if breaking
 9. Return: SUCCESS (tasks ready for execution)
 ```
 
 ## Format: `[ID] [P?] Description`
 - **[P]**: Can run in parallel (different files, no dependencies)
 - Include exact file paths in descriptions
+- For dual project: prefix with (brain) or (mind) root
 
 ## Path Conventions
-- **Single project**: `src/`, `tests/` at repository root
+- **Single project**: `src/`, `tests/`
 - **Web app**: `backend/src/`, `frontend/src/`
 - **Mobile**: `api/src/`, `ios/src/` or `android/src/`
-- Paths shown below assume single project - adjust based on plan.md structure
+- **Dual Project (Brain + Mind)**:
+  - `alphaforge-brain/src/` (models, services, persistence, analytics)
+  - `alphaforge-mind/src/` (ui components, view adapters, controllers)
+  - `shared/` (pure utilities only; no side-effects)
 
 ## Phase 3.1: Setup
-- [ ] T001 Create project structure per implementation plan
-- [ ] T002 Initialize [language] project with [framework] dependencies
-- [ ] T003 [P] Configure linting and formatting tools
+- [ ] T001 Create/confirm project structure per plan (respect dual root if selected)
+- [ ] T002 Initialize dependencies in appropriate root(s)
+- [ ] T003 [P] Configure linting, type checking, formatting
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
-**CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
-- [ ] T004 [P] Contract test POST /api/users in tests/contract/test_users_post.py
-- [ ] T005 [P] Contract test GET /api/users/{id} in tests/contract/test_users_get.py
-- [ ] T006 [P] Integration test user registration in tests/integration/test_registration.py
-- [ ] T007 [P] Integration test auth flow in tests/integration/test_auth.py
+- [ ] T004 [P] Contract test(s) for brain service API (if any) in tests/contract/
+- [ ] T005 [P] Integration test cross-project contract (if dual) in tests/integration/
+- [ ] T006 [P] Mind UI interaction test skeleton (if frontend present)
+- [ ] T007 [P] Determinism/seed fixture tests
 
-## Phase 3.3: Core Implementation (ONLY after tests are failing)
-- [ ] T008 [P] User model in src/models/user.py
-- [ ] T009 [P] UserService CRUD in src/services/user_service.py
-- [ ] T010 [P] CLI --create-user in src/cli/user_commands.py
-- [ ] T011 POST /api/users endpoint
-- [ ] T012 GET /api/users/{id} endpoint
-- [ ] T013 Input validation
-- [ ] T014 Error handling and logging
+## Phase 3.3: Core Implementation
+- [ ] T008 [P] (brain) Domain model(s)
+- [ ] T009 [P] (brain) Service/controller logic
+- [ ] T010 [P] (mind) View component(s)
+- [ ] T011 (brain) Public API/adapter endpoint(s)
+- [ ] T012 (mind) Adapter consuming brain contract
+- [ ] T013 Validation & input schema layer
+- [ ] T014 Error handling & logging integration
 
 ## Phase 3.4: Integration
-- [ ] T015 Connect UserService to DB
-- [ ] T016 Auth middleware
-- [ ] T017 Request/response logging
-- [ ] T018 CORS and security headers
+- [ ] T015 Persistence / migrations
+- [ ] T016 Auth / security middleware
+- [ ] T017 Observability instrumentation (timing + tracing)
+- [ ] T018 Cross-project contract version file & negotiation logic (if dual)
 
 ## Phase 3.5: Polish
-- [ ] T019 [P] Unit tests for validation in tests/unit/test_validation.py
-- [ ] T020 Performance tests (<200ms)
-- [ ] T021 [P] Update docs/api.md
-- [ ] T022 Remove duplication
-- [ ] T023 Run manual-testing.md
+- [ ] T019 [P] Additional unit tests (edge cases)
+- [ ] T020 Performance / benchmark tests
+- [ ] T021 [P] Update docs/contracts & README
+- [ ] T022 Remove duplication / refactor
+- [ ] T023 Run quickstart validation script
 
 ## Dependencies
-- Tests (T004-T007) before implementation (T008-T014)
-- T008 blocks T009, T015
-- T016 blocks T018
-- Implementation before polish (T019-T023)
+- Tests (T004–T007) precede implementation (T008–T014)
+- T008 blocks T009; T009 may block T011
+- Dual integration (T018) requires T011 + T012
 
 ## Parallel Example
 ```
-# Launch T004-T007 together:
-Task: "Contract test POST /api/users in tests/contract/test_users_post.py"
-Task: "Contract test GET /api/users/{id} in tests/contract/test_users_get.py"
-Task: "Integration test registration in tests/integration/test_registration.py"
-Task: "Integration test auth in tests/integration/test_auth.py"
+Launch T004–T007 concurrently (independent files) before any implementation.
 ```
 
 ## Notes
-- [P] tasks = different files, no dependencies
-- Verify tests fail before implementing
-- Commit after each task
-- Avoid: vague tasks, same file conflicts
-
-## Task Generation Rules
-*Applied during main() execution*
-
-1. **From Contracts**:
-   - Each contract file → contract test task [P]
-   - Each endpoint → implementation task
-   
-2. **From Data Model**:
-   - Each entity → model creation task [P]
-   - Relationships → service layer tasks
-   
-3. **From User Stories**:
-   - Each story → integration test [P]
-   - Quickstart scenarios → validation tasks
-
-4. **Ordering**:
-   - Setup → Tests → Models → Services → Endpoints → Polish
-   - Dependencies block parallel execution
+- For dual root architecture, enforce no direct imports from mind → brain except via defined contract modules (or API clients)
+- [P] tasks MUST not modify same file
+- Contract changes require version bump reasoning
 
 ## Validation Checklist
-*GATE: Checked by main() before returning*
-
-- [ ] All contracts have corresponding tests
+- [ ] All contracts have tests
 - [ ] All entities have model tasks
-- [ ] All tests come before implementation
-- [ ] Parallel tasks truly independent
-- [ ] Each task specifies exact file path
-- [ ] No task modifies same file as another [P] task
+- [ ] Tests precede implementation
+- [ ] Parallel tasks independent
+- [ ] No cross-root forbidden imports
+- [ ] Version impact documented for contracts

@@ -1,0 +1,32 @@
+# Ruff Strict-Plus Overlay (staged)
+# Activated in allow-fail CI job before promotion into primary [tool.ruff] pyproject section.
+
+line-length = 100
+exclude = ["src", "tests"]  # Will be removed after full migration & promotion
+
+[lint]
+select = [
+  "E","F","I","B","UP","Q","RUF","SIM","C4","PIE","TID","FBT","PL",
+  # Strict-plus additions:
+  "ANN",   # Type annotation completeness
+  "D",     # Docstring style (initial pass may produce findings; triage required)
+  "TRY",   # try/except anti-patterns
+  "TCH",   # Type-checking only imports grouping
+  "ASYNC", # Async correctness style signals
+  "SLOT"   # dataclass/slots suggestions for memory (optional; evaluate noise)
+]
+ignore = [
+  "E501",        # Line length (handled by formatter policy)
+  "PLR0913",     # Param count flexibility for domain constructs
+  "PLR2004",     # Magic numbers in tests (retain)
+  "FBT001","FBT002",  # Boolean param naming exemptions for internal helpers
+  "B008",        # FastAPI dependency injection pattern (per-file ignore may consolidate later)
+  # Potential staged ignores until docstring coverage improves:
+  "D100","D101","D102","D103","D104","D105","D106","D107"
+]
+preview = true
+fixable = ["ALL"]
+unfixable = []
+
+[lint.per-file-ignores]
+"alphaforge-brain/src/api/routes/runs.py" = ["B008"]

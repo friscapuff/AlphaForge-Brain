@@ -12,6 +12,7 @@ Notes:
 - Keeps dataset in-memory using a generated candle frame (no IO beyond artifacts output).
 - For consistency, artifacts directory is cleaned between iterations unless --keep-artifacts.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -116,7 +117,11 @@ def main() -> None:
         "warmup": args.warmup,
         "mean_sec": statistics.mean(times) if times else 0.0,
         "median_sec": statistics.median(times) if times else 0.0,
-        "p95_sec": statistics.quantiles(times, n=100)[94] if len(times) >= 20 else max(times) if times else 0.0,
+        "p95_sec": (
+            statistics.quantiles(times, n=100)[94]
+            if len(times) >= 20
+            else max(times) if times else 0.0
+        ),
         "min_sec": min(times) if times else 0.0,
         "max_sec": max(times) if times else 0.0,
         "trade_count_mean": statistics.mean(trade_counts) if trade_counts else 0.0,
@@ -125,7 +130,10 @@ def main() -> None:
 
     print(json.dumps({"runs": summary, "raw_times": times}, indent=2))
     if args.output:
-        Path(args.output).write_text(json.dumps({"runs": summary, "raw_times": times}, indent=2), encoding="utf-8")
+        Path(args.output).write_text(
+            json.dumps({"runs": summary, "raw_times": times}, indent=2),
+            encoding="utf-8",
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover

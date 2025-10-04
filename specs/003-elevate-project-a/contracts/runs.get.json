@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetRunResponse",
+  "type": "object",
+  "required": ["run_id", "status", "phase", "artifacts"],
+  "properties": {
+    "run_id": {"type": "string"},
+    "run_hash": {"type": "string"},
+    "status": {"type": "string", "enum": ["PENDING","RUNNING","FAILED","SUCCEEDED"]},
+    "phase": {"type": "string", "enum": ["data_validation","feature_build","signals","execution","metrics","permutation_test","finalize"]},
+    "artifacts": {"type": "array", "items": {"type": "object", "required": ["name","sha256","size"], "properties": {
+      "name": {"type": "string"},
+      "sha256": {"type": "string"},
+      "size": {"type": "integer"}
+    }}},
+    "summary": {"type": "object", "properties": {
+      "trades": {"type": "integer"},
+      "p_value": {"type": "number"},
+      "final_equity": {"type": "number"},
+      "anomalies": {"type": "object"}
+    }}
+  },
+  "additionalProperties": false
+}
