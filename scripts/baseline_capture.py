@@ -39,7 +39,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from domain.schemas.run_config import ExecutionSpec as OrchestratorExecutionSpec  # type: ignore
 from domain.schemas.run_config import RiskSpec as OrchestratorRiskSpec  # type: ignore
@@ -55,15 +55,13 @@ _ROOT = pathlib.Path(__file__).resolve().parent.parent / "alphaforge-brain" / "s
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-# Light-weight forward declarations (type hints are string-annotated to avoid import cost now)
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:  # pragma: no cover - only for static type checking
     from models.cost_model_config import CostModelConfig
     from models.dataset_snapshot import DatasetSnapshot
     from models.execution_config import ExecutionConfig, FillPolicy, RoundingMode
     from models.feature_spec import FeatureSpec
-    from models.run_config import RunConfig
+
+    #
     from models.strategy_config import StrategyConfig  # noqa: F401
     from models.validation_config import ValidationConfig
     from models.walk_forward_config import WalkForwardConfig
@@ -86,7 +84,8 @@ def _lazy_domain_imports():  # Import set used outside diagnostics
     from models.dataset_snapshot import DatasetSnapshot  # type: ignore
     from models.execution_config import ExecutionConfig, FillPolicy, RoundingMode  # type: ignore
     from models.feature_spec import FeatureSpec  # type: ignore
-    from models.run_config import RunConfig  # type: ignore
+
+    # RunConfig is already referenced from domain.schemas above for runtime; avoid duplicate type alias here.
     from models.strategy_config import StrategyConfig  # type: ignore
     from models.validation_config import ValidationConfig  # type: ignore
     from models.walk_forward_config import WalkForwardConfig  # type: ignore
@@ -248,7 +247,6 @@ def capture(
 
             result = orchestrate(cfg, seed=seed)
             summary = result.get("summary", result)
-            trades = summary.get("trades") or []
             # Orchestrator attaches raw equity_df (DataFrame) under result; leverage it directly.
             equity_df = result.get("equity_df")
             equity: list[dict[str, float]] = []

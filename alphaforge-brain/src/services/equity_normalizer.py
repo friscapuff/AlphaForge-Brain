@@ -23,12 +23,9 @@ Once normalization stable and tests (T031, T092) pass, we can switch default has
 from __future__ import annotations
 
 from copy import copy
-from typing import List, Literal, Sequence, Tuple, Union
+from typing import Literal, Sequence
 
-try:
-    from models.equity_bar import EquityBar  # type: ignore
-except ImportError:  # pragma: no cover - defensive for isolated module tests
-    from alphaforge_brain.src.models.equity_bar import EquityBar
+from models.equity_bar import EquityBar
 
 SCALE_FACTOR = 1_000_000.0
 _HEURISTIC_MIN_MEAN_NAV = (
@@ -71,7 +68,7 @@ def _denormalize_bar(bar: EquityBar) -> EquityBar:
 
 def normalize_equity(
     equity_bars: Sequence[EquityBar], *, mode: Mode = "compare"
-) -> Union[Tuple[List[EquityBar], List[EquityBar]], List[EquityBar]]:
+) -> tuple[list[EquityBar], list[EquityBar]] | list[EquityBar]:
     """Normalize equity series.
 
     Parameters

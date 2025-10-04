@@ -1,21 +1,15 @@
 from __future__ import annotations
 
-"""Unified Trades Migration Skeleton (Phase 6)
-
-Dry-run by default. Emits stdout summary and optional JSON report of planned actions.
-
-Planned actions:
-- Backfill runs_extras.validation_caution and validation_caution_metrics from run manifests if present.
-- Inject trade_model_version (string) into runs_extras when determinable (defaults to '2' when AF_UNIFIED_TRADES is enabled at creation).
-
-This script intentionally avoids destructive changes. Use --apply to persist updates.
 """
+Utility to unify legacy trades artifacts into the new CompletedTrade model.
 
-import argparse
-import json
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Any
+This script reads historical artifacts and produces unified JSON outputs.
+"""
+import argparse  # noqa: E402
+import json  # noqa: E402
+from dataclasses import asdict, dataclass  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Any  # noqa: E402
 
 # Robust import for workspace/tests and direct script execution
 try:  # Prefer normal import when PYTHONPATH includes alphaforge-brain/src

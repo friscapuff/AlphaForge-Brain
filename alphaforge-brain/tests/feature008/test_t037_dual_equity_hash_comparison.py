@@ -75,8 +75,7 @@ def test_t037_dual_equity_hash_comparison():
     ), "v2 hash must be computed when both flags enabled"
     # In general normalized may differ; assert difference to validate distinct input path
     # If scaling heuristic triggered, hashes should differ; if not, equality is acceptable.
-    preview = rec_dual.get("normalized_equity_preview", {}) or {}
-    scaled_flag = preview.get("scaled")
+    # Access to preview retained implicitly; no assertions needed for stability.
     # We do not assert inequality to keep test stable across datasets where scaling may or may not materially change
     # rounded nav values. Presence + legacy stability suffice for transitional phase.
 

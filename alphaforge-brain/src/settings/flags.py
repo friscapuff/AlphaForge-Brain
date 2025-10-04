@@ -9,7 +9,7 @@ Environment Variables:
 
 The new ``AF_EQUITY_HASH_V2`` toggle is a placeholder for the upcoming
 transition where the equity hash (and eventually run hash) will switch to
-use the normalized equity sequence. Until tasks T036–T038 are implemented
+use the normalized equity sequence. Until tasks T036-T038 are implemented
 this flag is unused; keeping it here early allows downstream documentation
 and tooling to reference a stable name.
 
@@ -38,7 +38,7 @@ def is_equity_normalizer_v2_enabled() -> bool:
 def is_equity_hash_v2_enabled() -> bool:
     """Return True if transitional normalized-equity hashing should be used.
 
-    NOTE: Placeholder – no callers yet (T036). Adding early ensures tests &
+    NOTE: Placeholder - no callers yet (T036). Adding early ensures tests &
     docs can refer to a concrete symbol without churn.
     """
     return os.getenv("AF_EQUITY_HASH_V2", "0").lower() in _DEF_TRUE

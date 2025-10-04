@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import signal
 import socket
 import subprocess
@@ -28,7 +29,6 @@ import urllib.request
 import webbrowser
 from contextlib import suppress
 from pathlib import Path
-from typing import Optional
 
 
 def _try_url(url: str) -> bool:
@@ -38,8 +38,6 @@ def _try_url(url: str) -> bool:
             return 200 <= getattr(resp, "status", 200) < 500
     return False
 
-
-import shutil
 
 BACKEND_HOST = "127.0.0.1"
 # Default ports (can be overridden via CLI)
@@ -89,7 +87,7 @@ def wait_for_port(
     alt_hosts: list[str] | None = None,
     url_probe: str | None = None,
     early_event: threading.Event | None = None,
-) -> Optional[str]:
+) -> str | None:
     start = time.time()
     spinner = "|/-\\"
     i = 0
