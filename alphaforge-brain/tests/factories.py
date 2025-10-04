@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any
 
 from src.models.cost_model_config import CostModelConfig
@@ -10,7 +11,6 @@ from src.models.execution_config import ExecutionConfig, FillPolicy, RoundingMod
 from src.models.feature_spec import FeatureSpec
 from src.models.run_config import RunConfig
 from src.models.strategy_config import StrategyConfig
-from src.models.trade import Trade, TradeSide
 from src.models.validation_config import ValidationConfig
 from src.models.validation_result import ValidationResult
 from src.models.walk_forward_config import (
@@ -130,9 +130,9 @@ def run_config(**overrides: Any) -> RunConfig:
 def trade(
     price: float = 100.0,
     qty: float = 1.0,
-    side: TradeSide = TradeSide.BUY,
+    side: str = "BUY",
     **overrides: Any,
-) -> Trade:
+) -> Any:
     base = dict(
         ts=datetime.now(timezone.utc),
         symbol="XYZ",
@@ -142,7 +142,7 @@ def trade(
         strategy_id="strat",
     )
     base.update(overrides)
-    return Trade(**base)
+    return SimpleNamespace(**base)
 
 
 def validation_result(p: float | None = 0.5, **overrides: Any) -> ValidationResult:

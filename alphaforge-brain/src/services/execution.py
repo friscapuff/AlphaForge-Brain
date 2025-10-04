@@ -9,10 +9,10 @@ This is intentionally minimal; order book simulation out of scope.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from math import ceil, floor
 
 from models.execution_config import ExecutionConfig, RoundingMode
-from models.trade import Trade, TradeSide
 
 
 @dataclass
@@ -42,7 +42,7 @@ def generate_trades(
     ts: object,
     strategy_id: str,
     run_id: str | None = None,
-) -> list[Trade]:
+) -> list[object]:
     """Return list of trades to move from current to target position.
 
     Currently at most one trade is generated (direct jump). Future logic may
@@ -54,12 +54,29 @@ def generate_trades(
     rounded: int = _round_lot(abs(delta), config.lot_size, config.rounding_mode)
     if rounded == 0:
         return []
+
+    # Minimal local TradeSide to avoid legacy model dependency
+    class TradeSide(str, Enum):
+        BUY = "BUY"
+        SELL = "SELL"
+
     side: TradeSide = TradeSide.BUY if delta > 0 else TradeSide.SELL
     trade_qty: float = float(rounded)
     if side == TradeSide.SELL:
         trade_qty = float(rounded)  # explicit for clarity
     state.quantity += trade_qty if side == TradeSide.BUY else -trade_qty
-    trade = Trade(
+
+    @dataclass
+    class _Trade:
+        ts: object
+        symbol: str
+        side: TradeSide
+        quantity: float
+        price: float
+        strategy_id: str
+        run_id: str | None
+
+    trade_obj = _Trade(
         ts=ts,
         symbol=symbol,
         side=side,
@@ -68,7 +85,7 @@ def generate_trades(
         strategy_id=strategy_id,
         run_id=run_id,
     )
-    return [trade]
+    return [trade_obj]
 
 
 __all__ = ["PositionState", "generate_trades"]

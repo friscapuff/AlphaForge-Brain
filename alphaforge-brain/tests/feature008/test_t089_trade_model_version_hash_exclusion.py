@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from src.models.cost_model_config import CostModelConfig
 from src.models.dataset_snapshot import DatasetSnapshot
 from src.models.execution_config import ExecutionConfig, FillPolicy, RoundingMode
 from src.models.feature_spec import FeatureSpec
@@ -19,8 +21,8 @@ def _config() -> RunConfig:
         data_hash="hash123",
         calendar_id="NYSE",
         bar_count=100,
-        first_ts=None,
-        last_ts=None,
+        first_ts=datetime.now(timezone.utc),
+        last_ts=datetime.now(timezone.utc),
         gap_count=0,
         holiday_gap_count=0,
         duplicate_count=0,
@@ -40,7 +42,13 @@ def _config() -> RunConfig:
         features=[fs],
         strategy=strat,
         execution=exec_cfg,
-        cost=None,
+        cost=CostModelConfig(
+            slippage_bps=0,
+            spread_pct=None,
+            participation_rate=None,
+            fee_bps=0,
+            borrow_cost_bps=0,
+        ),
         validation=val_cfg,
         walk_forward=None,
     )

@@ -9,7 +9,7 @@ If these versions intentionally change, update this file and corresponding tests
 """
 
 PINNED = {
-    "numpy": "2.0.2",  # synced to env (test guard). If upgrading, cite rationale (perf/security) in tasks.md.
+    "numpy": "2.2.6",  # synced to env (test guard). If upgrading, cite rationale (perf/security) in tasks.md.
 }
 
 __all__ = ["PINNED"]

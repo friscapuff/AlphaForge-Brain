@@ -7,7 +7,7 @@ import pandas as pd
 
 
 @dataclass
-class Trade:
+class RoundTrip:
     entry_ts: pd.Timestamp
     exit_ts: pd.Timestamp
     side: str  # LONG / SHORT
@@ -106,4 +106,4 @@ def build_state(
     return trades, summary
 
 
-__all__ = ["Trade", "build_state"]
+__all__ = ["RoundTrip", "build_state"]

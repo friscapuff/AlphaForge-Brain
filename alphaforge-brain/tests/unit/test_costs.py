@@ -2,7 +2,6 @@ import math
 
 import pytest
 from src.models.cost_model_config import CostModelConfig
-from src.models.trade import TradeSide
 from src.services.costs import CostBreakdown, apply_costs
 
 from tests.factories import trade
@@ -10,8 +9,8 @@ from tests.factories import trade
 
 def test_cost_application_order_and_components():
     trades = [
-        trade(price=100.0, qty=10, side=TradeSide.BUY),
-        trade(price=100.0, qty=5, side=TradeSide.SELL),
+        trade(price=100.0, qty=10, side="BUY"),
+        trade(price=100.0, qty=5, side="SELL"),
     ]
     cfg = CostModelConfig(
         slippage_bps=25,  # 0.25%
@@ -49,7 +48,7 @@ def test_cost_application_order_and_components():
 
 
 def test_costs_participation_mutual_exclusion():
-    trades = [trade(price=50.0, qty=20, side=TradeSide.BUY)]
+    trades = [trade(price=50.0, qty=20, side="BUY")]
     cfg = CostModelConfig(
         slippage_bps=0,
         spread_pct=None,
@@ -64,7 +63,7 @@ def test_costs_participation_mutual_exclusion():
 
 
 def test_zero_cost_config_no_effect():
-    trades = [trade(price=10.0, qty=1, side=TradeSide.BUY)]
+    trades = [trade(price=10.0, qty=1, side="BUY")]
     cfg = CostModelConfig(
         slippage_bps=0,
         spread_pct=None,
@@ -86,7 +85,7 @@ def test_zero_cost_config_no_effect():
 def test_parametrized_spread_vs_participation(
     use_spread: bool, spread_pct: float | None, participation: float | None
 ):
-    trades = [trade(price=20.0, qty=10, side=TradeSide.BUY)]
+    trades = [trade(price=20.0, qty=10, side="BUY")]
     cfg = CostModelConfig(
         slippage_bps=0,
         spread_pct=spread_pct,

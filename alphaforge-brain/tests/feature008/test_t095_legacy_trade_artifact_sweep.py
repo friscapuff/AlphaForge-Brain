@@ -3,8 +3,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
 SRC_ROOT = Path(__file__).resolve().parents[3] / "alphaforge-brain" / "src"
 
 
@@ -20,12 +18,7 @@ def test_no_legacy_trade_or_position_models_in_models_package() -> None:
     models_dir = SRC_ROOT / "models"
     assert models_dir.exists(), f"missing models dir: {models_dir}"
 
-    # If legacy Trade model still exists, skip until T070 removal is complete
-    trade_model = models_dir / "trade.py"
-    if trade_model.exists():
-        pytest.skip(
-            "Legacy Trade model present; enable enforcement after T070 (shim removal)"
-        )
+    # Enforced: legacy Trade/Position classes must not exist anywhere in models package
 
     for p in _iter_py_files(models_dir):
         tree = ast.parse(p.read_text(encoding="utf-8"))
@@ -37,11 +30,6 @@ def test_no_legacy_trade_or_position_models_in_models_package() -> None:
 
 
 def test_no_public_exports_of_legacy_trade_position_identifiers() -> None:
-    # Skip enforcement until legacy model removal (T070) to avoid premature failures
-    if (SRC_ROOT / "models" / "trade.py").exists():
-        pytest.skip(
-            "Legacy Trade model present; skip export enforcement until T070 done"
-        )
     disallowed = {"Trade", "Position"}
     allowed = {"CompletedTrade", "Fill", "PositionState"}
     for p in _iter_py_files(SRC_ROOT):
