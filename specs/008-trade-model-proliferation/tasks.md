@@ -92,20 +92,20 @@ Legend:
 | T061 | [x] | Idempotency Test | Ensure repeated migration no-ops second run. | B | P0 | T060 | NH |
 | T062 | [x] | Backfill Validation Decision | Add caution_flag columns in runs_extras via migration; backfill from manifest. | B | P1 | T060 | NH |
 | T063 | [x] | Manifest Version Injection | Add `trade_model_version` column in runs_extras and backfill from manifest. | B | P0 | T060 | NH |
-| T064 | [ ] | Backward Compatibility Shim Removal Plan | Document final removal timeline for adapters in tasks or WAIVERS. | B | P2 | T060 | NH |
-| T089 | [ ] | Trade Model Version Hash Exclusion Test | Assert run_hash unchanged when trade_model_version changes; version present in manifest. | B | P0 | T063,T023 | S |
-| T091 | [ ] | Migration JSON Output Test | Validate JSON report path & schema produced by migration dry-run. | B | P0 | T060 | NH |
-| T096 | [ ] | Migration Transform Correctness Test | Executes migration (non-dry) on fixture DB; verifies counts & field mappings for Fill vs CompletedTrade derivation. | B | P0 | T060 | NH |
+| T064 | [x] | Backward Compatibility Shim Removal Plan | Document final removal timeline for adapters in tasks or WAIVERS. Draft: Remove `services.adapters.trades` after T070 parity suite lands; deprecate in next minor, delete in next major; add WAIVER if retention required. | B | P2 | T060 | NH |
+| T089 | [x] | Trade Model Version Hash Exclusion Test | Assert run_hash unchanged when trade_model_version changes; version present in manifest. | B | P0 | T063,T023 | S |
+| T091 | [x] | Migration JSON Output Test | Validate JSON report path & schema produced by migration dry-run. | B | P0 | T060 | NH |
+| T096 | [x] | Migration Transform Correctness Test | Executes migration (non-dry) on fixture DB; verifies counts & field mappings for Fill vs CompletedTrade derivation. | B | P0 | T060 | NH |
 
 ### Phase 7 – Cleanup & Flag Removal
 | ID | Status | Title | Description | Root | Priority | Depends | Affects Hash |
 |----|--------|-------|-------------|------|----------|---------|--------------|
-| T070 | [ ] | Remove Deprecated Shims | Delete legacy metric/trade adapter modules after parity confirmed. | B | P1 | T024,T061 | NH |
+| T070 | [ ] | Remove Deprecated Shims | Delete legacy metric/trade adapter modules after parity confirmed. See WAIVERS.md (W-T064-ADAPTER-SHIMS) for deprecation timeline. | B | P1 | T024,T061 | NH |
 | T071 | [ ] | Remove Feature Flags | Hard-enable unified models & normalization after adoption threshold. | B | P1 | T070 | H |
 | T072 | [ ] | Final Hash Snapshot | Capture post-cleanup hashes & compare to baseline (expected diffs documented). | B | P0 | T071 | S |
 | T073 | [ ] | Documentation Final Pass | Update README, CHANGELOG, WAIVERS removal. | B | P1 | T071 | NH |
 | T074 | [ ] | Constitution Compliance Re-check | Assert no new violations introduced. | Ops | P0 | T073 | NH |
-| T095 | [ ] | Legacy Trade Artifact Sweep Test | Scan codebase ensures no residual legacy Trade/Position models exported publicly; fails if found. | B | P0 | T070 | NH |
+| T095 | [ ] | Legacy Trade Artifact Sweep Test | Scan codebase ensures no residual legacy Trade/Position models exported publicly; fails if found. Note: test added and currently skipped pending T070 removal. | B | P0 | T070 | NH |
 
 ### Phase 8 – Verification & Sign-off
 | ID | Status | Title | Description | Root | Priority | Depends | Affects Hash |
