@@ -1,0 +1,21 @@
+{
+  "name": "alphaforge-brain-spec-tools",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Spec tooling (Spectral lint & bundling) pinned for reproducible CI.",
+  "license": "MIT",
+  "scripts": {
+  "lint:api": "spectral lint specs/001-initial-dual-tier/contracts/openapi.yaml && spectral lint specs/002-integrate-nvda-5/contracts/openapi.yaml",
+    "bundle:api": "node scripts/openapi/bundle.js",
+    "deref:api": "swagger-cli bundle specs/001-initial-dual-tier/contracts/openapi.yaml --outfile openapi.deref.json --type json",
+  "docs:api": "redocly build-docs specs/001-initial-dual-tier/contracts/openapi.yaml -o openapi.html",
+    "diff:api": "node scripts/openapi/diff_report.js",
+    "check:api": "npm run lint:api && npm run bundle:api && npm run deref:api"
+  },
+  "devDependencies": {
+    "@stoplight/spectral-cli": "6.11.1",
+    "yaml": "2.5.1",
+  "@redocly/cli": "1.19.0",
+    "@apidevtools/swagger-cli": "4.0.4"
+  }
+}

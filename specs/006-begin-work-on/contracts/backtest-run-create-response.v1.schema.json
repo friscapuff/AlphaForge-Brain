@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "backtest-run-create-response.v1.schema.json",
+  "title": "BacktestRunCreateResponseV1",
+  "type": "object",
+  "required": ["run_id", "created"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "created": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

@@ -1,132 +1,151 @@
 <!--
-Merged Constitution: Incorporates legacy realism/schema rigor with new AlphaForge Brain backend lab orientation.
+Sync Impact Report
+Version: 1.1.0 → 1.2.0 (MINOR)
+Modified Principles: Clarified Dual Root enforcement & added Transitional Migration Commitments.
+Added Sections: "Transitional Architecture Migration".
+Removed Sections: None.
+Templates Requiring Updates:
+	.specify/templates/plan-template.md (✅ already updated for dual root)
+	.specify/templates/spec-template.md (✅ boundary checklist added)
+	.specify/templates/tasks-template.md (✅ dual root path conventions present)
+	.specify/templates/agent-file-template.md (⚠ still single-root extraction logic → needs dual root listing)
+Follow-up TODOs:
+	- Implement cross-root integrity script (brain forbids importing mind) → scripts/ci/check_cross_root.py
+	- Introduce WAIVERS.md template for constitution rule exceptions.
+	- Generate agent file update reflecting dual roots after next plan run.
+	- Create migration task list in specs/004 feature for repository restructuring.
 -->
 
-# Constitution: AlphaForge Brain (Backend Trading Lab)
+# AlphaForge Constitution
 
-Version: 3.1.0 | Ratified: 2025-09-19 | Last Amended: 2025-09-20
+## Core Principles
 
-## I. Purpose
+### I. Determinism First (NON-NEGOTIABLE)
+All computations MUST be reproducible from a single configuration + seed root. Any nondeterministic source (wall clock time, unsorted parallel reductions, random generators) MUST be explicitly seeded or eliminated. CI replays enforce hash + semantic equivalence; divergence blocks merge.
 
-This system exists as a **private, single-user backend trading lab** focused on simulating, testing, and analyzing trading strategies. The ultimate goal of AlphaForge Brain is to deliver a robust backend foundation that supports data ingestion, strategy execution, backtesting, risk analysis, reproducibility, and artifact integrity. A future frontend/UI layer (external to this repository) will consume these backend services — AlphaForge Brain’s responsibility is to provide the APIs, deterministic modules, streaming channels, and infrastructure that make that possible.
+### II. Test-First & Traceability (NON-NEGOTIABLE)
+Every Functional Requirement (FR) MUST map to at least one failing test before implementation. Commits MUST reference FR IDs (e.g., FR-120) in their message. Code without demonstrable test coverage is rejected. Removal of a test requires documented FR deprecation.
 
-## II. Core Principles
+### III. Modular MVC & Bounded Contexts
+Architecture enforces an explicit dual-project separation:
+	- Project A: alphaforge-brain (backend simulation & analytics core, domain + persistence + services layers)
+	- Project B: alphaforge-mind (frontend UI/visualization & interactive orchestration)
+Each project follows MVC (or MV* variant) boundaries:
+	- Models: Pure domain/data logic (no IO side-effects)
+	- Views (Mind): Presentation & user interaction only
+	- Controllers/Services: Orchestrate workflows, enforce invariants
+Cross-project interaction occurs ONLY through versioned contracts (API/IPC or serialized artifact schemas). Direct module imports across project roots are forbidden.
 
-1. **Backend-Centric**: AlphaForge Brain delivers all core functionality as backend services and APIs. A future UI is not implemented here, only prepared for.
-2. **Separation of Concerns**: Backend handles computation, persistence, and simulation logic. Frontend will only visualize and interact via APIs.
-3. **Single User Simplicity**: No authentication, profiles, or RBAC. Secrets only apply to external providers (e.g., market data API keys).
-4. **Modular Growth**: Indicators, strategies, metrics, and risk modules can be added incrementally with minimal coupling.
-5. **Reproducibility**: Runs and results are stored with their configurations, ensuring experiments can be replayed.
-6. **Lean Foundations**: Focus is on a maintainable core (data → features → strategy → risk → execution → metrics → validation → artifacts) before any external UI.
-7. **Extensibility**: Backend architecture allows new strategies, indicators, metrics, risk, slippage, and validation methods to be added easily.
-8. **Realism & Integrity**: Retain essential realism tenets (calendars, costs, no lookahead) proportionate to scope; avoid premature microstructure modeling.
-9. **Determinism**: Hash-based idempotent runs; stable seeds and manifest hashing (with integrity chain links).
+### IV. Simplicity & Minimal Surface
+Prefer minimal abstractions; introduce layers only when they reduce coupling or encode stable contracts. Feature creep MUST be justified with user value or risk mitigation. Dead code is removed proactively. Complexity > benefit triggers refactor tasks.
 
-## III. Environments
+### V. Observability & Forensic Auditability
+All phases emit structured timing + tracing spans. Errors persist with minimal, hash-stable diagnostic context. Provenance (hashes, schema version, seeds, config) MUST allow reconstruction of any historical run and its derived views in Mind.
 
-* **Staging (Backend)**: Primary environment where all APIs, strategy runs, simulations, and persistence occur. User interaction is via backend services (to be consumed by an external future UI).
-* **Research**: Internal backend-only mode for experimenting with algorithms or modules.
-* **Production**: Explicitly out of scope (no multi-user SLA commitments).
+### VI. Performance Discipline
+Performance targets are explicit & testable (memory reduction %, bootstrap overhead ratio, insert throughput). Benchmarks live beside unit tests; failing a target is a regression unless waived with rationale and temporary threshold adjustment.
 
-## IV. Core Modules
+### VII. Data Integrity & Causality Safety
+No forward-looking data access in STRICT mode. Schema changes require explicit migration scripts + checksum. Validation & metrics reflect exact data & method parameters used. Data mutation post-hash calculation invalidates the run and must re-trigger pipeline.
 
-1. **Data Ingestion**: Local provider + caching (CSV/Parquet). External live feeds out-of-scope initially.
-2. **Indicator Engine**: Modular technical indicators (Dual SMA initial) with registry for incremental expansion.
-3. **Strategy Engine**: Rule-based strategies combining indicator outputs (initial: dual_sma) via a runner.
-4. **Execution Simulator**: T+1 fills, zero-volume handling, commission & slippage modeling, pluggable slippage adapters.
-5. **Risk & Metrics**: Position sizing (fixed_fraction, volatility_target, kelly_fraction), equity & performance metrics.
-6. **Validation & Statistical Tests**: Permutation, bootstrap, Monte Carlo, walk-forward partitions with deterministic seeding.
-7. **Artifacts & Manifest**: Metrics, trades, validation merged into integrity-hashed manifest (with chain linkage `chain_prev`).
-8. **Experiment Management**: Run creation, idempotent hashing, retention pruning, preset persistence (JSON/SQLite hybrid).
-9. **Observability Layer**: Structured logging, incremental event buffering, streaming & flush endpoints.
-10. **API Layer**: FastAPI REST + SSE (flush & long-lived streaming) for downstream UI consumption.
+### VIII. Documentation as Executable Interface
+Schemas, heuristics, gating policies, error taxonomies, and API contracts are canonicalized in docs. Quickstarts MUST remain runnable. Each public module references its governing FR(s) and doc anchors.
 
-## V. Technology Choices
+### IX. Multi-Project Architecture (Dual Root) (NEW)
+Repository MUST maintain two explicit top-level roots:
+```
+alphaforge-brain/
+	src/
+	tests/
+alphaforge-mind/
+	src/
+	tests/
+```
+Shared utilities (if any) live under `shared/` with pure, dependency-light modules. Cross-root code movement requires governance review. Brain never imports Mind; Mind consumes Brain via published interfaces (Python API boundary, REST/OpenAPI, or artifact schema). Version negotiation MUST be explicit (semantic version on contract layer).
 
-* **Backend**: Python + FastAPI, with Pandas/NumPy for data handling.
-* **Indicators**: Internal registry (extensible). External TA-Lib integration deferred.
-* **Database**: SQLite for local runs, with potential migration path to Postgres.
-* **Communication**: JSON REST APIs + SSE (one-shot flush + long-lived incremental streaming with optional heartbeat).
-* **Deployment**: Local execution + optional containerization (Docker) for portability.
-* **Frontend (Future)**: External consumer of the API; not implemented here.
+### X. Contract Versioning & Backward Compatibility
+Breaking changes to public Brain interfaces or artifact schemas MUST bump MAJOR version. Mind adopts new versions via upgrade path documented in migrations. Deprecations include sunset date & fallback strategy.
 
-## VI. User Experience (via Backend)
+## Multi-Project Architecture
+1. Separation of Concerns: Brain focuses on computation, persistence, statistical engines; Mind focuses on visualization, orchestration, user workflows.
+2. Deployment Independence: Either project can be deployed or tested in isolation (local dev harness, CI pipelines can run subset).
+3. Contract Boundary: Only serialized artifacts (SQLite exports, JSON metrics, OpenAPI endpoints) cross the boundary.
+4. Enforcement: Lint rule / script ensures no forbidden imports; tasks include gating check.
 
-* APIs allow creation of run configurations (strategy, risk, execution, validation).
-* Backtests and simulations executed via orchestrated pipeline (data → features → strategy → risk → execution → metrics → validation → artifacts).
-* Results (equity curves, trade lists, performance metrics, validation summaries) are exposed via API & artifacts.
-* Presets support quick reuse of canonical configurations.
+## Transitional Architecture Migration
+Current State (2025-09-23 scan): Single-root layout under `src/` with subpackages: api/, domain/, infra/, lib/, models/, services/. Tests mirror layered domains across `tests/` (integration, api, strategy, risk, etc.). Historical specs (001–004) reference a single backend; dual root not yet physically realized.
 
-## VII. Data & Retention
+Target State: Physical separation into:
+```
+alphaforge-brain/ (existing backend code migrated here)
+	src/
+	tests/
+alphaforge-mind/ (future UI + orchestration)
+	src/
+	tests/
+shared/ (pure utilities only; optional & dependency-light)
+```
 
-* Retain last 100 runs by default (configurable later).
-* Runs and results stored locally in SQLite + filesystem.
-* Oldest runs pruned automatically; manual export permitted before pruning.
-* Artifact manifest hashed (SHA256) with chained integrity (`chain_prev`).
+Migration Commitments:
+1. No new frontend (Mind) code is added inside current root; placeholder directory structure introduced in a dedicated migration PR.
+2. Refactor Plan: (a) Create `alphaforge-brain/` and move existing `src/` & `tests/` contents; (b) Update import roots & tooling configs (mypy.ini, pytest paths, ruff includes); (c) Introduce stub `alphaforge-mind/` with README and placeholder package; (d) Add cross-root integrity CI script.
+3. Backward Compatibility: API paths & package import names preserved via transitional shim (`src/` left temporarily with re-export modules) until internal imports are updated; shim removal scheduled after 2 minor releases.
+4. Versioning: Migration PR must document any package name changes and bump MINOR (unless import paths break, then MAJOR).
+5. Tracking: Feature 004 tasks to include architecture migration subtasks before introducing Mind-specific code.
+6. Risk Mitigation: Determinism & tests executed after each directory move; hashing logic validated against pre-move snapshot.
+7. Exit Criteria: All internal imports reference `alphaforge_brain` namespace; legacy `src/` root deleted; integrity script passes.
 
-## VIII. Observability
+During the transition, Constitution rules treating dual roots as mandatory are interpreted as *planned enforcement* until Exit Criteria met; waivers recorded if interim deviations occur.
 
-* Structured logs for backend processes.
-* Progress and errors streamed via SSE (flush + streaming endpoints).
-* Heartbeat events during idle streaming intervals (default ~15s) until terminal event.
-* Failures clearly flagged; partial vs terminal status distinguished.
-* ETag-based event flush caching to reduce payload redundancy.
+## Additional Constraints
+- Storage: SQLite + Parquet (phase scope). No external DB without a ratified amendment.
+- Dtypes: Enforced (timestamps int64 ns; price float32; volumes int64; derived numeric features float32) unless a precision benchmark justifies exception.
+- Hash Canonicalization: All JSON artifacts use sorted keys + UTF-8; content hash recorded & validated during replay.
+- No Hidden Globals: Configuration MUST flow via explicit parameters or immutable config objects.
+- Side-Effect Boundaries: IO restricted to persistence & dedicated adapters; models & statistical transforms remain pure.
 
-## IX. Governance
+## Workflow & Quality Gates
+1. Lifecycle: Specify → Clarify → Plan → Tasks → Analyze → Implement → Validate → Release.
+2. /analyze MUST show zero HIGH gaps before implementation begins.
+3. Every PR includes: FR diff table, test diff summary, benchmark diff (where applicable), contract version impact.
+4. Benchmarks: Guard overhead, observability overhead (<3%), memory reduction (≥ target), bootstrap runtime (≤1.2x IID). Failures block unless waiver file `WAIVERS.md` references FR & expiry.
+5. Migrations: New/changed schemas require versioned migration + checksum update; unsupported drift = CI failure.
+6. Contract Change Review: Any artifact schema or API change requires dual-project impact note (Brain producer, Mind consumer).
+7. Cross-Root Integrity Script: Ensures no Brain→Mind imports; ensures shared utilities remain cycle-free.
 
-* System evolves via local code updates and version control.
-* No external approvals required; single-user stewardship.
-* Schema & module changes recorded in CHANGELOG + semantic versioning.
-* Backward compatibility favored; breaking changes deferred unless essential.
+## Architecture Enforcement & Reviews
+- Monthly Architecture Review: Validate modular boundaries, detect erosion.
+- Complexity Thresholds: Module >400 LOC or function >75 LOC triggers review & potential decomposition issue.
+- Cyclic Dependency Scan: CI script fails build on new cycles across packages.
 
-## X. Guiding Vision
+## Governance
+- Amendment Types: MAJOR (remove/rename principles or break contract rules), MINOR (add principle/section), PATCH (clarification only).
+- Amendment Process: Proposal doc → review → consensus approval → version bump commit.
+- Violations: Logged as issues with label `constitution-violation`; remediation scheduled same iteration.
+- Principle Waivers: Temporary waivers recorded in `WAIVERS.md` with expiry date (ISO) & justification.
+- Contract Sunset: Deprecated interfaces MUST list removal version & replacement path.
 
-AlphaForge Brain provides a **deterministic backend foundation** where strategies, indicators, risk models, and simulations can be built, tested, benchmarked, and persisted. It is deliberately backend-only: no frontend is built here. Instead, APIs (REST + SSE), artifacts, and contracts are prepared so an external UI can later deliver a richer user experience atop this stable core.
-
----
-## Appendix A: Legacy Foundational Standards (Carried Forward)
-
-These summarize critical elements from the prior ecosystem constitution that remain in force, adapted to single-user scope:
-
-### A1. Realism Essentials
-- Use exchange calendars where relevant; avoid lookahead; model basic costs (commission, slippage, spread) and T+1 fills.
-- Explicit handling / documentation of missing data; corporate actions may be documented or deferred.
-
-### A2. Schema-as-Contract
-- OpenAPI is the source of truth; additive fields allowed (minor bump). Removing/renaming is breaking (major bump) and must be documented.
-- Risk/slippage model enums and SSE endpoints are core contract surfaces.
-
-### A3. Determinism & Reproducibility
-- Canonical JSON of config + seed + code version -> run hash.
-- Artifact manifest hashed with integrity chain (`chain_prev`).
-- Validation stochastic elements seeded deterministically (per-run offset seeds).
-- No hidden randomness in execution, risk, or slippage models.
-
-### A4. Testing Discipline & Quality Gates
-- Unit + integration tests for indicators, strategy, execution edge cases, metrics, validation, SSE streaming & resume.
-- Determinism equivalence test: identical config -> identical manifest hashes.
-- Risk & slippage model behavior tests (monotonic and scaling assertions).
-- Zero warnings policy (warnings treated as errors in CI).
-- Type safety: mypy strict (0 errors baseline enforced).
-- Lint & formatting: ruff (no outstanding findings, format check required).
-
-### A5. Observability
-- Structured JSON logs keyed by run_id.
-- Event buffer assigns stable incremental IDs; SSE flush uses ETag `<run_hash>:<last_event_id>` for caching.
-- Streaming endpoint replays backlog then tails new events; heartbeats maintain client liveness.
-
-### A6. Secrets Handling
-- Only external provider keys; no user auth secrets. Stored in environment, never committed.
-
-### A7. Change Management
-- Semantic versioning: MAJOR (breaking), MINOR (additive feature), PATCH (internal / docs / fixes).
-- This amendment elevates constitution version to 3.1.0 reflecting additive streaming + caching + risk/slippage + manifest chain enhancements.
-- CHANGELOG synchronized with release tags (e.g., v0.2.1).
+**Version**: 1.2.0 | **Ratified**: 2025-09-23 | **Last Amended**: 2025-09-23
 
 ---
-## Amendment Process
+## Governance Record (Architecture Migration)
+On 2025-09-24, the repository completed the transition to a dual-root layout.
+Reference status file: `alphaforge-brain/ARCH_MIGRATION_STATUS.md` (contains exit criteria and evidence).
+CI enforces cross-root integrity via `scripts/ci/check_cross_root.py`. Strict-plus type/lint overlays are informational with ratchet on PRs.
 
-Minor: documentation or clarifications (no version bump).  
-Patch: internal refactors not altering external contract (increment patch).  
-Minor Version: additive backwards-compatible API/module.  
-Major Version: removal/rename/breaking semantics.
+Status file integrity: SHA-256 a0c86f61970a0fa7f6496dca36b37df51041d83efe098e220714c0dcd44543d0
+
+---
+## Governance Record (Phase H: Validation & Sign-Off)
+On 2025-09-25, Phase H documentation and acceptance validation were completed for feature 004 (AlphaForge Brain Refinement).
+
+Evidence:
+- Validation Checklist: `specs/004-alphaforge-brain-refinement/validation-checklist.md`
+- Acceptance Report: `specs/004-alphaforge-brain-refinement/ACCEPTANCE.md`
+- CI Acceptance Suite: determinism replay + bootstrap CI width gate passing on default branch
+
+Outcome:
+- All Functional Requirements (FR-100–162, FR-150–158) have mapped tests and passing evidence.
+- Documentation updated and linked from README.
+
+Sign-off Recommendation: ACCEPT Phase H and maintain CI gates as merge blockers for determinism and width policy.

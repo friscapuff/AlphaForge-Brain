@@ -167,6 +167,43 @@ User POST /runs/{id}/cancel sets cancel_requested=true (idempotent). Orchestrato
 ---
 NEXT: Flesh out data models, endpoints, OpenAPI, events schema, execution semantics, validation config, artifacts & retention details.
 
+---
+## Implementation Progress Log (Rolling)
+
+### Completed Milestones (as of 2025-09-21)
+- Ingestion Baseline & Benchmarking: Added `scripts/bench/ingestion_perf.py` producing JSON + optional Markdown and a baseline diff tool `ingestion_baseline_diff.py` to enforce deterministic row counts and data hash.
+- Timestamp Normalization Consolidation: Introduced central `to_epoch_ms` utility handling naive vs tz-aware, DST ambiguous/nonexistent times, NaT preservation, optional future clipping; refactored ingestion & synthetic data paths to use it exclusively.
+- Provenance Fallback & Observability: Artifact writer now guarantees `data_hash` and `calendar_id` in manifests with structured logging event (`writer.provenance.fallback`) on metadata retrieval failure.
+- Anomaly Counters Surfacing: Validation summary and run detail now expose `anomaly_counters` (e.g., `unexpected_gaps`, `duplicates_dropped`) when available; tests assert presence under `include_anomalies=true`.
+- Retention Idempotency: Run/artifact retention logic refactored to track prior removal per manifest ensuring repeat pruning calls are stable (no additional deletions once policy satisfied).
+- Determinism Guardrails: Added end‑to‑end tests confirming identical seeds reuse runs, manifest hash equality, and equity/metrics determinism.
+- Lint & Type Gates: Repository made Ruff‑clean and mypy‑clean (strict) across `src/`, `tests/`, and `scripts/`; added richer typing (TypedDict, explicit annotations) and removed legacy `typing.List/Dict/Tuple` usage.
+- SSE Enhancements: Event flush + incremental stream endpoints validated; tests assert heartbeat presence, snapshot inclusion, resume semantics, ETag caching, and no duplication beyond buffer.
+
+### Architectural Adjustments
+- Dataset Registry Auto‑Registration: Benchmark script can auto-register a CSV dataset (local dev convenience) when absent, preserving determinism enforcement after registration.
+- Unified Time Handling: All internal epochs normalized to ms int64 via a single pathway to eliminate scattered `pd.to_datetime` variants and ensure consistent DST behavior.
+- Structured Logging Hooks: Introduced targeted structured logs around provenance fallback to support future telemetry collection (metrics/log aggregation readiness).
+
+### Current Status Summary
+System supports deterministic single-symbol backtests with full artifact set, validation summary (baseline placeholders for some tests), anomaly counters, retention trimming, and clean static analysis gates. OpenAPI contract partially exists (needs enrichment for newly surfaced fields: `data_hash`, `calendar_id`, `anomaly_counters`).
+
+### Deferred / Pending Items
+- OpenAPI Spec Enrichment: Add new response fields (`validation_summary`, `data_hash`, `calendar_id`, `anomaly_counters`) and SSE event schemas with examples.
+- Metrics Expansion: Additional portfolio metrics (exposure %, turnover) documentation alignment with implementation naming.
+- Validation Detail Artifacts: Flesh out block bootstrap & permutation distribution artifacts (currently summarized only).
+- Configuration Hash Inputs Doc: Explicitly document which fields (and code/version salts) feed the run hash.
+- Pre-commit Hook Documentation: Although lint/type are clean, doc how contributors should run or rely on pre-commit (if not yet added to repo).
+
+### Near-Term Next Steps (Proposed)
+1. Spec & OpenAPI Update: Align contracts with implemented provenance & anomaly fields.
+2. Add Lightweight Metrics for Fallback Events: Counter increment (in-memory) exposed via `/health` for observability.
+3. Document Time Normalization Guarantees: Separate ADR or section describing DST handling policy (ambiguous=raise default, options used, future clipping purpose).
+4. Add Ingestion Regression CI Step: Ensure ingestion baseline diff runs automatically on PR (if not already wired) and fails on schema/hash drift.
+5. Expand Validation: Implement at least minimal Monte Carlo slippage noise stub if not present; expose p-values in metrics summary.
+
+---
+
 ## REST API Surface (Draft)
 
 | Method | Path | Purpose |
@@ -595,5 +632,3 @@ POST /presets body = RunConfig-like (excluding seed optional). Upsert semantics.
 
 ### Health
 GET /health -> { "status": "ok", "version": "git_sha_or_semver" }
-
-

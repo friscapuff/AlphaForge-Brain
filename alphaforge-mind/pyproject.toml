@@ -1,0 +1,25 @@
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "alphaforge-mind"
+version = "0.1.0"
+description = "Thin deterministic client SDK for AlphaForge Brain API"
+authors = ["AlphaForge <devnull@example.com>"]
+readme = "README.md"
+packages = [
+  { include = "client", from = "src" },
+  { include = "alphaforge_mind_client", from = "src" },
+]
+
+[tool.poetry.dependencies]
+python = "3.11.*"
+requests = "2.32.3"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "8.3.2"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-q"

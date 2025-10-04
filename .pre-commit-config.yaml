@@ -1,14 +1,9 @@
 repos:
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.6.8
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
     hooks:
       - id: ruff
         args: ["--fix"]
-      - id: ruff-format
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
-    hooks:
-      - id: mypy
   - repo: https://github.com/psf/black
     rev: 24.8.0
     hooks:
@@ -21,9 +16,46 @@ repos:
       - id: trailing-whitespace
   - repo: local
     hooks:
+      - id: cleanup-generated-artifacts
+        name: Cleanup generated artifacts
+        entry: poetry run python scripts/cleanup/remove_generated_artifacts.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: block-generated-artifacts
+        name: Block committing generated artifacts
+        entry: poetry run python scripts/cleanup/block_generated_artifacts.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
       - id: env-check
         name: Environment sanity check
         entry: poetry run python scripts/env/check_env.py --strict
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
+      - id: mypy-changed
+        name: mypy (changed files strict)
+        entry: poetry run python scripts/typing/mypy_changed.py --strict --root-only
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: lock-sync
+        name: pyproject / lock sync
+        entry: poetry run python scripts/verify_lock_sync.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: health-check
+        name: minimal health check
+        entry: poetry run python scripts/post_install_health_check.py
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: forbid-raw-parquet
+        name: Forbid raw pd.read_parquet without fallback
+        entry: poetry run python scripts/lint/forbid_raw_parquet.py
+        language: system
+        pass_filenames: true
+        files: \.(py)$
+        stages: [pre-commit]

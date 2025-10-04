@@ -1,0 +1,98 @@
+# Minimal Spectral ruleset (self-contained) for AlphaForge Brain OpenAPI
+# This pared-down file avoids external dependencies so it works offline.
+# Each rule is explained in plain language for non-coders.
+
+rules:
+  require-operation-id:
+    description: Every API endpoint needs an operationId (a stable short name) so future tools/clients can reference it.
+    severity: error
+    given: $.paths[*][*]
+    then:
+      field: operationId
+      function: truthy
+
+  short-summaries:
+    description: Keep endpoint summaries short (max 80 characters) so documentation pages are easy to skim.
+    severity: warn
+    given: $.paths[*][*].summary
+    then:
+      function: length
+      functionOptions:
+        max: 80
+
+  properties-must-have-type:
+    description: Every property must have a type or a composition/array construct ($ref, allOf, oneOf, anyOf, items).
+    severity: error
+    given: $.components.schemas.*.properties[*]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          anyOf:
+            - required: [type]
+            - required: [$ref]
+            - required: [allOf]
+            - required: [oneOf]
+            - required: [anyOf]
+            - required: [items]
+
+  no-tabs:
+    description: Tab characters can make the file look misaligned in some tools; use spaces instead.
+    severity: error
+    given: $..
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "\t"
+
+  responses-need-description:
+    description: Every response section should have a brief human explanation.
+    severity: error
+    given: $.paths[*][*].responses[*]
+    then:
+      field: description
+      function: truthy
+
+  description-required-on-complex-schema:
+    description: Schemas with 5 or more properties should have a description to aid non-technical readers.
+    severity: warn
+    given: $.components.schemas[*]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          anyOf:
+            - not:
+                properties:
+                  properties:
+                    minProperties: 5
+            - required: [description]
+
+  no-empty-descriptions:
+    description: Avoid empty description strings – either remove or write something helpful.
+    severity: warn
+    given: $..description
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "^\\s*$"
+
+  tag-name-kebab-case:
+    description: Tag names (if used) should be kebab-case (words-lowercase-separated-by-dashes).
+    severity: warn
+    given: $.tags[*].name
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+
+  version-semver:
+    description: API version should look like semantic version MAJOR.MINOR.PATCH.
+    severity: warn
+    given: $.info.version
+    then:
+      function: pattern
+      functionOptions:
+        match: "^\\d+\\.\\d+\\.\\d+$"
+
+# End of ruleset

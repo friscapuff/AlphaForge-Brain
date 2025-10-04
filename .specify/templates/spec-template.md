@@ -1,8 +1,8 @@
 # Feature Specification: [FEATURE NAME]
 
-**Feature Branch**: `[###-feature-name]`  
-**Created**: [DATE]  
-**Status**: Draft  
+**Feature Branch**: `[###-feature-name]`
+**Created**: [DATE]
+**Status**: Draft
 **Input**: User description: "$ARGUMENTS"
 
 ## Execution Flow (main)
@@ -29,26 +29,21 @@
 
 ## ⚡ Quick Guidelines
 - ✅ Focus on WHAT users need and WHY
-- ❌ Avoid HOW to implement (no tech stack, APIs, code structure)
+- ❌ Avoid HOW to implement (no concrete frameworks unless contract boundary required)
 - 👥 Written for business stakeholders, not developers
+- 🧩 If feature spans both backend (Brain) and frontend (Mind), clearly separate concerns: backend computation vs frontend presentation.
 
 ### Section Requirements
 - **Mandatory sections**: Must be completed for every feature
 - **Optional sections**: Include only when relevant to the feature
-- When a section doesn't apply, remove it entirely (don't leave as "N/A")
+- When a section doesn't apply, remove it entirely (don't leave it as "N/A")
 
 ### For AI Generation
 When creating this spec from a user prompt:
-1. **Mark all ambiguities**: Use [NEEDS CLARIFICATION: specific question] for any assumption you'd need to make
-2. **Don't guess**: If the prompt doesn't specify something (e.g., "login system" without auth method), mark it
-3. **Think like a tester**: Every vague requirement should fail the "testable and unambiguous" checklist item
-4. **Common underspecified areas**:
-   - User types and permissions
-   - Data retention/deletion policies  
-   - Performance targets and scale
-   - Error handling behaviors
-   - Integration requirements
-   - Security/compliance needs
+1. **Mark all ambiguities**: Use [NEEDS CLARIFICATION: specific question]
+2. **Don't guess** missing contract interactions—ask.
+3. **Think like a tester**: Each requirement must map to an observable outcome.
+4. **Common underspecified areas**: permissions, data retention, performance targets, error handling, integration boundaries, security/compliance.
 
 ---
 
@@ -68,19 +63,19 @@ When creating this spec from a user prompt:
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
-- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
-- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  
-- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
-- **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
-- **FR-005**: System MUST [behavior, e.g., "log all security events"]
+- **FR-001**: System MUST [specific capability]
+- **FR-002**: System MUST [specific capability]
+- **FR-003**: Users MUST be able to [interaction]
+- **FR-004**: System MUST [data requirement]
+- **FR-005**: System MUST [behavior]
+- **FR-006**: System MUST [NEEDS CLARIFICATION: missing detail]
 
-*Example of marking unclear requirements:*
-- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+### Cross-Project Boundary (include only if dual Brain/Mind concerns)
+- Describe which responsibilities reside in Brain vs Mind; ensure no leakage of UI logic into Brain or core simulation logic into Mind presentation layer.
 
 ### Key Entities *(include if feature involves data)*
-- **[Entity 1]**: [What it represents, key attributes without implementation]
-- **[Entity 2]**: [What it represents, relationships to other entities]
+- **[Entity 1]**: [description]
+- **[Entity 2]**: [description]
 
 ---
 
@@ -95,10 +90,11 @@ When creating this spec from a user prompt:
 
 ### Requirement Completeness
 - [ ] No [NEEDS CLARIFICATION] markers remain
-- [ ] Requirements are testable and unambiguous  
+- [ ] Requirements are testable and unambiguous
 - [ ] Success criteria are measurable
 - [ ] Scope is clearly bounded
 - [ ] Dependencies and assumptions identified
+- [ ] If dual project: Brain/Mind boundary defined
 
 ---
 
