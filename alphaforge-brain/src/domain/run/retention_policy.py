@@ -25,8 +25,9 @@ Edge cases:
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from .create import InMemoryRunRegistry
 
@@ -107,7 +108,10 @@ def plan_retention(
 
     pinned_hashes = {h for h, r in runs if r.get("pinned")}
 
-    keep_full = keep_last_hashes | top_k_hashes | pinned_hashes
+    # Validation caution gating: exclude flagged runs from promotion unless pinned.
+    caution_hashes = {h for h, r in runs if r.get("validation_caution")}
+    # Pinned always kept regardless of caution; others are filtered out
+    keep_full = pinned_hashes | ((keep_last_hashes | top_k_hashes) - caution_hashes)
     all_hashes = {h for h, _ in runs}
     demote = all_hashes - keep_full
 
@@ -161,4 +165,4 @@ def apply_retention_plan(
                 rec["retention_state"] = "full"
 
 
-__all__ = ["RetentionConfig", "plan_retention", "apply_retention_plan"]
+__all__ = ["RetentionConfig", "apply_retention_plan", "plan_retention"]

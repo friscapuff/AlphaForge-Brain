@@ -44,7 +44,8 @@ def main() -> int:
         pathlib.Path("pyproject.toml"),
         pathlib.Path("pytest.ini"),
     ]
-    config_hashes = {}
+    # Values may be None when a config file is absent.
+    config_hashes: dict[str, str | None] = {}
     for cf in config_files:
         try:
             data = cf.read_bytes()
@@ -52,7 +53,7 @@ def main() -> int:
             config_hashes[str(cf)] = digest
         except FileNotFoundError:
             config_hashes[str(cf)] = None
-    entry = {
+    entry: dict[str, object] = {
         "timestamp_utc": dt.datetime.utcnow().isoformat() + "Z",
         "event": ns.event,
         "baseline_errors": ns.baseline_errors,

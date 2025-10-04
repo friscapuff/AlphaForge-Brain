@@ -28,10 +28,10 @@ ROOT = Path(__file__).resolve().parents[2]
 DET_SCRIPT = ROOT / "alphaforge-brain" / "scripts" / "ci" / "determinism_replay.py"
 
 
-def load_replay_module():  # type: ignore
+def load_replay_module():
     from importlib.machinery import SourceFileLoader
 
-    spec = SourceFileLoader("_determinism_replay", str(DET_SCRIPT)).load_module()  # type: ignore
+    spec = SourceFileLoader("_determinism_replay", str(DET_SCRIPT)).load_module()
     return spec
 
 
@@ -51,7 +51,7 @@ def read_rss_kb() -> int | None:
 def workload(iterations: int, seed: int) -> None:
     mod = load_replay_module()
     for _ in range(iterations):
-        mod.run_once(seed)  # type: ignore[attr-defined]
+        mod.run_once(seed)
 
 
 def main() -> int:

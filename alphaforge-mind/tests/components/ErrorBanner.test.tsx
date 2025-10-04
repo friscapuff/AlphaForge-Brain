@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
-import { vi } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { useErrorStore } from '../../src/state/errors.js';
 import ErrorBanner from '../../src/components/ErrorBanner.js';
 import { ERROR_MAP } from '../../src/errors/errorMessages.js';

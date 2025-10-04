@@ -75,12 +75,19 @@ def _hash_df(df: pd.DataFrame) -> str:
     # Use ISO for timestamps, ensure column order stable
     df2 = df.copy()
     for c in df2.columns:
-        if np.issubdtype(df2[c].dtype, np.datetime64):
-            df2[c] = (
-                pd.to_datetime(df2[c])
-                .dt.tz_convert("UTC")
-                .dt.strftime("%Y-%m-%dT%H:%M:%S%z")
-            )
+        col_dtype = df2[c].dtype
+        try:
+            base_dtype = getattr(col_dtype, "type", col_dtype)
+            if isinstance(base_dtype, type) and np.issubdtype(
+                base_dtype, np.datetime64
+            ):
+                df2[c] = (
+                    pd.to_datetime(df2[c])
+                    .dt.tz_convert("UTC")
+                    .dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+                )
+        except Exception:
+            continue
     payload = df2.to_json(orient="split", date_format="iso", double_precision=12)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 

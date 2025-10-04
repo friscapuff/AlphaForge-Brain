@@ -1,20 +1,15 @@
 from __future__ import annotations
 
-import json
-import os
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
-import math
-
 from api.app import create_app
-from infra.artifacts_root import resolve_artifact_root
+from fastapi.testclient import TestClient
 from lib.hash_utils import file_sha256
 
+from infra.artifacts_root import resolve_artifact_root
 
 pytestmark = [pytest.mark.stress]
 
@@ -71,7 +66,9 @@ def test_parallel_identical_runs_and_param_sweep(rss_sampler):
     hashes = {r.run_hash for r in results}
     assert len(hashes) == 1, f"Expected identical runs to reuse hash, got {hashes}"
     # All artifact sha256 for each listed artifact must match across result objects
-    artifact_sets = [sorted([(a["name"], a["sha256"]) for a in r.artifacts]) for r in results]
+    artifact_sets = [
+        sorted([(a["name"], a["sha256"]) for a in r.artifacts]) for r in results
+    ]
     first = artifact_sets[0]
     for aset in artifact_sets[1:]:
         assert aset == first, "Artifact digest mismatch across identical runs"
@@ -98,7 +95,9 @@ def test_parallel_identical_runs_and_param_sweep(rss_sampler):
     # Determinism within identical config: redo first variant and compare
     ref_seed, ref_fast, ref_slow = variants[0]
     ref_again = submit(client, ref_seed, ref_fast, ref_slow)
-    assert ref_again.run_hash == sweep_results[0].run_hash, "Run hash drift on identical config rerun"
+    assert (
+        ref_again.run_hash == sweep_results[0].run_hash
+    ), "Run hash drift on identical config rerun"
 
     # Build mapping config -> run_hash for uniqueness expectation (distinct configs can share hash only if logically identical)
     config_to_hash: dict[tuple[int, int, int], str] = {}
@@ -116,11 +115,17 @@ def test_parallel_identical_runs_and_param_sweep(rss_sampler):
             if not path.exists():
                 continue
             on_disk = file_sha256(path)
-            assert on_disk == art["sha256"], f"Digest mismatch for {art['name']} run {rr.run_hash}"
+            assert (
+                on_disk == art["sha256"]
+            ), f"Digest mismatch for {art['name']} run {rr.run_hash}"
 
     # Summary assertion: No duplicate hashes for distinct parameter sets
     unique_hashes = {r.run_hash for r in sweep_results}
-    assert len(unique_hashes) == len(sweep_results), "Unexpected hash collision across distinct configs"
+    assert len(unique_hashes) == len(
+        sweep_results
+    ), "Unexpected hash collision across distinct configs"
     # Optional: ensure modest average artifact count (sanity) to detect runaway generation
     avg_artifacts = sum(len(r.artifacts) for r in sweep_results) / len(sweep_results)
-    assert avg_artifacts < 25, f"Unexpectedly high average artifact count {avg_artifacts}"
+    assert (
+        avg_artifacts < 25
+    ), f"Unexpectedly high average artifact count {avg_artifacts}"

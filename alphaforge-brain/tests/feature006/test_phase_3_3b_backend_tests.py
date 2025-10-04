@@ -1,6 +1,16 @@
 from __future__ import annotations
 
-"""Phase 3.3B Backend Test-First Tasks (T060–T066)
+from pathlib import Path
+from typing import Any
+
+import pytest
+from api.app import app
+from fastapi.testclient import TestClient
+from jsonschema import (
+    validate as _jsonschema_validate,
+)  # already installed (jsonschema>=4)
+
+"""Phase 3.3B Backend Test-First Tasks (T060-T066)
 
 All tests except T061 are marked xfail until the corresponding endpoints / models
 are implemented (T067+). This establishes the contract & desired behavior up front
@@ -17,16 +27,6 @@ Current interim endpoints present:
  - POST /backtest/run (legacy path used for T061 validation test)
  - GET /backtests/{run_id} (status-only minimal adapter)
 """
-
-from pathlib import Path
-from typing import Any
-
-import pytest
-from api.app import app
-from fastapi.testclient import TestClient
-from jsonschema import (
-    validate as _jsonschema_validate,
-)  # already installed (jsonschema>=4)
 
 client = TestClient(app)
 
@@ -414,7 +414,7 @@ def test_t066_advanced_validation_toggles_echo() -> None:
 
 # ---------------------------------------------------------------------------
 # Phase 3.5B Remediation Tests (Negative / Error Paths)
-# T082–T086
+# T082-T086
 # ---------------------------------------------------------------------------
 
 

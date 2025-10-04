@@ -44,7 +44,9 @@ def test_run_detail_exposes_hashes_and_they_match_recomputed(tmp_path, monkeypat
     assert art.status_code == 200
     files = {f["name"] for f in art.json().get("files", [])}
     if "equity.parquet" in files:
-        eq = client.get(f"/runs/{run_hash}/artifacts/equity.parquet")
+        client.get(
+            f"/runs/{run_hash}/artifacts/equity.parquet"
+        )  # fetch to ensure endpoint works
         # Parquet returns structured response (columns,row_count) so we fall back to direct path read via artifacts root
         # For simplicity, reconstruct path and read locally.
         from infra.artifacts_root import resolve_artifact_root

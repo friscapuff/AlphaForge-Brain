@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from verify_migrations_head import compute_head_checksum  # type: ignore
+from verify_migrations_head import compute_head_checksum
 
 HERE = Path(__file__).parent
 TRACK = HERE / "MIGRATIONS_HEAD.txt"

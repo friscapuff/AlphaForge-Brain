@@ -12,11 +12,12 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-def run_mypy() -> dict[str, object]:
+def run_mypy() -> dict[str, Any]:
     start = time.perf_counter()
     proc = subprocess.run(
         ["poetry", "run", "mypy", "src", "tests"], capture_output=True, text=True
@@ -28,7 +29,7 @@ def run_mypy() -> dict[str, object]:
     for line in stdout.splitlines():
         if line.strip().endswith("error") or ": error:" in line:
             errors += 1
-    result = {
+    result: dict[str, Any] = {
         "duration_sec": round(duration, 3),
         "return_code": proc.returncode,
         "errors_detected": errors,

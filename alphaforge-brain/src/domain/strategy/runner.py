@@ -77,7 +77,7 @@ def run_strategy(
     # Pre-feature-build: apply any function-style indicators listed in config that the feature engine
     # will not automatically parameterize. We only support 'dual_sma' legacy naming where run config
     # uses fast/slow while strategy expects short_window/long_window.
-    indicator_frames = []
+    indicator_frames: list[pd.DataFrame] = []
     for spec in config.indicators:
         if spec.name == "dual_sma":
             fn = IndicatorRegistry.get("dual_sma")
@@ -94,10 +94,16 @@ def run_strategy(
                 fn_typed = cast(
                     Callable[[pd.DataFrame, dict[str, Any]], pd.DataFrame], fn
                 )
-                indicator_frames.append(fn_typed(candles, dual_params))
+                df_ind = fn_typed(candles, dual_params)
+                if isinstance(df_ind, pd.Series):  # defensive normalization
+                    df_ind = df_ind.to_frame()
+                indicator_frames.append(df_ind)
             except TypeError:
                 # Fallback for older signature without params
-                indicator_frames.append(fn(candles))
+                legacy = fn(candles)
+                if isinstance(legacy, pd.Series):
+                    legacy = legacy.to_frame()
+                indicator_frames.append(legacy)
 
     if indicator_frames:
         # Merge sequentially (they all start from base candles copy)
@@ -175,25 +181,20 @@ def run_strategy(
             stats.feature_built = True
         result = factory(features, strategy_params)
 
-    # Strategy already executed in context above; ensure result is a DataFrame
-    assert isinstance(result, pd.DataFrame)
+    # Strategy already executed; defensive runtime check (avoid mypy mixed inheritance confusion)
+    if not isinstance(result, pd.DataFrame):  # pragma: no cover - defensive
+        raise TypeError("Strategy factory must return a pandas DataFrame")
 
     # Enforce no lookahead by ensuring signal at row i only derived from <= i features.
     # Dual SMA strategy already respects this (iterative loop). For future strategies we could
     # add validation hooks here; currently we just trust implementation.
 
     # Filter out rows where required SMA columns are not fully valid (NaN) if present.
-    if "signal" in result.columns:
-        # Keep all rows; tests expect alignment at candle close. But handle insufficient warmup:
-        if result["signal"].notna().sum() == 0:
-            # All NaN -> treat as empty output
-            empty_cols = list(result.columns)
-            out = result.iloc[0:0].copy()
-            for c in empty_cols:
-                if c not in out.columns:
-                    out[c] = []
-            stats.rows_out = 0
-            return out
+    if "signal" in result.columns and result["signal"].notna().sum() == 0:
+        # All NaN -> treat as empty output while preserving columns
+        empty_out = result.iloc[0:0].copy()
+        stats.rows_out = 0
+        return empty_out
 
     stats.rows_out = len(result)
     # Persist causality stats if guard provided and run_hash available

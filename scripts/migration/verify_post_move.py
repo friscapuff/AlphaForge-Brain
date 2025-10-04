@@ -18,8 +18,8 @@ import hashlib
 import json
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = ROOT / "zz_artifacts"
@@ -79,7 +79,13 @@ def main() -> int:
         print("[verify] missing baseline file", file=sys.stderr)
         return 2
     baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
-    baseline_digests: dict[str, str] = baseline.get("file_digests", {})  # type: ignore[assignment]
+    # baseline["file_digests"] is produced by our own tooling; coerce to expected type.
+    raw_digests = baseline.get("file_digests", {})
+    baseline_digests: dict[str, str] = {
+        str(k): str(v)
+        for k, v in raw_digests.items()
+        if isinstance(k, str) and isinstance(v, str)
+    }
     current_digests = digest_map(TRACK_NEW_PATHS)
 
     removed = [k for k in baseline_digests if k not in current_digests]
@@ -100,7 +106,7 @@ def main() -> int:
     if baseline.get("run_hash") is not None:
         # Try to recompute run hash via import if possible
         try:
-            from alphaforge_brain import run_hash as rh  # type: ignore
+            from alphaforge_brain import run_hash as rh  # runtime-only optional import
 
             new_run_hash = (
                 str(rh.get_run_hash()) if hasattr(rh, "get_run_hash") else None
@@ -112,7 +118,8 @@ def main() -> int:
             run_hash_reason = "post-move hash missing"
         else:
             run_hash_ok = new_run_hash == baseline["run_hash"]
-            run_hash_reason = f"baseline={baseline['run_hash']} new={new_run_hash}"  # type: ignore[index]
+            baseline_run_hash = baseline.get("run_hash")
+            run_hash_reason = f"baseline={baseline_run_hash} new={new_run_hash}"
 
     verdict = {
         "removed": removed,

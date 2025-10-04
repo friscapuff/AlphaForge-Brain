@@ -1,14 +1,14 @@
+"""Memory ceiling CI stub (T002) placeholder.
+
+Exits 0 and prints a JSON result indicating no measurement. Replace with real
+RSS sampling sweep enforcing CI caps (1.5 GB hard cap).
+"""
+
 from __future__ import annotations
 
-"""
-Memory ceiling CI stub (T002) — placeholder to wire job. Exits 0 and prints a
-JSON result indicating no measurement. Replace with real RSS sampling sweep
-checks enforcing CI caps (1.5 GB hard cap).
-"""
-
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def main(out: str | None = None) -> int:

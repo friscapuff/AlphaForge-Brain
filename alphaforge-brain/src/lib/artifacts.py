@@ -118,7 +118,7 @@ def read_parquet_or_csv(path: Path) -> pd.DataFrame:
     pandas.read_csv. Raises the final exception only if both attempts fail.
     """
     try:
-        return pd.read_parquet(  # parquet-ok: direct artifact read acceptable in controlled test env 
+        return pd.read_parquet(  # parquet-ok: direct artifact read acceptable in controlled test env
             path
         )  # parquet-ok: primary attempt; helper provides fallback
     except Exception:
@@ -129,8 +129,8 @@ def read_parquet_or_csv(path: Path) -> pd.DataFrame:
 __all__ = [
     "ARTIFACT_DIR",
     "artifact_index",
+    "read_parquet_or_csv",
     "write_equity",
     "write_json",
     "write_trades",
-    "read_parquet_or_csv",
 ]

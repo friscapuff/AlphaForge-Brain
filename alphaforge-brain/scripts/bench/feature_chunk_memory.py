@@ -15,14 +15,16 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from types import ModuleType
 
 import numpy as np
 import pandas as pd
 
+psutil_mod: ModuleType | None
 try:
-    import psutil  # type: ignore[import-not-found]
+    import psutil as psutil_mod  # optional dependency
 except Exception:  # pragma: no cover - optional dependency
-    psutil = None  # type: ignore[assignment]
+    psutil_mod = None
 
 # Ensure `alphaforge-brain` (which contains the `src` package) on sys.path when run as a script
 _THIS = Path(__file__).resolve()
@@ -39,8 +41,8 @@ from src.domain.indicators.sma import SimpleMovingAverage
 
 
 def rss_mb() -> float:
-    if psutil is not None:
-        p = psutil.Process()
+    if psutil_mod is not None:
+        p = psutil_mod.Process()
         return p.memory_info().rss / (1024 * 1024)
     # Fallback: tracemalloc measures Python allocations, not RSS; use as a rough proxy
     try:

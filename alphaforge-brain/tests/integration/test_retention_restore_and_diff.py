@@ -29,7 +29,8 @@ def test_retention_plan_diff_and_restore(monkeypatch, tmp_path):
     monkeypatch.setenv("AF_COLD_STORAGE_PROVIDER", "local")
     app = create_app()
     client = TestClient(app)
-    runs = [_make_run(client, 8000 + i) for i in range(5)]
+    for i in range(5):
+        _make_run(client, 8000 + i)
     # Tight retention to demote most runs (keep_last=1)
     client.post("/settings/retention", json={"keep_last": 1, "top_k_per_strategy": 0})
     # Dry-run diff: propose more generous plan keep_last=5 which should promote runs

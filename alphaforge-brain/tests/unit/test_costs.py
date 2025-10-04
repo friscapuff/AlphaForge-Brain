@@ -4,6 +4,7 @@ import pytest
 from src.models.cost_model_config import CostModelConfig
 from src.models.trade import TradeSide
 from src.services.costs import CostBreakdown, apply_costs
+
 from tests.factories import trade
 
 

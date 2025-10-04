@@ -19,9 +19,9 @@ import json
 import platform
 import subprocess
 import sys
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = ROOT / "zz_artifacts"
@@ -87,7 +87,9 @@ def try_run_hash() -> str | None:
         try:
             m = __import__(mod, fromlist=["get_run_hash"])
             if hasattr(m, "get_run_hash"):
-                return str(m.get_run_hash())  # type: ignore[attr-defined]
+                return str(
+                    m.get_run_hash()
+                )  # attribute presence checked via hasattr above
         except Exception:
             continue
     return None
@@ -95,7 +97,8 @@ def try_run_hash() -> str | None:
 
 def main() -> int:
     ARTIFACTS_DIR.mkdir(exist_ok=True)
-    data = {
+    file_digests = digest_map(TRACK_PATHS)
+    data: dict[str, object] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "git_head": get_git_head(),
         "python_version": sys.version,
@@ -105,14 +108,18 @@ def main() -> int:
             "machine": platform.machine(),
         },
         "run_hash": try_run_hash(),
-        "file_digests": digest_map(TRACK_PATHS),
+        "file_digests": file_digests,
         "metrics": {},
         "notes": "Baseline prior to dual-root migration.",
     }
     OUT_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    print(
-        f"[baseline] wrote {OUT_PATH.relative_to(ROOT)} with {len(data['file_digests'])} file digests"
-    )
+    # data['file_digests'] is a dict[str, str]; extract then measure length for mypy clarity.
+    file_digests_val = data["file_digests"]
+    if isinstance(file_digests_val, dict):
+        count = len(file_digests_val)
+    else:  # fallback defensive
+        count = 0
+    print(f"[baseline] wrote {OUT_PATH.relative_to(ROOT)} with {count} file digests")
     return 0
 
 

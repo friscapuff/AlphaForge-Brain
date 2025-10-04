@@ -25,7 +25,8 @@ def _make_run(client: TestClient, seed: int) -> str:
 def test_retention_metrics_counts():
     app = create_app()
     client = TestClient(app)
-    runs = [_make_run(client, 5000 + i) for i in range(5)]
+    for i in range(5):
+        _make_run(client, 5000 + i)
     # Aggressive demotion configuration
     client.post(
         "/settings/retention",

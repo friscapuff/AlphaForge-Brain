@@ -8,6 +8,7 @@ from src.models.walk_forward_config import (
     WalkForwardSegmentConfig,
 )
 from src.services.walk_forward import choose_params, segment_boundaries
+
 from tests.factories import walk_forward_variant
 
 

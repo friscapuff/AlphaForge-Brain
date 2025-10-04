@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from fastapi.testclient import TestClient
-
 from api.app import app
+from fastapi.testclient import TestClient
 
 
 def test_request_logging_correlation_id(caplog):
@@ -17,7 +15,10 @@ def test_request_logging_correlation_id(caplog):
     # Scan captured logs for our structured entry
     matched: list[dict[str, Any]] = []
     for rec in caplog.records:
-        if rec.name == "api.request" and getattr(rec, "correlation_id", None) == correlation_id:
+        if (
+            rec.name == "api.request"
+            and getattr(rec, "correlation_id", None) == correlation_id
+        ):
             matched.append(
                 {
                     "message": rec.getMessage(),

@@ -11,7 +11,7 @@ import { BacktestForm } from '../../src/components/backtest/BacktestForm.js';
 
 describe('T093 BacktestForm keyboard navigation', () => {
   it('tabs through fields in order start -> end -> strategy -> equity -> submit', async () => {
-    const user = userEvent.setup();
+    const user = (userEvent as any).setup();
     render(<BacktestForm onSubmit={() => { /* noop */ }} />);
 
     const start = screen.getByPlaceholderText('start');

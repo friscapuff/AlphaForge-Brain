@@ -34,7 +34,8 @@ def main() -> int:
         for p in ROOT.glob(pat):
             try:
                 if p.is_file():
-                    p.unlink(missing_ok=True)  # type: ignore[arg-type]
+                    # Path.unlink gained missing_ok in Python 3.8+; no type ignore needed.
+                    p.unlink(missing_ok=True)
                     removed.append(p)
             except Exception:
                 # Best-effort cleanup; continue

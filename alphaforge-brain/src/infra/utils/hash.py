@@ -102,7 +102,7 @@ def row_digest(row: Any) -> str:
 __all__ = [
     "canonical_json",
     "hash_canonical",
+    "row_digest",
     "sha256_hex",
     "sha256_of_text",
-    "row_digest",
 ]

@@ -1,16 +1,17 @@
+"""Determinism CI stub (T002) placeholder.
+
+Placeholder to wire job now and fail later when backed by real implementation.
+Exits 0 and prints a TODO JSON summary.
+
+Will be replaced by a determinism replay harness (FR-101/110) that executes N
+identical runs and asserts stable run/artifact hashes.
+"""
+
 from __future__ import annotations
 
-"""
-Determinism CI stub (T002) — placeholder to wire job now and fail later when
-backed by real implementation. Exits 0 and prints a TODO JSON summary.
-
-This script will be replaced by a proper determinism replay harness (FR-101/110)
-that executes N identical runs and asserts stable run/artifact hashes.
-"""
-
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def main(out: str | None = None) -> int:

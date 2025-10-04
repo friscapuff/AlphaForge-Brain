@@ -64,8 +64,10 @@ def to_epoch_ms(
         Handling for non-existent times at DST spring-forward.
     """
     # Fast path: empty
-    if isinstance(values, (pd.Series, pd.DatetimeIndex)) and len(values) == 0:
-        return pd.Series(dtype="Int64")  # pandas nullable integer
+    if len(values) == 0:  # works for Series or DatetimeIndex
+        # Explicit empty, named Int64 Series for consistency with non-empty path
+        empty_series: pd.Series = pd.Series(dtype="Int64")
+        return empty_series
 
     # Normalize to DatetimeIndex (retain original index for Series)
     orig_index = getattr(values, "index", None)

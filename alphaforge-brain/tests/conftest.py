@@ -262,7 +262,7 @@ def arrow_roundtrip(tmp_path: Path) -> Callable[[Any, str | None], Any]:
         path = tmp_path / fname
         try:
             df.to_parquet(path, engine="pyarrow", index=False)  # type: ignore[arg-type]
-            back = pd.read_parquet(  # parquet-ok: direct artifact read acceptable in controlled test env   # parquet-ok: direct artifact read acceptable in controlled test env 
+            back = pd.read_parquet(  # parquet-ok: direct artifact read acceptable in controlled test env   # parquet-ok: direct artifact read acceptable in controlled test env
                 path, engine="pyarrow"
             )  # parquet-ok: explicit pyarrow roundtrip test
             return back

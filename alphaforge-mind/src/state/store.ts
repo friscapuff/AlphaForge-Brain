@@ -32,6 +32,18 @@ export interface BacktestResultMeta {
   validation?: { bootstrap?: unknown; permutation?: unknown; walk_forward?: unknown };
   monteCarloPaths?: number[][]; // matrix of paths (time-aligned)
   walkForwardSplits?: Array<{ start: string; end: string; inSample: boolean }>; // for visualization
+  /**
+   * Validation caution badge (T043): when true, UI shows a caution indicator with metric tooltips.
+   * Empty or falsey implies no caution.
+   */
+  validationCaution?: boolean;
+  validationCautionMetrics?: string[];
+  /**
+   * Optimization deferral (T052): optimization_mode mirrors backend FR-013.
+   * When 'deferred', UI shows a structured warning from advanced.warnings.
+   */
+  optimizationMode?: 'none' | 'deferred' | 'success' | string;
+  advanced?: { warnings?: Array<{ code: string; [k: string]: unknown }> };
 }
 
 export interface BacktestState {

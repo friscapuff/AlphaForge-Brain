@@ -1,8 +1,9 @@
 import pytest
-from fastapi.testclient import TestClient
 from api.app import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
+
 
 @pytest.mark.unit
 def test_multiple_field_validation_error_lists_all_fields() -> None:
@@ -11,7 +12,10 @@ def test_multiple_field_validation_error_lists_all_fields() -> None:
     bad_payload = {
         "symbol": 123,  # should be str
         "date_range": {"start": 5, "end": None},  # invalid types
-        "strategy": {"name": "dual_sma", "params": {"fast": "x", "slow": []}},  # invalid param types
+        "strategy": {
+            "name": "dual_sma",
+            "params": {"fast": "x", "slow": []},
+        },  # invalid param types
         "risk": {"initial_equity": "notnum", "position_sizing": 7},  # invalid types
         "validation": {},
     }

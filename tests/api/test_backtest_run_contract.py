@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import json
+import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-
-import sys
 
 _ROOT = Path(__file__).resolve().parents[2]
 _SRC = _ROOT / "alphaforge-brain" / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from api.app import create_app  # type: ignore  # noqa: E402
+from api.app import create_app  # noqa: E402
 
 
 def _load_schema(name: str) -> dict:
     schema_path = _ROOT / "specs" / "006-begin-work-on" / "contracts" / name
-    with open(schema_path, "r", encoding="utf-8") as f:
+    with open(schema_path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -46,7 +45,12 @@ def test_backtest_run_create_contract_shapes():  # T103
         "strategy_params": {"lookback": 5},
         "risk_model": "basic",
         "risk_params": {"max_position_pct": 10},
-        "validation": {"permutation": None, "block_bootstrap": None, "monte_carlo": None, "walk_forward": None},
+        "validation": {
+            "permutation": None,
+            "block_bootstrap": None,
+            "monte_carlo": None,
+            "walk_forward": None,
+        },
         "seed": 42,
     }
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import importlib
 import json
 import subprocess
 from pathlib import Path
-import importlib
+
 import pytest
 
 
@@ -11,9 +12,24 @@ def test_memory_cap_probe_smoke() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     script = repo_root / "scripts" / "ci" / "memory_cap_probe.py"
     assert script.exists()
-    if importlib.util.find_spec("numpy") is None:  # memory workload depends indirectly on numpy
+    if (
+        importlib.util.find_spec("numpy") is None
+    ):  # memory workload depends indirectly on numpy
         pytest.skip("numpy not available outside managed env")
-    proc = subprocess.run(["python", str(script), "--iterations", "1", "--out", "zz_artifacts/memory_cap_probe.json"], cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    proc = subprocess.run(
+        [
+            "python",
+            str(script),
+            "--iterations",
+            "1",
+            "--out",
+            "zz_artifacts/memory_cap_probe.json",
+        ],
+        cwd=repo_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
     # On non-Linux this will skip.
     out_file = repo_root / "zz_artifacts" / "memory_cap_probe.json"
     if out_file.exists():

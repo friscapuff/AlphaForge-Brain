@@ -48,4 +48,5 @@ def evicted_dir(run_hash: str) -> Path:
     d.mkdir(parents=True, exist_ok=True)
     return d
 
-__all__.extend(["run_artifact_dir", "evicted_dir"])
+
+__all__.extend(["evicted_dir", "run_artifact_dir"])

@@ -31,10 +31,10 @@ ROOT = Path(__file__).resolve().parents[2]
 DET_SCRIPT = ROOT / "alphaforge-brain" / "scripts" / "ci" / "determinism_replay.py"
 
 
-def load_replay_module():  # type: ignore
+def load_replay_module():
     from importlib.machinery import SourceFileLoader
 
-    spec = SourceFileLoader("_determinism_replay", str(DET_SCRIPT)).load_module()  # type: ignore
+    spec = SourceFileLoader("_determinism_replay", str(DET_SCRIPT)).load_module()
     return spec
 
 
@@ -47,8 +47,8 @@ def timed_call(fn, *a, **kw) -> tuple[float, Any]:
 
 def probe(seed: int) -> dict[str, Any]:
     mod = load_replay_module()
-    first_s, _ = timed_call(mod.run_once, seed)  # type: ignore[attr-defined]
-    second_s, _ = timed_call(mod.run_once, seed)  # type: ignore[attr-defined]
+    first_s, _ = timed_call(mod.run_once, seed)
+    second_s, _ = timed_call(mod.run_once, seed)
     ratio = (first_s / second_s) if second_s > 0 else float("inf")
     return {
         "first_s": first_s,

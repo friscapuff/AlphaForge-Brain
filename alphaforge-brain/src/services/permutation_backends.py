@@ -6,7 +6,8 @@ Currently non-executable and unused to avoid premature complexity.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Protocol, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any, Protocol
 
 
 class PermutationBackend(Protocol):  # pragma: no cover - placeholder
@@ -26,4 +27,4 @@ class PermutationBackend(Protocol):  # pragma: no cover - placeholder
 # Placeholder local backend reference (not implemented)
 DEFAULT_BACKEND: PermutationBackend | None = None
 
-__all__ = ["PermutationBackend", "DEFAULT_BACKEND"]
+__all__ = ["DEFAULT_BACKEND", "PermutationBackend"]

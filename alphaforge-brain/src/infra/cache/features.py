@@ -87,8 +87,8 @@ class FeaturesCache:
         if parquet_available():
             pa = load_pyarrow()
             if pa and is_pyarrow(pa):  # narrow for mypy
-                import pyarrow.parquet as pq  # type: ignore
-                from pyarrow import Table  # type: ignore
+                import pyarrow.parquet as pq
+                from pyarrow import Table
 
                 table = Table.from_pandas(df)
                 pq.write_table(table, path)
@@ -114,7 +114,7 @@ class FeaturesCache:
     def _read(self, path: Path) -> pd.DataFrame:
         if parquet_available():
             try:
-                import pyarrow.parquet as pq  # type: ignore
+                import pyarrow.parquet as pq
 
                 table = pq.read_table(path)
                 df = table.to_pandas()

@@ -10,7 +10,7 @@ from domain.schemas.run_config import (
     StrategySpec,
     ValidationSpec,
 )
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
 # NOTE: Existing API style mounts routes at root without explicit version segment.
@@ -65,7 +65,7 @@ def get_registry(request: Request) -> InMemoryRunRegistry:
 async def create_backtest_run(
     payload: BacktestRunRequestModel,
     response: Response,
-    registry: InMemoryRunRegistry = Depends(get_registry),
+    request: Request,
     x_correlation_id: str | None = Header(default=None, alias="x-correlation-id"),
 ) -> BacktestRunCreateResponse:
     # Echo correlation id header if provided for observability chain
@@ -73,6 +73,7 @@ async def create_backtest_run(
         response.headers["x-correlation-id"] = x_correlation_id
 
     # Map incoming model to domain RunConfig
+    registry = get_registry(request)
     try:
         run_config = RunConfig(
             symbol=payload.ticker,
@@ -88,7 +89,9 @@ async def create_backtest_run(
             seed=payload.seed,
         )
     except Exception as e:  # pragma: no cover
-        raise HTTPException(status_code=400, detail=f"invalid configuration: {e}")
+        raise HTTPException(
+            status_code=400, detail=f"invalid configuration: {e}"
+        ) from e
 
     run_id, record, created = create_or_get(run_config, registry)
     return BacktestRunCreateResponse(run_id=run_id, created=created)
@@ -102,8 +105,9 @@ class BacktestRunStatusResponse(BaseModel):
 
 @router.get("/backtests/{run_id}", response_model=BacktestRunStatusResponse)
 async def get_backtest_run_status(
-    run_id: str, registry: InMemoryRunRegistry = Depends(get_registry)
+    run_id: str, request: Request
 ) -> BacktestRunStatusResponse:  # T104
+    registry = get_registry(request)
     rec = registry.get(run_id)
     if rec is None:
         raise HTTPException(status_code=404, detail="run not found")

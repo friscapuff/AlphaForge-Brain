@@ -1,26 +1,26 @@
-from __future__ import annotations
-
 """Diagnostic CLI for cache health & parquet capability.
 
 Usage:
-  python -m infra.cache.doctor --root <cache_root>
+    python -m infra.cache.doctor --root <cache_root>
 
 Outputs a JSON document with fields:
-  parquet_available: bool
-  pyarrow_version: str | null
-  metrics: {hits, misses, rebuilds, writes}
-  files: list of {path, size, kind}
-    kind: parquet | csv_fallback | unknown
+    parquet_available: bool
+    pyarrow_version: str | null
+    metrics: {hits, misses, rebuilds, writes}
+    files: list of {path, size, kind}
+        kind: parquet | csv_fallback | unknown
 """
 
-from dataclasses import dataclass, asdict
+from __future__ import annotations
+
 import argparse
 import json
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
 
+from ._parquet import load_pyarrow, parquet_available
 from .metrics import cache_metrics
-from ._parquet import parquet_available, load_pyarrow
 
 
 @dataclass

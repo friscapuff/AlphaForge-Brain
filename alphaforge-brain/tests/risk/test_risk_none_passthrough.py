@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import pandas as pd
-
 from domain.risk.engine import apply_risk
-from domain.schemas.run_config import RunConfig, StrategySpec, RiskSpec
+from domain.schemas.run_config import RiskSpec, RunConfig, StrategySpec
 
 
 def _cfg(model: str) -> RunConfig:
@@ -19,16 +18,18 @@ def _cfg(model: str) -> RunConfig:
 
 def _signals_df() -> pd.DataFrame:
     ts = pd.date_range("2024-01-01", periods=5, freq="1min", tz="UTC")
-    epoch_ms = (ts.view('int64') // 10**6).astype('int64')
-    return pd.DataFrame({
-        "timestamp": epoch_ms,
-        "open": [100,101,102,103,104],
-        "high": [101,102,103,104,105],
-        "low":  [99,100,101,102,103],
-        "close":[100.5,101.5,102.5,103.5,104.5],
-        "volume":[1000,1000,1000,1000,1000],
-        "signal":[1,1,1,1,1],
-    })
+    epoch_ms = (ts.view("int64") // 10**6).astype("int64")
+    return pd.DataFrame(
+        {
+            "timestamp": epoch_ms,
+            "open": [100, 101, 102, 103, 104],
+            "high": [101, 102, 103, 104, 105],
+            "low": [99, 100, 101, 102, 103],
+            "close": [100.5, 101.5, 102.5, 103.5, 104.5],
+            "volume": [1000, 1000, 1000, 1000, 1000],
+            "signal": [1, 1, 1, 1, 1],
+        }
+    )
 
 
 def test_risk_none_passthrough_all_zero_sizes():
@@ -38,7 +39,7 @@ def test_risk_none_passthrough_all_zero_sizes():
     assert "position_size" in out.columns
     assert all(v == 0.0 for v in out.position_size.tolist())
     # ensure original columns retained
-    for col in ["timestamp","open","close","signal"]:
+    for col in ["timestamp", "open", "close", "signal"]:
         assert col in out.columns
 
 

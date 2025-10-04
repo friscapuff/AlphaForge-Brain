@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 # ruff: noqa: B008
 # Rationale: FastAPI dependency injection idiom uses Depends(callable) as a default
 # parameter. We intentionally preserve this canonical style for clarity and
 # tooling compatibility; rule B008 would otherwise flag each endpoint.
 from datetime import datetime, timezone
-from typing import Any, Mapping, Union
+from typing import Any, Union
 
 from domain.errors import NotFoundError
 from domain.run.create import InMemoryRunRegistry, create_or_get
@@ -403,7 +405,7 @@ async def get_artifact(
             from lib.artifacts import read_parquet_or_csv as _rpoc
 
             df = _rpoc(path)
-            return {"columns": list(df.columns), "row_count": int(len(df))}
+            return {"columns": list(df.columns), "row_count": len(df)}
         except Exception as e2:  # pragma: no cover - defensive
             raise HTTPException(status_code=500, detail="artifact unreadable") from e2
     # fallback raw bytes

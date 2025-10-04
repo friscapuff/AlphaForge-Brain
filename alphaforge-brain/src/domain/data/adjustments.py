@@ -25,11 +25,15 @@ AdjustmentPolicy = Literal["none", "full_adjusted"]
 
 @dataclass(slots=True)
 class AdjustmentFactors:
-    events: pd.DataFrame  # expected columns: ts (int ms), optional split (float), optional dividend (float)
+    events: (
+        pd.DataFrame
+    )  # expected columns: ts (int ms), optional split (float), optional dividend (float)
     coverage_full: bool = True
 
 
-def compute_factors_digest(policy: AdjustmentPolicy, factors: AdjustmentFactors | None) -> str | None:
+def compute_factors_digest(
+    policy: AdjustmentPolicy, factors: AdjustmentFactors | None
+) -> str | None:
     """Return a stable digest of factors and policy.
 
     When policy is "none", returns None. For full_adjusted with empty events, returns a deterministic digest.
@@ -47,7 +51,9 @@ def compute_factors_digest(policy: AdjustmentPolicy, factors: AdjustmentFactors 
     ev = ev.fillna(0.0)
     ev = ev.sort_values("ts", kind="mergesort").reset_index(drop=True)
     # Deterministic CSV bytes
-    csv_bytes = ev.to_csv(index=False, lineterminator="\n", float_format="%.8f").encode("utf-8")
+    csv_bytes = ev.to_csv(index=False, lineterminator="\n", float_format="%.8f").encode(
+        "utf-8"
+    )
     base = f"policy={policy}\n".encode() + csv_bytes
     return hashlib.sha256(base).hexdigest()
 
@@ -74,14 +80,18 @@ def _apply_split_back_adjustment(prices: pd.Series, events: pd.Series) -> pd.Ser
     return adjusted
 
 
-def apply_full_adjustments(df: pd.DataFrame, factors: AdjustmentFactors) -> pd.DataFrame:
+def apply_full_adjustments(
+    df: pd.DataFrame, factors: AdjustmentFactors
+) -> pd.DataFrame:
     """Apply full adjustments (currently splits) to OHLC columns of df.
 
     df must include columns: ts, open, high, low, close. Volume left unchanged.
     factors.events must include column ts (to align), optional split column (float ratio, e.g., 2.0 for 2-for-1).
     """
     if not factors.coverage_full:
-        raise ValueError("AdjustmentFactors coverage is partial; require full coverage for full_adjusted policy")
+        raise ValueError(
+            "AdjustmentFactors coverage is partial; require full coverage for full_adjusted policy"
+        )
     if df.empty:
         return df.copy()
     out = df.copy()
@@ -90,9 +100,9 @@ def apply_full_adjustments(df: pd.DataFrame, factors: AdjustmentFactors) -> pd.D
     if "split" not in ev.columns:
         ev["split"] = 0.0
     # Build a per-row split series by merging on ts
-    merged = pd.merge(
-        out[["ts"]], ev[["ts", "split"]], how="left", on="ts"
-    ).fillna({"split": 0.0})
+    merged = pd.merge(out[["ts"]], ev[["ts", "split"]], how="left", on="ts").fillna(
+        {"split": 0.0}
+    )
     split_series = merged["split"].astype(float)
     # Apply split adjustments using backward cumulative factor
     for col in ["open", "high", "low", "close"]:
@@ -101,19 +111,23 @@ def apply_full_adjustments(df: pd.DataFrame, factors: AdjustmentFactors) -> pd.D
     return out
 
 
-def incorporate_policy_into_hash(raw_digest: str, policy: AdjustmentPolicy, factors_digest: str | None) -> str:
+def incorporate_policy_into_hash(
+    raw_digest: str, policy: AdjustmentPolicy, factors_digest: str | None
+) -> str:
     """Combine raw digest with policy and factors digest into a final dataset hash.
 
     Ensures that dataset digest changes when policy or factors change, even if adjusted series equals raw numerically.
     """
-    payload = f"raw={raw_digest};policy={policy};factors={factors_digest or 'none'}".encode()
+    payload = (
+        f"raw={raw_digest};policy={policy};factors={factors_digest or 'none'}".encode()
+    )
     return hashlib.sha256(payload).hexdigest()
 
 
 __all__ = [
-    "AdjustmentPolicy",
     "AdjustmentFactors",
-    "compute_factors_digest",
+    "AdjustmentPolicy",
     "apply_full_adjustments",
+    "compute_factors_digest",
     "incorporate_policy_into_hash",
 ]

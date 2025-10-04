@@ -14,9 +14,9 @@ import ast
 import json
 import os
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[2]  # repo root
 SRC_ROOT = ROOT / "alphaforge-brain" / "src"
@@ -100,7 +100,7 @@ missing_attrs: list[tuple[str, str, int]] = []
 old_analyze_file = None
 
 
-def analyze_file(path: Path, counts: Counts):  # type: ignore[override]
+def analyze_file(path: Path, counts: Counts) -> None:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except SyntaxError:
@@ -163,7 +163,7 @@ def analyze_file(path: Path, counts: Counts):  # type: ignore[override]
                     counts.consts_total += 1
 
 
-def main() -> int:  # type: ignore[override]
+def main() -> int:
     args = parse_args()
     counts = Counts()
     for file in iter_module_files():

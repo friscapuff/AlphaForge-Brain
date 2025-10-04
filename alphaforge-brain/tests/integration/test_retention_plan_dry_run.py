@@ -26,7 +26,8 @@ def test_retention_plan_dry_run():
     app = create_app()
     client = TestClient(app)
     # Create runs
-    runs = [_make_run(client, 7000 + i) for i in range(6)]
+    for i in range(6):
+        _make_run(client, 7000 + i)
     # Configure aggressive retention (keep last 2) no top_k
     client.post("/settings/retention", json={"keep_last": 2, "top_k_per_strategy": 0})
     # Dry-run plan

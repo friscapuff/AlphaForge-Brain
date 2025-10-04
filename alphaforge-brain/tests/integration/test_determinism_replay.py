@@ -83,10 +83,10 @@ def test_two_runs_identical_outputs() -> None:
             type("Bar", (), {"nav": float(v), "drawdown": 0.0})() for v in curve2_series
         ]
         mhash1 = metrics_hash(
-            {"final_pnl": float(curve1_series.iloc[-1]), "n_fills": int(len(fills1))}
+            {"final_pnl": float(curve1_series.iloc[-1]), "n_fills": len(fills1)}
         )
         mhash2 = metrics_hash(
-            {"final_pnl": float(curve2_series.iloc[-1]), "n_fills": int(len(fills2))}
+            {"final_pnl": float(curve2_series.iloc[-1]), "n_fills": len(fills2)}
         )
         echash1 = equity_curve_hash(equity_bars1)
         echash2 = equity_curve_hash(equity_bars2)

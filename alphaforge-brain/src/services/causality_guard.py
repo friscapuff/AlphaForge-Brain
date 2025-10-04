@@ -12,7 +12,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any as _Any
+from typing import ClassVar, cast
 
 
 class CausalityMode:
@@ -100,12 +101,12 @@ def causal_access_context(
 
 
 __all__ = [
-    "CausalityGuard",
     "CausalAccessContext",
+    "CausalityGuard",
     "CausalityMode",
     "CausalityViolation",
-    "causality_context",
     "causal_access_context",
+    "causality_context",
 ]
 
 # --- Context propagation helpers ---
@@ -137,10 +138,10 @@ def record_future_access(feature: str, offset: int, detail: str | None = None) -
 
 
 __all__ += [
-    "set_current_guard",
     "get_current_guard",
-    "record_future_access",
     "guard_context",
+    "record_future_access",
+    "set_current_guard",
 ]
 
 
@@ -190,13 +191,13 @@ def _enable_pandas_instrumentation(enable: bool) -> None:
                 )
             return _orig_frame_shift(self, *args, **kwargs)
 
-        # Runtime monkeypatch (pandas exposes these attributes; ignore no longer needed)
-        _pd.Series.shift = _series_shift
-        _pd.DataFrame.shift = _frame_shift
+        # Runtime monkeypatch (pandas exposes these attributes). Direct assignment preferred (Ruff B010)
+        _pd.Series.shift = cast(_Any, _series_shift)  # type: ignore[method-assign]
+        _pd.DataFrame.shift = cast(_Any, _frame_shift)  # type: ignore[method-assign]
         _PATCHED = True
     elif not enable and _PATCHED:
         if _orig_series_shift is not None:
-            _pd.Series.shift = _orig_series_shift
+            _pd.Series.shift = cast(_Any, _orig_series_shift)  # type: ignore[method-assign]
         if _orig_frame_shift is not None:
-            _pd.DataFrame.shift = _orig_frame_shift
+            _pd.DataFrame.shift = cast(_Any, _orig_frame_shift)  # type: ignore[method-assign]
         _PATCHED = False

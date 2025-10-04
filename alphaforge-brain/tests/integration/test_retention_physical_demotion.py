@@ -33,7 +33,8 @@ def test_physical_demotion_and_rehydrate_cycle():
     app = create_app()
     client = TestClient(app)
     # Create multiple runs
-    hashes = [make_run(client, 2000 + i) for i in range(6)]
+    for i in range(6):
+        make_run(client, 2000 + i)
     # Tighten retention settings to force demotion aggressively
     rset = client.post(
         "/settings/retention", json={"keep_last": 1, "top_k_per_strategy": 0}
@@ -49,7 +50,9 @@ def test_physical_demotion_and_rehydrate_cycle():
     rdir = base / target
     evicted_dir = rdir / ".evicted"
     assert evicted_dir.exists(), "Evicted dir should exist after demotion"
-    evicted_files = sorted([p.name for p in evicted_dir.iterdir()])
+    _ = sorted(
+        [p.name for p in evicted_dir.iterdir()]
+    )  # force iteration for side-effects if any
     # manifest.json should remain in root, other known artifacts (plots.png, trades/equity maybe) moved
     assert "manifest.json" in [
         p.name for p in rdir.iterdir() if p.is_file()

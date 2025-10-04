@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-  "test:visual": "playwright test",
+    "test:visual": "playwright test",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write ."
   },
@@ -20,8 +20,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
-    "zustand": "^4.5.2",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",
@@ -34,11 +34,10 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitejs/plugin-react": "^4.7.0",
-    "axe-core": "^4.9.0",
-    "jest-axe": "^7.0.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "autoprefixer": "^10.4.20",
+    "axe-core": "^4.9.0",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.2",
     "jsdom": "^24.1.0",
@@ -46,6 +45,6 @@
     "tailwindcss": "^3.4.13",
     "typescript": "^5.5.4",
     "vite": "^5.4.8",
-    "vitest": "^1.6.0"
+    "vitest": "^3.2.4"
   }
 }

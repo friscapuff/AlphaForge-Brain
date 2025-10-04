@@ -1,14 +1,15 @@
+"""Stress sweep CI stub (T002) placeholder.
+
+Exits 0 and prints a JSON result describing that no variants were executed.
+Will be replaced with a bounded sweep (e.g., N=20) validating determinism and
+cache reuse.
+"""
+
 from __future__ import annotations
 
-"""
-Stress sweep CI stub (T002) — placeholder to wire job. Exits 0 and prints a
-JSON result describing that no variants were executed. To be replaced with a
-bounded sweep (e.g., N=20) that validates determinism and cache reuse.
-"""
-
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def main(out: str | None = None) -> int:

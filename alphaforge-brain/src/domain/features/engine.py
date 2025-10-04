@@ -5,12 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-
-# We assume an indicator registry exposed similarly to domain.indicators.registry
-try:
-    from domain.indicators.registry import IndicatorRegistry, indicator_registry
-except Exception as e:  # pragma: no cover - defensive
-    raise ImportError("indicator registry not available: " + str(e)) from e
+from domain.indicators.registry import (
+    IndicatorRegistry,
+    indicator_registry,
+)  # normal import (tests ensure availability)
 
 
 class FeatureEngine:
@@ -133,8 +131,8 @@ class FeatureEngine:
 
         for col in ordered_cols:
             out[col] = planned[col]
-
-        return out
+        final = out  # alias to help mypy see single exit
+        return final
 
     def build_features_chunked(
         self,
@@ -218,12 +216,16 @@ def build_features(
     if not use_cache:
         if isinstance(chunk_size, int) and chunk_size > 0:
             eff_overlap = _compute_overlap(df, indicators, chunk_size, overlap)
-            return _engine_singleton.build_features_chunked(df, chunk_size=chunk_size, overlap=eff_overlap)
+            return _engine_singleton.build_features_chunked(
+                df, chunk_size=chunk_size, overlap=eff_overlap
+            )
         return _engine_singleton.build_features(df)
     if candle_hash is None or cache_root is None:
         if isinstance(chunk_size, int) and chunk_size > 0:
             eff_overlap = _compute_overlap(df, indicators, chunk_size, overlap)
-            return _engine_singleton.build_features_chunked(df, chunk_size=chunk_size, overlap=eff_overlap)
+            return _engine_singleton.build_features_chunked(
+                df, chunk_size=chunk_size, overlap=eff_overlap
+            )
         return _engine_singleton.build_features(df)
     # Caching path
     # Resolve indicators list deterministically
@@ -239,7 +241,9 @@ def build_features(
     def _builder(inner_df: pd.DataFrame) -> pd.DataFrame:
         if isinstance(chunk_size, int) and chunk_size > 0:
             eff_overlap = _compute_overlap(inner_df, indicators, chunk_size, overlap)
-            return _engine_singleton.build_features_chunked(inner_df, chunk_size=chunk_size, overlap=eff_overlap)
+            return _engine_singleton.build_features_chunked(
+                inner_df, chunk_size=chunk_size, overlap=eff_overlap
+            )
         return _engine_singleton.build_features(inner_df)
 
     # Indicators is guaranteed non-None here
@@ -274,7 +278,9 @@ def build_features_auto_chunk(
     try:
         from services.chunking import choose_chunk_size
 
-        cs = choose_chunk_size(df, target_chunk_mb=target_chunk_mb, max_rows_cap=max_rows_cap)
+        cs = choose_chunk_size(
+            df, target_chunk_mb=target_chunk_mb, max_rows_cap=max_rows_cap
+        )
     except Exception:
         # Fallback to monolithic if estimation fails
         cs = 0
@@ -288,6 +294,7 @@ def build_features_auto_chunk(
         chunk_size=cs,
         overlap=overlap,
     )
+
 
 # --- Internal helpers ---
 def _compute_overlap(

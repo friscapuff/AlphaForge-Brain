@@ -2,10 +2,7 @@ import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { render } from '@testing-library/react';
 import { BacktestValidationPage } from '../../src/pages/BacktestValidationPage.js';
-import { axe, toHaveNoViolations } from 'jest-axe';
-
-// Extend expect with jest-axe matcher
-expect.extend(toHaveNoViolations as any);
+import axe from 'axe-core';
 
 /**
  * T092: Axe scan on BacktestValidationPage no critical violations
@@ -14,10 +11,13 @@ expect.extend(toHaveNoViolations as any);
 
 describe('T092 BacktestValidationPage accessibility', () => {
   it('has no critical axe violations', async () => {
+    // jsdom doesn't implement canvas; stub getContext to avoid axe-core noise from color contrast rule
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (HTMLCanvasElement.prototype as any).getContext = () => null;
     // Enable minimal rendering mode to skip heavy charts/canvas for the scan
     (document.body as any).dataset.minA11y = 'true';
     const { container } = render(<BacktestValidationPage />);
-    const results = await axe(container, {
+    const results = await axe.run(container as unknown as HTMLElement, {
       // Disable rules known to require landmark/structure decisions not yet finalized
       rules: {
         'region': { enabled: false }, // optional multiple region labeling improvements later

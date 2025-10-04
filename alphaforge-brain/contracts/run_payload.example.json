@@ -1,0 +1,20 @@
+{
+  "$comment": "Run payload core excerpt with normalization preview (T035, T093)",
+  "hash": "example_run_hash",
+  "summary": {
+    "metrics": {
+      "cagr": 0.12,
+      "sharpe": 1.8
+    },
+    "completed_trades": []
+  },
+  "normalized_equity_preview": {
+    "rows": 252,
+    "median_nav": 104.5,
+    "median_value": 104.5,
+    "scaled": false,
+    "scale_factor": null
+  },
+  "metrics_hash": "example_metrics_signature_v1",
+  "equity_curve_hash": "example_equity_signature_v1"
+}

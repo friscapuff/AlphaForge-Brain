@@ -1,0 +1,10 @@
+{
+  "$comment": "EquityBar example (post-normalization, unscaled)",
+  "ts": "2024-01-02T00:00:00Z",
+  "nav": 105.4321,
+  "peak_nav": 110.0000,
+  "drawdown": 0.041526363636363584,
+  "gross_exposure": 0.0,
+  "net_exposure": 0.0,
+  "trade_count_cum": 0
+}

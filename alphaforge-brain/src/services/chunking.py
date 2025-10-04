@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 import re
 from collections.abc import Iterable, Iterator
-from typing import Callable
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -110,11 +110,11 @@ def compute_required_overlap(indicators: Iterable[object]) -> int:
     return max(0, max_w - 1)
 
 
-__all__ = ["iter_chunk_slices", "compute_required_overlap"]
+__all__ = ["compute_required_overlap", "iter_chunk_slices"]
 
 
 def compute_required_overlap_for_functions(
-    functions: dict[str, Callable[[pd.DataFrame], pd.DataFrame | pd.Series]],
+    functions: dict[str, Callable[[pd.DataFrame], Any]],
     df_sample: pd.DataFrame,
     base_columns: Iterable[str],
 ) -> int:
@@ -133,21 +133,19 @@ def compute_required_overlap_for_functions(
             out = fn(df_sample)
         except Exception:
             continue
+        cols: list[str] = []
         if isinstance(out, pd.Series):
-            cols = [out.name] if out.name is not None else []
+            if out.name is not None:
+                cols = [str(out.name)]
         elif isinstance(out, pd.DataFrame):
-            cols = list(map(str, out.columns))
-        elif (
-            isinstance(out, (list, tuple))
-            and out
-            and isinstance(out[0], (pd.DataFrame, pd.Series))
-        ):
-            o = out[0]
-            if isinstance(o, pd.Series):
-                cols = [o.name] if o.name is not None else []
-            else:
-                cols = list(map(str, o.columns))
-        else:
+            cols = [str(c) for c in out.columns]
+        elif isinstance(out, (list, tuple)) and len(out) > 0:
+            first = out[0]
+            if isinstance(first, pd.Series) and first.name is not None:
+                cols = [str(first.name)]
+            elif isinstance(first, pd.DataFrame):
+                cols = [str(c) for c in first.columns]
+        if not cols:
             continue
         for c in cols:
             if c in base:
@@ -177,8 +175,8 @@ def estimate_row_size_bytes_from_df(df: pd.DataFrame) -> int:
             total += 1
         elif pd.api.types.is_datetime64_any_dtype(dtype):
             total += 8
-        elif pd.api.types.is_categorical_dtype(dtype):
-            # pointer + category code ~ 8 bytes
+        elif str(dtype).startswith("category"):
+            # Approximate category: store code (1 byte) + pointer (7 bytes)
             total += 8
         else:
             # object/string: rough average payload
@@ -204,4 +202,4 @@ def choose_chunk_size(
     return rows
 
 
-__all__.extend(["estimate_row_size_bytes_from_df", "choose_chunk_size"])
+__all__.extend(["choose_chunk_size", "estimate_row_size_bytes_from_df"])

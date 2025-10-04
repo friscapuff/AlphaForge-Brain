@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Parquet (pyarrow) availability helpers.
 
 Centralizes lazy detection, lightweight type narrowing, and one-time
@@ -8,20 +6,25 @@ cache modules small and consistent while allowing mypy to reason about
 the pyarrow branch (without requiring a custom plugin).
 """
 
+from __future__ import annotations
+
 from types import ModuleType
-from typing import TypeGuard, Any
+from typing import Any, TypeGuard
 
 from infra.logging import get_logger
 
-_PYARROW_MODULE: ModuleType | None | object = object()  # sentinel until first probe
+_SENTINEL = object()
+_PYARROW_MODULE: ModuleType | None | object = _SENTINEL  # sentinel until first probe
 _FALLBACK_LOGGED = False
 
 
-def _import_pyarrow() -> ModuleType | None:  # pragma: no cover - import outcome env specific
-    try:  # Attempt fast path: already cached resolution
-        import pyarrow as pa  # type: ignore
+def _import_pyarrow() -> (
+    ModuleType | None
+):  # pragma: no cover - import outcome env specific
+    try:
+        import pyarrow as pa
 
-        return pa  # type: ignore[no-any-return]
+        return pa
     except Exception:
         return None
 
@@ -32,7 +35,7 @@ def parquet_available() -> bool:
     Result is cached for the process lifetime.
     """
     global _PYARROW_MODULE
-    if _PYARROW_MODULE is object() or isinstance(_PYARROW_MODULE, object) and not isinstance(_PYARROW_MODULE, ModuleType):  # first probe or sentinel
+    if _PYARROW_MODULE is _SENTINEL:  # first probe sentinel
         mod = _import_pyarrow()
         _PYARROW_MODULE = mod  # may be None
     return isinstance(_PYARROW_MODULE, ModuleType)
@@ -63,8 +66,8 @@ def log_csv_fallback_once(reason: str) -> None:
 
 
 __all__ = [
-    "parquet_available",
-    "load_pyarrow",
     "is_pyarrow",
+    "load_pyarrow",
     "log_csv_fallback_once",
+    "parquet_available",
 ]

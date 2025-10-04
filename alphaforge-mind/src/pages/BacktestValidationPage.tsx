@@ -14,7 +14,7 @@ import { ExportConfigModal } from '../components/backtest/ExportConfigModal.js';
 import { PercentileModeToggle } from '../components/backtest/PercentileModeToggle.js';
 import { AdvancedValidationToggles } from '../components/backtest/AdvancedValidationToggles.js';
 import { ErrorBoundary } from '../components/common/ErrorBoundary.js';
-import { MonteCarloOverlay } from '../components/backtest/MonteCarloOverlay';
+import { MonteCarloOverlay } from '../components/backtest/MonteCarloOverlay.js';
 
 export function BacktestValidationPage() {
   const { status, submit, poll } = useBacktestRun();
@@ -22,6 +22,10 @@ export function BacktestValidationPage() {
   const flags = useFeatureFlags();
   const selectedRunId = useAppStore(s => s.selectedRunId);
   const results = useAppStore(s => (selectedRunId ? s.results[selectedRunId] : undefined));
+  const caution = !!results?.validationCaution;
+  const cautionMetrics = results?.validationCautionMetrics ?? [];
+  const optMode = results?.optimizationMode;
+  const warnings = results?.advanced?.warnings ?? [];
   const [exportOpen, setExportOpen] = React.useState(false);
 
   // Allow tests to opt out of rendering heavier visual components (charts) by setting
@@ -48,7 +52,34 @@ export function BacktestValidationPage() {
         <RunHistory />
       </section>
       <section className="space-y-3" aria-labelledby="results-heading">
-        <h2 id="results-heading" className="font-semibold text-sm">Results</h2>
+        <h2 id="results-heading" className="font-semibold text-sm flex items-center gap-2">
+          Results
+          {caution && (
+            <span
+              role="img"
+              aria-label="Validation caution"
+              title={cautionMetrics.length ? `Caution metrics: ${cautionMetrics.join(', ')}` : 'Validation caution'}
+              className="inline-flex items-center gap-1 text-amber-400 bg-amber-950/40 border border-amber-800 px-2 py-0.5 rounded-full text-[10px]"
+              data-testid="validation-caution-badge"
+            >
+              ⚠ caution
+            </span>
+          )}
+        </h2>
+        {optMode === 'deferred' && warnings.length > 0 && (
+          <div
+            role="alert"
+            className="text-[11px] bg-amber-900/30 border border-amber-800 text-amber-300 px-2 py-1 rounded"
+            data-testid="optimization-deferred-warning"
+          >
+            {(() => {
+              const w = warnings.find(w => (w as any).code === 'OPTIMIZATION_DEFERRED') as any;
+              const combos = w?.combinations ?? '?';
+              const limit = w?.limit ?? '?';
+              return `Optimization deferred: ${combos} combinations exceed limit ${limit}.`;
+            })()}
+          </div>
+        )}
         {!minimal && (
           <div className="flex flex-wrap gap-4">
             <div className="space-y-1">

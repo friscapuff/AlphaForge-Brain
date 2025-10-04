@@ -88,3 +88,21 @@ presets/*.json
 *.swp
 *~
 node_modules
+
+# Local virtualenv accidentally added under alphaforge-brain
+alphaforge-brain/.venv*/
+
+# SQLite / local state DB
+studio.db
+
+# Generated OpenAPI snapshot diffs
+openapi.new.json
+
+# Coverage slice outputs
+coverage_slice_results.json
+
+# Frontend test run artifacts
+alphaforge-mind/test-results/
+
+# Probes / scratch helpers (optional keep if promoted later)
+line_probe*.py

@@ -91,7 +91,7 @@ if not REPORT_PER_SLICE:
     # Disable terminal & XML reports per slice for speed; final aggregate will produce them.
     PYTEST_BASE += ["--cov-report="]
 
-results = []
+results: list[dict[str, object]] = []
 coverage_files: list[Path] = []
 for directory in TEST_ROOTS:
     label = directory.name.replace("-", "_")
@@ -100,7 +100,7 @@ for directory in TEST_ROOTS:
     env["COVERAGE_FILE"] = str(cov_file)
     start = time.time()
     status = "pass"
-    detail_tail = None
+    detail_tail: str | None = None
     try:
         proc = subprocess.run(
             [*PYTEST_BASE, str(directory)],
@@ -116,7 +116,12 @@ for directory in TEST_ROOTS:
             detail_tail = proc.stdout[-2000:]
     except subprocess.TimeoutExpired as e:
         status = "timeout"
-        detail_tail = (e.stdout or "")[-2000:]
+        raw = e.stdout
+        if isinstance(raw, bytes):
+            raw_text = raw.decode(errors="replace")
+        else:
+            raw_text = raw or ""
+        detail_tail = raw_text[-2000:]
     duration = round(time.time() - start, 2)
     if Path(cov_file).exists():
         coverage_files.append(cov_file)

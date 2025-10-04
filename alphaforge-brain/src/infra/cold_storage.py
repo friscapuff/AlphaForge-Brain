@@ -35,9 +35,10 @@ import json
 import os
 import tarfile
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 _MANIFEST_NAME = "cold_manifest.json"
 

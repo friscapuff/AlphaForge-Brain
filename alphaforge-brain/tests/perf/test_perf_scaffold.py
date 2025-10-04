@@ -6,7 +6,9 @@ import pytest
 
 @pytest.mark.perf
 @pytest.mark.xfail(reason="FR-113 benchmark harness not implemented yet", strict=False)
-@pytest.mark.skipif(os.getenv("CI") == "true", reason="Perf scaffold skipped in CI until harness lands")
+@pytest.mark.skipif(
+    os.getenv("CI") == "true", reason="Perf scaffold skipped in CI until harness lands"
+)
 def test_perf_scaffold_timer_smoke(rss_sampler):
     """Minimal perf scaffold: measure a small sleep and capture RSS.
 

@@ -69,12 +69,17 @@ export function useBacktestRun(): UseBacktestRunReturn {
       setStatus('running');
     } else if (current === 'running') {
       setStatus('completed');
+      const flags = useFeatureFlags.getState();
       setResult(lastRunId, {
         equityCurve: [
           { t: new Date(Date.now() - 60000).toISOString(), equity: 10000 },
           { t: new Date().toISOString(), equity: 10025 }
         ],
-        metrics: { cagr: 0.12, sharpe: 1.4 }
+        metrics: { cagr: 0.12, sharpe: 1.4 },
+        // Basic demo: if advancedValidation is enabled, return a caution flag with two metrics.
+        // In real integration, these would be returned from backend API payload (T042).
+        validationCaution: flags.advancedValidation ? true : false,
+        validationCautionMetrics: flags.advancedValidation ? ['permutation.p', 'block_bootstrap.p'] : [],
       });
       if (slowTimerRef.current) {
         window.clearTimeout(slowTimerRef.current);

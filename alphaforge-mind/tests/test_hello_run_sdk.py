@@ -2,13 +2,34 @@ from __future__ import annotations
 
 import pathlib
 import sys
+from typing import Any
 
-_R = pathlib.Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_R / "alphaforge-brain" / "src"))
-sys.path.insert(0, str(_R / "alphaforge-mind" / "src"))
-import client as mind_client  # type: ignore
-from api.app import create_app  # type: ignore
-from fastapi.testclient import TestClient  # type: ignore
+
+def _bootstrap() -> tuple[Any, Any, Any]:
+    """Bootstrap PYTHONPATH and import mind client, app factory, TestClient.
+
+    Wrapped in a function so imports occur after sys.path mutation without
+    triggering E402 (imports after non-import statements) and without noqa.
+    """
+    _r = pathlib.Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(_r / "alphaforge-brain" / "src"))
+    sys.path.insert(0, str(_r / "alphaforge-mind" / "src"))
+    try:
+        import client as _mind_client  # primary path (mind project root)
+    except Exception:  # pragma: no cover - fallback when executed differently
+        try:
+            from alphaforge_mind import (
+                alphaforge_mind_client as _mind_client,
+            )  # runtime fallback
+        except Exception as e:  # pragma: no cover - give clearer message
+            raise ImportError("Unable to import mind client module") from e
+    from api.app import create_app as _create_app  # relies on brain src on sys.path
+    from fastapi.testclient import TestClient as _TestClient
+
+    return _mind_client, _create_app, _TestClient
+
+
+mind_client, create_app, TestClient = _bootstrap()
 
 
 def test_hello_run_deterministic(tmp_path):

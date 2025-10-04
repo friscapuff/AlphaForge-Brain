@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import os
-
 import pytest
+
+# Skip gracefully if SQLAlchemy not available in current environment
+pytest.importorskip("sqlalchemy")
 
 
 @pytest.mark.integration
@@ -15,7 +16,7 @@ def test_orm_smoke_sqlite_tmp(sqlite_tmp_path, monkeypatch):
     cfg.get_settings.cache_clear()  # type: ignore[attr-defined]
 
     # Now import ORM after settings are configured
-    from infra.orm import Base, get_engine, RunRepository
+    from infra.orm import Base, RunRepository, get_engine
     from infra.orm.models import Run
 
     eng = get_engine()

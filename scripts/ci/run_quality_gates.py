@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Unified CI Quality Gates (T020)
 
-Enforces (fails with non‑zero exit):
- 1. Determinism (replay) – wraps existing determinism_replay script
- 2. Contract drift – compares dumped OpenAPI schema to committed copy
- 3. Migration head checksum – reuses check_migrations_head
- 4. Memory cap – executes memory_cap stub (or real impl later) and enforces cap when value available
- 5. Cross-root integrity – wraps check_cross_root
+Enforces (fails with non-zero exit):
+ 1. Determinism (replay) - wraps existing determinism_replay script
+ 2. Contract drift - compares dumped OpenAPI schema to committed copy
+ 3. Migration head checksum - reuses check_migrations_head
+ 4. Memory cap - executes memory_cap stub (or real impl later) and enforces cap when value available
+ 5. Cross-root integrity - wraps check_cross_root
 
 Exit codes:
  0 success, 1 generic failure. Individual failure reasons aggregated in JSON summary.
@@ -17,7 +17,7 @@ collection / badge emission.
 Assumptions / Future work:
  - Memory cap stub currently emits null rss; treated as pass, once implemented we enforce rss_mb_peak <= cap_mb.
  - Contract drift detection: compares hashes of sorted JSON of openapi.deref.json vs regenerated.
- - Determinism script already returns non‑zero on failure; we capture its payload.
+ - Determinism script already returns non-zero on failure; we capture its payload.
 """
 
 from __future__ import annotations

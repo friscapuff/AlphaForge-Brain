@@ -14,9 +14,102 @@
 
 AlphaForge Brain is a deterministic, modular backend for running strategy backtests, risk-adjusted simulations, and statistical validations. It targets a single power user who wants **repeatable experiments**, **artifact integrity**, and **low-friction iteration** without premature multi-user overhead. A future UI (out of scope here) will sit on top of these APIs. The codebase has recently completed a full **strict typing & lint hardening phase** (upcoming v0.3.0) and now exposes multi-symbol abstractions preparing for future portfolio-level extensions.
 
+## Quick Start: Launch AlphaForge (Backend + UI)
+
+You can start both the backend API and the Mind UI with one command. This opens the UI in your browser so you can explore charts and run backtests immediately.
+
+### One-Time Setup
+1. Install Python 3.11 and Node.js (≥18).
+2. Install backend deps (run in repo root):
+  ```powershell
+  poetry install
+  ```
+3. Install frontend deps:
+  ```powershell
+  cd alphaforge-mind
+  npm install
+  cd ..
+  ```
+
+### Launch (Single Command)
+```powershell
+poetry run launch-alphaforge
+```
+
+What happens:
+* Backend starts at http://127.0.0.1:8000  (API docs at /docs)
+* Frontend (Vite) starts at http://127.0.0.1:5173
+* Your default browser opens automatically (if possible)
+
+Press Ctrl+C once to stop both.
+
+### New CLI Flags (Unified Launch Feature)
+Specification: `specs/007-unified-one-command/spec.md`.
+
+| Flag | Purpose | Default |
+|------|---------|---------|
+| `--backend-port <int>` | Override backend API port | 8000 |
+| `--frontend-port <int>` | Preferred frontend dev port (auto-fallback upward if busy) | 5173 |
+| `--timeout <seconds>` | Readiness timeout window | 45 |
+| `--no-browser` | Suppress auto browser open (headless / CI) | off |
+| `-v` / `--verbose` | Extra diagnostics (npm path, chosen ports, probe attempts) | off |
+| `-q` / `--quiet` | Minimal output (hide spinners & ready banners) | off |
+
+Examples:
+```powershell
+poetry run launch-alphaforge --backend-port 8100 --frontend-port 5200 -v
+poetry run launch-alphaforge --no-browser
+poetry run launch-alphaforge -q
+```
+
+Behavior Notes:
+* Port Fallback: If preferred frontend port is taken, launcher scans next 15 ports.
+* Readiness: Requires both TCP port and HTTP probe success (`/health` backend, root page frontend).
+* Graceful Shutdown: Single Ctrl+C terminates both processes cleanly.
+* Diagnostics: Verbose mode includes timestamps & detection events; quiet mode prints only final URLs or errors.
+
+### Windows Double-Click Option
+```powershell
+./launch-alphaforge.ps1
+```
+If PowerShell blocks the script:
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+### Troubleshooting
+| Issue | Action |
+|-------|--------|
+| Browser didn’t open | Manually visit http://127.0.0.1:5173 |
+| 'npm' not found | Install Node.js https://nodejs.org/ then run npm install in alphaforge-mind |
+| Backend import error | Re-run poetry install in root |
+| Port in use | Close previous dev servers or edit ports in scripts/launch_alphaforge.py |
+
+After launch, submit a backtest from the UI; progress & results are powered by the running backend.
+
+
 Note on architecture migration (2025-09-24): The repository has moved to a dual-root layout. Backend code now lives under `alphaforge-brain/src` with tests under `alphaforge-brain/tests`. A placeholder `alphaforge-mind/` root exists for future UI/visualization work. See `alphaforge-brain/ARCH_MIGRATION_STATUS.md` for exit criteria evidence and `ARCH_MIGRATION_RETROSPECTIVE.md` for lessons learned. An architecture diagram will be linked here in a future revision.
 
 ### Accessibility (Mind UI Early Baseline)
+### Optimization Grid Defer Limit (AF_OPTIMIZATION_MAX_COMBINATIONS)
+AlphaForge can detect very large walk-forward optimization grids and defer execution to protect interactive sessions. Set an environment variable to control the maximum allowed combinations:
+
+PowerShell (Windows):
+```powershell
+$env:AF_OPTIMIZATION_MAX_COMBINATIONS=1000
+```
+
+Shell (Linux/macOS):
+```bash
+export AF_OPTIMIZATION_MAX_COMBINATIONS=1000
+```
+
+Behavior:
+- If the product of parameter list lengths exceeds this limit, the backend returns `optimization_mode = "deferred"` in the run result.
+- A structured warning appears under `advanced.warnings`:
+  `{ code: "OPTIMIZATION_DEFERRED", combinations: <n>, limit: <limit> }`.
+- Set to `0` (default) or unset to disable the limit and allow all grid sizes.
+
 The emerging `alphaforge-mind` UI establishes an initial accessibility baseline (Tasks T092–T093):
 
 | Aspect | Status | Notes |

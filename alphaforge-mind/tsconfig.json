@@ -14,9 +14,10 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": [],
+    "typeRoots": ["./node_modules/@types", "./tests/types", "./node_modules/vitest"]
   },
   "include": ["src", "tests", "tests/types", "vitest.config.ts"],
-  "types": ["vitest"],
   "references": []
 }

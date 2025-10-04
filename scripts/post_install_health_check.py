@@ -63,7 +63,7 @@ def check_imports() -> SimpleNamespace:
     return SimpleNamespace(**modules)
 
 
-def check_numpy(num) -> None:  # type: ignore[no-untyped-def]
+def check_numpy(num) -> None:
     ver = getattr(num, "__version__", "?")
     # Accept pinned version in infra/version_pins.py (2.1.1) OR the range [2.0.0,2.1.x]
     from packaging.version import Version
@@ -82,7 +82,7 @@ def check_numpy(num) -> None:  # type: ignore[no-untyped-def]
 def check_fastapi_health(app_version: str | None) -> None:
     # Import create_app lazily to avoid heavy cost if something else already failed.
     try:
-        from api.app import create_app  # type: ignore
+        from api.app import create_app
         from fastapi.testclient import TestClient
     except Exception as exc:  # pragma: no cover
         fail(f"FastAPI app import failed: {exc}")

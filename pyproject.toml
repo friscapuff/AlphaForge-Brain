@@ -81,6 +81,7 @@ run-server = "api.app:app"
 run-hash = "services.cli.run_hash:main"
 health-check = "scripts.post_install_health_check:main"
 poetry-self-check = "scripts.poetry_self_check:main"
+launch-alphaforge = "scripts.launch_alphaforge:main"
 
 [tool.poetry.extras]
 polars = ["polars"]

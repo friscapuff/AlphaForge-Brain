@@ -23,7 +23,7 @@ from domain.schemas.run_config import (
     StrategySpec,
     ValidationSpec,
 )
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 
 _np: _Any | None = None
@@ -33,6 +33,11 @@ except Exception:  # pragma: no cover
     _np = None
 
 router = APIRouter(prefix="/api/v1", tags=["backtests"])
+
+# Module-level state for simple Monte Carlo rate limiting (replaces dynamic function attributes)
+# Using plain lists/variables keeps mypy satisfied and avoids attr-defined errors.
+_MC_RATE_BUCKET: list[float] = []  # sliding window of request timestamps
+_MC_LAST_RATE_LIMIT_RESET: int | None = None
 
 
 class BacktestSubmission(BaseModel):
@@ -96,7 +101,7 @@ def get_registry(request: Request) -> InMemoryRunRegistry:
 async def submit_backtest(
     payload: BacktestSubmission,
     response: Response,
-    registry: InMemoryRunRegistry = Depends(get_registry),
+    request: Request,
     x_correlation_id: str | None = Header(default=None, alias="x-correlation-id"),
 ) -> BacktestSubmissionResponse:
     """Create or queue a backtest run.
@@ -153,6 +158,7 @@ async def submit_backtest(
     # validation_input already a Dict[str, Any]; pass through directly
     validation_spec = ValidationSpec(**validation_input)
 
+    registry = get_registry(request)
     try:
         run_config = RunConfig(
             symbol=payload.symbol,
@@ -222,7 +228,7 @@ async def submit_backtest(
             registry.set(run_id, record)
         except Exception:  # pragma: no cover - non-fatal
             pass
-        created = True
+    # created always True in fallback path; value unused beyond return (omit variable)
     # Enrich record with advanced validation toggles & advanced block (T075 / T066)
     # Semantics (reconciles T066 & T098):
     #   - Default (env unset) => echo provided fields (acceptance & visibility)
@@ -264,6 +270,20 @@ class BacktestResultPayload(BaseModel):
     strategy_hash: str | None = None
     extended_validation_toggles: dict[str, Any] | None = None  # T075 echo
     advanced: dict[str, Any] | None = None  # T075 echo
+    # T015 additive fields (Unified Trade & Equity Consistency Initiative)
+    validation_caution: bool | None = Field(
+        None,
+        description=(
+            "Pre-validation gating flag (Phase 4). Always None in Phase 1 baseline; populated later without breaking clients."
+        ),
+    )
+    optimization_mode: str | None = Field(
+        None,
+        description=(
+            "Indicates optimization execution mode (e.g., 'none', 'deferred'). Present early with None to lock contract."
+        ),
+    )
+    # advanced.warnings lives under advanced; we surface convenience top-level list only once semantics finalize (future). For Phase 1 we keep warnings nested.
 
 
 class MonteCarloRequest(BaseModel):
@@ -304,15 +324,14 @@ class ExportConfigResponse(BaseModel):
 
 
 @router.get("/backtests/{run_id}", response_model=BacktestResultPayload)
-async def get_backtest_result(
-    run_id: str, registry: InMemoryRunRegistry = Depends(get_registry)
-) -> BacktestResultPayload:
+async def get_backtest_result(run_id: str, request: Request) -> BacktestResultPayload:
     """T069: Return enriched backtest result payload.
 
     Derives equity curve & trades summary from stored record if present. Because the
     in-memory record currently keeps only summary & validation, we expose what is
     available; equity_curve synthesized to empty list for now (future: load from artifact parquet).
     """
+    registry = get_registry(request)
     rec = registry.get(run_id)
     if rec is None:
         raise HTTPException(status_code=404, detail="run not found")
@@ -335,8 +354,59 @@ async def get_backtest_result(
         seed=rec.get("seed"),
         strategy_hash=rec.get("strategy_hash"),
         extended_validation_toggles=rec.get("extended_validation_toggles"),  # T075
-        advanced=rec.get("advanced"),
+        advanced=(
+            rec.get("advanced") if isinstance(rec.get("advanced"), dict) else None
+        ),
+        # T015 fields default None to avoid implying semantics prematurely.
+        validation_caution=None,
+        optimization_mode=None,
     )
+    # Ensure advanced.warnings key exists (empty list) if advanced present to lock nested shape early.
+    if payload.advanced is not None and "warnings" not in payload.advanced:
+        payload.advanced = {**payload.advanced, "warnings": []}
+
+    # T050/T051: Optimization grid enumeration + deferred warning
+    # Inspect original config for walk-forward optimization param grid
+    try:
+        cfg = rec.get("config_original") if isinstance(rec, dict) else None
+        wf = (
+            (cfg or {}).get("validation", {}).get("walk_forward", {})
+            if isinstance(cfg, dict)
+            else {}
+        )
+        opt = wf.get("optimization") if isinstance(wf, dict) else None
+        if isinstance(opt, dict) and opt.get("enabled"):
+            grid = opt.get("param_grid", {})
+            combos = 1
+            if isinstance(grid, dict) and grid:
+                for v in grid.values():
+                    if isinstance(v, list) and v:
+                        combos *= len(v)
+            # Read max combinations from env (0 or missing means no limit)
+            limit_env = os.getenv("AF_OPTIMIZATION_MAX_COMBINATIONS", "0")
+            try:
+                limit = int(limit_env)
+            except Exception:
+                limit = 0
+            if limit > 0 and combos > limit:
+                # Defer optimization execution: set mode and emit warning object under advanced.warnings
+                if payload.advanced is None:
+                    payload.advanced = {"warnings": []}
+                elif "warnings" not in payload.advanced:
+                    payload.advanced = {**payload.advanced, "warnings": []}
+                warnings_list = payload.advanced.get("warnings", [])
+                if isinstance(warnings_list, list):
+                    warnings_list.append(
+                        {
+                            "code": "OPTIMIZATION_DEFERRED",
+                            "combinations": combos,
+                            "limit": limit,
+                        }
+                    )
+                    payload.advanced["warnings"] = warnings_list
+                payload.optimization_mode = "deferred"
+    except Exception:  # pragma: no cover - defensive; never break result payload
+        pass
     return payload
 
 
@@ -344,7 +414,7 @@ async def get_backtest_result(
 async def generate_monte_carlo(
     run_id: str,
     payload: MonteCarloRequest,
-    registry: InMemoryRunRegistry = Depends(get_registry),
+    request: Request,
 ) -> MonteCarloResponse:
     """T070: Generate deterministic Monte Carlo equity paths for a run (baseline model).
 
@@ -352,6 +422,7 @@ async def generate_monte_carlo(
     Seed precedence: payload.seed > stored run seed > derived from strategy_hash (ascii sum).
     Simplified stochastic model: independent Gaussian returns with fixed drift/vol per step.
     """
+    registry = get_registry(request)
     rec = registry.get(run_id)
     if rec is None:
         raise HTTPException(status_code=404, detail="run not found")
@@ -445,28 +516,25 @@ async def generate_monte_carlo(
     try:
         window_seconds = 10
         max_calls = 8
-        rate_bucket = getattr(generate_monte_carlo, "_rate_bucket", None)
-        if rate_bucket is None:
-            rate_bucket = []
-            generate_monte_carlo._rate_bucket = rate_bucket
-        # Prune timestamps outside window
+        # Prune timestamps outside window (in place on module-level list)
         cutoff = _now() - window_seconds
-        while rate_bucket and rate_bucket[0] < cutoff:
-            rate_bucket.pop(0)
-        if len(rate_bucket) >= max_calls:
+        while _MC_RATE_BUCKET and _MC_RATE_BUCKET[0] < cutoff:
+            _MC_RATE_BUCKET.pop(0)
+        if len(_MC_RATE_BUCKET) >= max_calls:
             # Provide reset-after seconds hint via header (x-rate-limit-reset-after)
+            global _MC_LAST_RATE_LIMIT_RESET
             reset_after = (
-                int(window_seconds - (_now() - rate_bucket[0]))
-                if rate_bucket
+                int(window_seconds - (_now() - _MC_RATE_BUCKET[0]))
+                if _MC_RATE_BUCKET
                 else window_seconds
             )
-            generate_monte_carlo._last_rate_limit_reset = reset_after  # type: ignore[attr-defined]
+            _MC_LAST_RATE_LIMIT_RESET = reset_after
             raise HTTPException(
                 status_code=429,
                 detail="rate limit exceeded",
                 headers={"x-rate-limit-reset-after": str(reset_after)},
             )
-        rate_bucket.append(_now())
+        _MC_RATE_BUCKET.append(_now())
     except HTTPException:
         raise
     except Exception:  # pragma: no cover - do not fail MC on limiter errors
@@ -483,9 +551,9 @@ async def generate_monte_carlo(
 
 @router.get("/backtests", response_model=RunHistoryResponse)
 async def list_backtests(
+    request: Request,
     symbol: str | None = None,
     limit: int = 20,
-    registry: InMemoryRunRegistry = Depends(get_registry),
 ) -> RunHistoryResponse:
     """T071: List recent backtest runs optionally filtered by symbol.
 
@@ -494,6 +562,7 @@ async def list_backtests(
     if limit <= 0:
         raise HTTPException(status_code=400, detail="limit must be positive")
     # Collect records
+    registry = get_registry(request)
     records = list(registry.store.values())  # direct access acceptable for read
     if symbol:
         records = [r for r in records if str(r.get("symbol")).lower() == symbol.lower()]
@@ -522,7 +591,7 @@ async def list_backtests(
 @router.get("/backtests/{run_id}/walkforward", response_model=WalkForwardResponse)
 async def get_walk_forward(
     run_id: str,
-    registry: InMemoryRunRegistry = Depends(get_registry),
+    request: Request,
 ) -> WalkForwardResponse:
     """T072: Return deterministic walk-forward splits for a run.
 
@@ -530,6 +599,7 @@ async def get_walk_forward(
     overall date range into equal segments. Future implementation can derive from
     validation config if present.
     """
+    registry = get_registry(request)
     rec = registry.get(run_id)
     if rec is None:
         raise HTTPException(status_code=404, detail="run not found")
@@ -553,12 +623,13 @@ async def get_walk_forward(
 @router.get("/backtests/{run_id}/config", response_model=ExportConfigResponse)
 async def export_config(
     run_id: str,
-    registry: InMemoryRunRegistry = Depends(get_registry),
+    request: Request,
 ) -> ExportConfigResponse:
     """T073: Return canonicalized original run configuration.
 
     Uses stored config_original snapshot (added in create_or_get). No mutation.
     """
+    registry = get_registry(request)
     rec = registry.get(run_id)
     if rec is None:
         raise HTTPException(status_code=404, detail="run not found")

@@ -1,9 +1,7 @@
 import json
-from pathlib import Path
 
 import pandas as pd
 import pytest
-
 from api.app import app
 from fastapi.testclient import TestClient
 

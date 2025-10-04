@@ -398,25 +398,25 @@ def validate_manifest_object(manifest: dict[str, Any], schema_path: Path) -> Non
 
 
 __all__ = [
-    "init_run",
-    "update_run_status",
-    "bulk_insert_trades",
+    "RunRow",
     "bulk_insert_equity",
+    "bulk_insert_trades",
     "finalize_run",
+    "get_metrics",
+    "get_run",
+    "get_run_typed",
+    "init_run",
     "insert_metric",
     "insert_validation",
-    "get_run",
-    "get_metrics",
-    "get_run_typed",
-    "RunRow",
-    "validate_manifest_object",
-    "upsert_feature_cache_meta",
-    "record_feature_cache_artifact",
     "record_causality_stats",
-    "record_phase_timing",
-    "record_trace_span",
-    "record_run_error",
+    "record_feature_cache_artifact",
     "record_phase_marker",
+    "record_phase_timing",
+    "record_run_error",
+    "record_trace_span",
+    "update_run_status",
+    "upsert_feature_cache_meta",
+    "validate_manifest_object",
 ]
 
 

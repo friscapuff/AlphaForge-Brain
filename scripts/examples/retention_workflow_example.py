@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Retention workflow example using AlphaForgeMindClient.
 
 Steps:
@@ -9,6 +7,9 @@ Steps:
 4. Apply retention.
 5. Attempt cold storage restore for a demoted run.
 """
+
+from __future__ import annotations
+
 import os
 from pprint import pprint
 
