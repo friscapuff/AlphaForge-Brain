@@ -26,20 +26,28 @@ _DEF_TRUE = {"1", "true", "yes", "on", "enabled"}
 
 @lru_cache(maxsize=1)
 def is_unified_trades_enabled() -> bool:
-    return os.getenv("AF_UNIFIED_TRADES", "0").lower() in _DEF_TRUE
+    # Phase 7 (T071): unified trades default ON, but allow explicit env override to disable.
+    val = os.getenv("AF_UNIFIED_TRADES")
+    if val is None:
+        return True
+    return val.lower() in _DEF_TRUE
 
 
 @lru_cache(maxsize=1)
 def is_equity_normalizer_v2_enabled() -> bool:
-    return os.getenv("AF_EQUITY_NORMALIZER_V2", "0").lower() in _DEF_TRUE
+    # Phase 7 (T071): normalization default ON, but allow explicit env override to disable.
+    val = os.getenv("AF_EQUITY_NORMALIZER_V2")
+    if val is None:
+        return True
+    return val.lower() in _DEF_TRUE
 
 
 @lru_cache(maxsize=1)
 def is_equity_hash_v2_enabled() -> bool:
     """Return True if transitional normalized-equity hashing should be used.
 
-    NOTE: Placeholder - no callers yet (T036). Adding early ensures tests &
-    docs can refer to a concrete symbol without churn.
+    Phase 7 (T071): Keep as a soft toggle (default off) to preserve legacy run_hash
+    behavior; flip to True when moving to Phase 8 if required.
     """
     return os.getenv("AF_EQUITY_HASH_V2", "0").lower() in _DEF_TRUE
 

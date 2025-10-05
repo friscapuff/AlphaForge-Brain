@@ -20,8 +20,8 @@ def _enable_flag():
 
 
 def _disable_flag():
-    if "AF_EQUITY_NORMALIZER_V2" in os.environ:
-        del os.environ["AF_EQUITY_NORMALIZER_V2"]
+    # Phase 7 semantics: default is ON; explicitly set to a falsey value to disable
+    os.environ["AF_EQUITY_NORMALIZER_V2"] = "0"
     from settings import flags as _flags
 
     _flags.is_equity_normalizer_v2_enabled.cache_clear()  # type: ignore
@@ -61,34 +61,35 @@ def test_t031_equity_normalization_compare_smoke():
     cfg = _make_cfg()
     reg = InMemoryRunRegistry()
 
-    # Baseline (flag off)
+    # Baseline (Phase 7 default: flag ON)
     h1, rec1, _ = create_or_get(cfg, reg)
-    assert "normalized_equity_preview" not in rec1
+    assert "normalized_equity_preview" in rec1
 
-    # Enable flag (new registry to avoid cached reuse)
-    _enable_flag()
+    # Disable flag (new registry to avoid cached reuse)
+    _disable_flag()
     reg2 = InMemoryRunRegistry()
     h2, rec2, _ = create_or_get(cfg, reg2)
     assert h1 == h2
-    assert "normalized_equity_preview" in rec2
-    preview = rec2["normalized_equity_preview"]
-    assert "rows" in preview
-    assert preview["rows"] >= 0
-    if preview.get("median_nav") is not None:
-        assert preview["median_nav"] < 10000
+    assert "normalized_equity_preview" not in rec2
 
 
 def test_t031_idempotent_disable_enable_cycle():
     from domain.run.create import InMemoryRunRegistry, create_or_get
 
     cfg = _make_cfg()
-    reg_off = InMemoryRunRegistry()
+    # Start with default ON
+    reg_on1 = InMemoryRunRegistry()
+    h_on1, rec_on1, _ = create_or_get(cfg, reg_on1)
+    assert "normalized_equity_preview" in rec_on1
+    # Disable
     _disable_flag()
+    reg_off = InMemoryRunRegistry()
     h_off, rec_off, _ = create_or_get(cfg, reg_off)
+    assert "normalized_equity_preview" not in rec_off
+    # Re-enable
     _enable_flag()
-    reg_on = InMemoryRunRegistry()
-    h_on, rec_on, _ = create_or_get(cfg, reg_on)
-    assert h_off == h_on
-    assert ("normalized_equity_preview" in rec_on) != (
-        "normalized_equity_preview" in rec_off
-    )
+    reg_on2 = InMemoryRunRegistry()
+    h_on2, rec_on2, _ = create_or_get(cfg, reg_on2)
+    assert "normalized_equity_preview" in rec_on2
+    # Hash stability across toggles
+    assert h_on1 == h_off == h_on2

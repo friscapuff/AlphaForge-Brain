@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) and this project adheres (prospectively) to Semantic Versioning.
 
 ## [0.3.2-dev] - 2025-09-25
+### Phase 7 Updates (2025-10-05)
+- T070: Removed deprecated trade adapters and legacy Trade model usage. Adapters module now raises ImportError; services refactored to duck-type.
+- T071: Hard-enabled unified models and equity normalization; flags default to enabled for `AF_UNIFIED_TRADES` and `AF_EQUITY_NORMALIZER_V2`.
+- T095: Enforced legacy artifact sweep; renamed any lingering `Trade`/`Position` exports in non-canonical modules.
+- Environment guard: Updated NumPy pin in `src/infra/version_pins.py` to match current environment for determinism guard test. If CI environment differs, adjust pin there and document rationale.
+ - Flags behavior: Defaults are ON, but you can explicitly disable via environment values `0|false|off|no` (case-insensitive). This applies to `AF_UNIFIED_TRADES` and `AF_EQUITY_NORMALIZER_V2`.
+ - T072: Added `scripts/snapshot_run_hash_phase7.py` to capture post-cleanup run hashes into `artifacts/run_hash_phase7_snapshot.json`.
+ - Note: `AF_EQUITY_HASH_V2` remains off by default; enabling switches equity hash computation to normalized series for comparison only.
 ### Added
 - Run retention policy groundwork (T017/T018): new module `domain/run/retention_policy.py` with configurable `keep_last` + per-strategy top-k + pin override semantics and demotion marking (`retention_state`).
 - Retention application endpoint `POST /runs/retention/apply` returning classification (kept, demoted, pinned, top_k).
