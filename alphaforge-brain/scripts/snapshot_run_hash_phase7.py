@@ -13,39 +13,47 @@ Idempotent: overwrites file each run.
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from domain.run.create import InMemoryRunRegistry, create_or_get
-from domain.schemas.run_config import (
-    ExecutionSpec,
-    RiskSpec,
-    RunConfig,
-    StrategySpec,
-    ValidationSpec,
-)
-
-CONFIGS = [
-    RunConfig(
-        indicators=[],
-        strategy=StrategySpec(name="buy_hold", params={}),
-        risk=RiskSpec(model="none", params={}),
-        execution=ExecutionSpec(),
-        validation=ValidationSpec(),
-        symbol="NVDA",
-        timeframe="1d",
-        start="2024-01-01",
-        end="2024-03-01",
-        seed=idx + 1,
-    )
-    for idx in range(3)
-]
-
 
 def main() -> None:
+    # Ensure 'src' is on sys.path so `from domain...` imports work when run as a script or module
+    root = Path(__file__).resolve().parents[1]
+    src = root / "src"
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+
+    # Local imports after path adjustment to satisfy linters
+    from domain.run.create import InMemoryRunRegistry, create_or_get  # type: ignore
+    from domain.schemas.run_config import (  # type: ignore
+        ExecutionSpec,
+        RiskSpec,
+        RunConfig,
+        StrategySpec,
+        ValidationSpec,
+    )
+
+    configs = [
+        RunConfig(
+            indicators=[],
+            strategy=StrategySpec(name="buy_hold", params={}),
+            risk=RiskSpec(model="none", params={}),
+            execution=ExecutionSpec(),
+            validation=ValidationSpec(),
+            symbol="NVDA",
+            timeframe="1d",
+            start="2024-01-01",
+            end="2024-03-01",
+            seed=idx + 1,
+        )
+        for idx in range(3)
+    ]
+
     reg = InMemoryRunRegistry()
     rows = []
-    for cfg in CONFIGS:
+    for cfg in configs:
         h, rec, _ = create_or_get(cfg, reg)
         rows.append(
             {
