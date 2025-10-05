@@ -1,0 +1,8 @@
+{
+  "$comment": "Canonical Fill example (T093)",
+  "ts": "2024-01-02T14:30:00Z",
+  "order_id": "ord_12345",
+  "size": 100.0,
+  "price": 489.25,
+  "run_id": "run_demo_hash"
+}

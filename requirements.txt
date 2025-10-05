@@ -13,7 +13,7 @@ python-dotenv==1.0.1
 typing-extensions==4.12.2
 
 # --- Data & compute ---
-numpy==2.1.1
+numpy==2.0.2  # aligned with infra/version_pins.py and pyproject constraint (<2.1)
 pandas==2.2.3
 pyarrow==17.0.0             # Parquet/Arrow for artifacts
 matplotlib==3.9.2

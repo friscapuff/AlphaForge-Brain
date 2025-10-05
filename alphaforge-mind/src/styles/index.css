@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-equity: #3b82f6;
+  --color-drawdown: #ef4444;
+  --color-mc-path: #6366f1;
+  --color-mc-band: #1d4ed8;
+}
+
+html, body, #root { height: 100%; }
+body { font-family: system-ui, sans-serif; }

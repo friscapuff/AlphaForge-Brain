@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "montecarlo-paths.v1alpha2.schema.json",
+  "title": "MonteCarloPathsPayloadV1Alpha2",
+  "type": "object",
+  "required": ["run_id", "seed", "paths", "p5", "p95"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "seed": { "type": "string" },
+    "paths": { "type": "array", "items": { "type": "object", "required": ["path_id", "points"], "properties": { "path_id": { "type": "integer" }, "points": { "type": "array", "items": { "type": "object", "required": ["t", "equity"], "properties": { "t": { "type": "integer" }, "equity": { "type": "number" } }, "additionalProperties": false } } }, "additionalProperties": false } },
+    "p5": { "type": "array", "items": { "type": "object", "required": ["t", "equity"], "properties": { "t": { "type": "integer" }, "equity": { "type": "number" } }, "additionalProperties": false } },
+    "p95": { "type": "array", "items": { "type": "object", "required": ["t", "equity"], "properties": { "t": { "type": "integer" }, "equity": { "type": "number" } }, "additionalProperties": false } },
+    "extended": {
+      "type": "object",
+      "properties": {
+        "p1": { "type": "array", "items": { "type": "object", "required": ["t", "equity"], "properties": { "t": { "type": "integer" }, "equity": { "type": "number" } }, "additionalProperties": false } },
+        "p50": { "type": "array", "items": { "type": "object", "required": ["t", "equity"], "properties": { "t": { "type": "integer" }, "equity": { "type": "number" } }, "additionalProperties": false } },
+        "p99": { "type": "array", "items": { "type": "object", "required": ["t", "equity"], "properties": { "t": { "type": "integer" }, "equity": { "type": "number" } }, "additionalProperties": false } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chart-candles.v1.schema.json",
+  "title": "CandlesPayloadV1",
+  "type": "object",
+  "required": ["symbol", "interval", "from", "to", "candles"],
+  "properties": {
+    "symbol": { "type": "string" },
+    "interval": { "type": "string" },
+    "from": { "type": "string", "format": "date-time" },
+    "to": { "type": "string", "format": "date-time" },
+    "candles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["t", "o", "h", "l", "c", "v"],
+        "properties": {
+          "t": { "type": "integer", "description": "Epoch ms" },
+          "o": { "type": "number" },
+          "h": { "type": "number" },
+          "l": { "type": "number" },
+          "c": { "type": "number" },
+          "v": { "type": "integer" }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

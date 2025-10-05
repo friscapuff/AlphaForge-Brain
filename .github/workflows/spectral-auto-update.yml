@@ -1,0 +1,54 @@
+name: Spectral Auto Update
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # Mondays 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  check-spectral-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get current & latest spectral version
+        id: versions
+        run: |
+          CURRENT=$(node -p "require('./package.json').devDependencies['@stoplight/spectral-cli']")
+          LATEST=$(npm view @stoplight/spectral-cli version)
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "Up-to-date ($CURRENT)"; echo "update_needed=false" >> $GITHUB_OUTPUT; else echo "update_needed=true" >> $GITHUB_OUTPUT; fi
+
+      - name: Exit early if no update
+        if: steps.versions.outputs.update_needed == 'false'
+        run: echo "No update needed." && exit 0
+
+      - name: Update package.json
+        run: |
+          LATEST=${{ steps.versions.outputs.latest }}
+          node -e "const fs=require('fs');const p='package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.devDependencies['@stoplight/spectral-cli']=LATEST;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');"
+
+      - name: Install & run tests (lint only)
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint:api
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/update-spectral-${{ steps.versions.outputs.latest }}
+          title: "chore: bump spectral to ${{ steps.versions.outputs.latest }}"
+          commit-message: "chore: bump spectral to ${{ steps.versions.outputs.latest }}"
+          body: |
+            Automated update of @stoplight/spectral-cli from ${{ steps.versions.outputs.current }} to ${{ steps.versions.outputs.latest }}.
+            - Lint executed successfully.
+            - Review and merge if all green.
+          labels: dependencies, spectral

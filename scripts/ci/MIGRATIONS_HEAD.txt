@@ -1,0 +1,2 @@
+HEAD=003_canonical_schema
+SHA256=9077b269edd1177d0cd83dcde5058fb762dd9543289baccc770ebf2cef071248

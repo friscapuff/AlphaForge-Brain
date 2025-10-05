@@ -1,0 +1,47 @@
+name: Contract Conformance (Feature 006)
+
+on:
+  pull_request:
+    paths:
+      - 'specs/006-begin-work-on/contracts/**'
+      - 'alphaforge-brain/src/**'
+      - 'alphaforge-mind/src/**'
+      - '.github/workflows/contract-conformance.yml'
+  push:
+    branches: [ main, 006-begin-work-on ]
+
+jobs:
+  backend-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Poetry
+        run: pip install poetry==1.8.3
+      - name: Install backend dependencies
+        run: poetry install --no-interaction --no-root
+      - name: Backend contract & determinism tests
+        run: |
+          poetry run pytest alphaforge-brain/tests/feature006/test_phase_3_3b_backend_tests.py -q
+        - name: OpenAPI diff (paths only)
+          run: >-
+            python -c "import json,os,sys;sys.path.insert(0,os.path.abspath('alphaforge-brain/src'));from api.app import app;cur=app.openapi();json.dump(cur,open('openapi.current.json','w'),indent=2);base='openapi.deref.json';import pathlib;import json as j;import os as _o;import sys as _s;import builtins;import io;import pprint;import itertools;if _o.path.exists(base):old=j.load(open(base));op=set(old.get('paths',{}).keys());np=set(cur.get('paths',{}).keys());added=sorted(np-op);removed=sorted(op-np);print('Added paths:',added);print('Removed paths:',removed);print('::warning::Removed paths detected (should be additive only)') if removed else None;print('Done') ;print() ;print('OK') else: print('::warning::Baseline openapi.deref.json missing; skipping diff')"
+  frontend-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install deps
+        run: |
+          npm ci || npm install
+      - name: Run contract tests (frontend)
+        run: |
+          npm test --if-present -- --run --reporter=default

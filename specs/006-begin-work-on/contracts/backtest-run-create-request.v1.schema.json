@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "backtest-run-create-request.v1.schema.json",
+  "title": "BacktestRunCreateRequestV1",
+  "type": "object",
+  "required": [
+    "ticker",
+    "timeframe",
+    "start",
+    "end",
+    "strategy_name",
+    "strategy_params",
+    "risk_model",
+    "risk_params",
+    "validation"
+  ],
+  "properties": {
+    "ticker": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "timeframe": { "type": "string", "pattern": "^[0-9]+[mhdw]$" },
+    "start": { "type": "string", "format": "date" },
+    "end": { "type": "string", "format": "date" },
+    "strategy_name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "strategy_params": { "type": "object", "additionalProperties": true },
+    "risk_model": { "type": "string" },
+    "risk_params": { "type": "object", "additionalProperties": true },
+    "validation": {
+      "type": "object",
+      "required": ["permutation", "block_bootstrap", "monte_carlo", "walk_forward"],
+      "properties": {
+        "permutation": { "type": ["object", "null"] },
+        "block_bootstrap": { "type": ["object", "null"] },
+        "monte_carlo": { "type": ["object", "null"] },
+        "walk_forward": { "type": ["object", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "seed": { "type": ["integer", "null"], "minimum": 0 }
+  },
+  "additionalProperties": false
+}
