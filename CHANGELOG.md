@@ -10,8 +10,10 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) a
 - T071: Hard-enabled unified models and equity normalization; flags default to enabled for `AF_UNIFIED_TRADES` and `AF_EQUITY_NORMALIZER_V2`.
 - T095: Enforced legacy artifact sweep; renamed any lingering `Trade`/`Position` exports in non-canonical modules.
 - Environment guard: Updated NumPy pin in `src/infra/version_pins.py` to match current environment for determinism guard test. If CI environment differs, adjust pin there and document rationale.
+ - Environment guard: Adjusted NumPy pin to 2.0.2 to align with CI's Poetry lock (numba 0.60 constraint `<2.1`). Local devs on newer NumPy may see warnings from binary wheels (pyarrow/pandas) but tests remain deterministic; revisit when CI upgrades.
  - Flags behavior: Defaults are ON, but you can explicitly disable via environment values `0|false|off|no` (case-insensitive). This applies to `AF_UNIFIED_TRADES` and `AF_EQUITY_NORMALIZER_V2`.
  - T072: Added `scripts/snapshot_run_hash_phase7.py` to capture post-cleanup run hashes into `artifacts/run_hash_phase7_snapshot.json`.
+	- T094: Added performance early alert harness: `scripts/ci/perf_early_alert.py` and integrated into `scripts/ci/run_perf_gates.py`. Alerts at ≥3% (non-fatal), fails at ≥5%.
  - Note: `AF_EQUITY_HASH_V2` remains off by default; enabling switches equity hash computation to normalized series for comparison only.
 ### Added
 - Run retention policy groundwork (T017/T018): new module `domain/run/retention_policy.py` with configurable `keep_last` + per-strategy top-k + pin override semantics and demotion marking (`retention_state`).

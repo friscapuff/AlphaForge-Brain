@@ -108,10 +108,85 @@ def memory_sampler_gate(summary: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    summary: dict[str, Any] = {"failures": []}
+    summary: dict[str, Any] = {"failures": [], "alerts": []}
     observability_gate(summary)
     bootstrap_gate(summary)
     memory_sampler_gate(summary)
+    # Early Alert (T094): Compare baseline vs current; alert at >=3%, fail at >=5%
+    # Prefer a perf_run-compatible baseline file; fall back to skipping if not found
+    baseline_candidates = [
+        ROOT / "zz_artifacts" / "perf_run_baseline.json",
+        ROOT / "artifacts" / "perf_run_baseline.json",
+    ]
+    baseline = next((p for p in baseline_candidates if p.exists()), None)
+    current = ROOT / "zz_artifacts" / "perf_latest.json"
+    early = ROOT / "scripts" / "ci" / "perf_early_alert.py"
+    # If current missing but perf_run exists, generate it now
+    if not current.exists():
+        perf_run = ROOT / "scripts" / "bench" / "perf_run.py"
+        if perf_run.exists():
+            _ = ARTIFACT_DIR.mkdir(exist_ok=True)
+            _code, _out = _run(
+                [
+                    sys.executable,
+                    str(perf_run),
+                    "--iterations",
+                    "5",
+                    "--warmup",
+                    "1",
+                    "--output",
+                    str(current),
+                ]
+            )
+    if baseline is not None and current.exists() and early.exists():
+        # Check that baseline appears perf_run-shaped (runs.median_sec exists)
+        try:
+            _b = json.loads(baseline.read_text(encoding="utf-8"))
+            _c = json.loads(current.read_text(encoding="utf-8"))
+            if not (
+                isinstance(_b, dict)
+                and isinstance(_c, dict)
+                and isinstance(_b.get("runs"), dict)
+                and isinstance(_c.get("runs"), dict)
+                and "median_sec" in _b["runs"]
+                and "median_sec" in _c["runs"]
+            ):
+                raise ValueError("incompatible baseline/current shape for perf_run")
+        except Exception as e:
+            summary["early_alert"] = {"skipped": True, "reason": f"{e}"}
+            baseline = None
+    if baseline is not None and current.exists() and early.exists():
+        code, out = _run(
+            [
+                sys.executable,
+                str(early),
+                "--baseline",
+                str(baseline),
+                "--current",
+                str(current),
+                "--metric",
+                "median",
+                "--alert",
+                "0.03",
+                "--fail",
+                "0.05",
+            ]
+        )
+        try:
+            detail = json.loads(out)
+        except Exception:
+            detail = {"raw": out, "parse_error": True}
+        if code != 0:
+            summary["failures"].append("early_alert_fail")
+        else:
+            if isinstance(detail, dict) and detail.get("status") == "ALERT":
+                summary["alerts"].append("performance_degradation>=3%")
+        summary["early_alert"] = detail
+    else:
+        summary["early_alert"] = {
+            "skipped": True,
+            "reason": "missing perf_run baseline/current or script",
+        }
     summary["passed"] = len(summary["failures"]) == 0
     out_file = ARTIFACT_DIR / "perf_gates_summary.json"
     out_file.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")

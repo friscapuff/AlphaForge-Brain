@@ -9,7 +9,7 @@ If these versions intentionally change, update this file and corresponding tests
 """
 
 PINNED = {
-    "numpy": "2.2.6",  # synced to env (test guard). If upgrading, cite rationale (perf/security) in tasks.md.
+    "numpy": "2.0.2",  # CI-aligned (Poetry lock). numba 0.60 requires numpy <2.1; update with rationale if changed.
 }
 
 __all__ = ["PINNED"]

@@ -103,19 +103,19 @@ Legend:
 | T070 | [x] | Remove Deprecated Shims | Delete legacy metric/trade adapter modules after parity confirmed. See WAIVERS.md (W-T064-ADAPTER-SHIMS) for deprecation timeline. | B | P1 | T024,T061 | NH |
 | T071 | [x] | Remove Feature Flags | Hard-enable unified models & normalization after adoption threshold. | B | P1 | T070 | H |
 | T072 | [x] | Final Hash Snapshot | Capture post-cleanup hashes & compare to baseline (expected diffs documented). Script: `scripts/snapshot_run_hash_phase7.py` → writes `artifacts/run_hash_phase7_snapshot.json`. | B | P0 | T071 | S |
-| T073 | [ ] | Documentation Final Pass | Update README, CHANGELOG, WAIVERS removal. | B | P1 | T071 | NH |
-| T074 | [ ] | Constitution Compliance Re-check | Assert no new violations introduced. | Ops | P0 | T073 | NH |
+| T073 | [x] | Documentation Final Pass | Update README, CHANGELOG, WAIVERS removal. | B | P1 | T071 | NH |
+| T074 | [x] | Constitution Compliance Re-check | Assert no new violations introduced. | Ops | P0 | T073 | NH |
 | T095 | [x] | Legacy Trade Artifact Sweep Test | Scan codebase ensures no residual legacy Trade/Position models exported publicly; fails if found. Enforced after T070; class/export collisions remediated. | B | P0 | T070 | NH |
 
 ### Phase 8 – Verification & Sign-off
 | ID | Status | Title | Description | Root | Priority | Depends | Affects Hash |
 |----|--------|-------|-------------|------|----------|---------|--------------|
-| T080 | [ ] | Determinism Replay Suite | Multi-run repeat (5x) confirm stable hashes. | B | P0 | T072 | S |
-| T081 | [ ] | Performance Regression Audit | Re-run benchmark; ensure <5% regression. | B | P0 | T072 | NH |
-| T082 | [ ] | Retention Behavior Validation | Ensure caution runs not promoted; normal runs unaffected. | B | P1 | T041 | NH |
-| T083 | [ ] | Frontend Contract Snapshot | Type generation & snapshot tests updated. | M | P1 | T073 | NH |
-| T084 | [ ] | Final Sign-off Report | Produce acceptance summary referencing FRs & test evidence. | Ops | P0 | T080,T081,T082,T083 | NH |
-| T094 | [ ] | Performance Early Alert Harness | Test harness asserts 3% alert triggers without failing final 5% gate. | B | P1 | T081 | NH |
+| T080 | [x] | Determinism Replay Suite | Multi-run repeat (5x) confirm stable hashes. | B | P0 | T072 | S |
+| T081 | [x] | Performance Regression Audit | Re-run benchmark; ensure <5% regression. | B | P0 | T072 | NH |
+| T082 | [x] | Retention Behavior Validation | Ensure caution runs not promoted; normal runs unaffected. | B | P1 | T041 | NH |
+| T083 | [x] | Frontend Contract Snapshot | Type generation & snapshot tests updated. | M | P1 | T073 | NH |
+| T084 | [x] | Final Sign-off Report | Produce acceptance summary referencing FRs & test evidence. | Ops | P0 | T080,T081,T082,T083 | NH |
+| T094 | [x] | Performance Early Alert Harness | Test harness asserts 3% alert triggers without failing final 5% gate. | B | P1 | T081 | NH |
 
 ### Parallel Execution Suggestions
 - Group A (after T017): T020 [P], T021 [P] (separate modules), T023 [P]
