@@ -25,6 +25,6 @@ Risk: Confusion due to dual trade model paths; drift if adapters receive fixes.
 Mitigations: Mark module deprecated; add tests to ensure non-export of legacy types (T095); roadmap timeline below.
 Expires: 2026-01-31
 Owner: core
-Status: ACTIVE
+Status: EXPIRED (2025-10-05)
 
-Timeline: Deprecate in next minor; remove after one release cycle post T070 completion. If external consumers still depend, extend with explicit justification; otherwise delete module and update docs (T071,T073).
+Closure: Adapters removed in Phase 7 (T070), legacy exports swept (T095 enforced). Flags hard-enabled (T071); docs updated (T073).
