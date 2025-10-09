@@ -1,0 +1,7 @@
+{
+  "error_code": "not-found",
+  "message": "The requested resource was not found",
+  "details": null,
+  "correlation_id": "00000000-0000-0000-0000-000000000000",
+  "docs_url": "https://docs.example.com/errors#not-found"
+}

@@ -68,7 +68,7 @@ def append_metrics_history(history_path: Path, baseline: dict[str, Any]) -> None
     except FileNotFoundError:
         history = []
     entry = {
-        "timestamp_utc": _dt.datetime.utcnow().isoformat() + "Z",
+        "timestamp_utc": _dt.datetime.now(_dt.UTC).isoformat().replace("+00:00", "Z"),
         "event": "grouping_generated",
         "total_errors": baseline["summary"]["total_errors"],
         "by_code": baseline["summary"]["by_code"],

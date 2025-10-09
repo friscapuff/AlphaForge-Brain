@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
+from services.hashes import metrics_signature
 from src.domain.execution import simulator
 from src.domain.risk.engine import apply_risk
 from src.domain.schemas.run_config import (
@@ -16,7 +17,7 @@ from src.domain.schemas.run_config import (
 )
 from src.domain.strategy.runner import run_strategy
 from src.infra.utils.seed import derive_seed
-from src.services.metrics_hash import equity_curve_hash, metrics_hash
+from src.services.metrics_hash import equity_curve_hash
 
 
 def _candles(n: int = 60) -> pd.DataFrame:
@@ -82,15 +83,15 @@ def test_two_runs_identical_outputs() -> None:
         equity_bars2 = [
             type("Bar", (), {"nav": float(v), "drawdown": 0.0})() for v in curve2_series
         ]
-        mhash1 = metrics_hash(
+        mhash1 = metrics_signature(
             {"final_pnl": float(curve1_series.iloc[-1]), "n_fills": len(fills1)}
         )
-        mhash2 = metrics_hash(
+        mhash2 = metrics_signature(
             {"final_pnl": float(curve2_series.iloc[-1]), "n_fills": len(fills2)}
         )
         echash1 = equity_curve_hash(equity_bars1)
         echash2 = equity_curve_hash(equity_bars2)
-        assert mhash1 == mhash2, "metrics_hash mismatch for identical runs"
+        assert mhash1 == mhash2, "metrics_signature mismatch for identical runs"
         assert echash1 == echash2, "equity_curve_hash mismatch for identical runs"
 
 

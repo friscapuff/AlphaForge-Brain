@@ -45,7 +45,9 @@ def _configure_structlog() -> None:
 
     root = logging.getLogger()
     root.setLevel(settings.log_level.upper())
-    root.handlers[:] = [StructlogHandler()]
+    # Do not clobber existing handlers (e.g., pytest caplog); append ours if missing
+    if not any(isinstance(h, StructlogHandler) for h in root.handlers):
+        root.addHandler(StructlogHandler())
 
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:

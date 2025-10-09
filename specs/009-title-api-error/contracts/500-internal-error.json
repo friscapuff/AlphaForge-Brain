@@ -1,0 +1,11 @@
+{
+  "error_code": "internal-error",
+  "message": "An unexpected error occurred",
+  "details": null,
+  "correlation_id": "00000000-0000-0000-0000-000000000000",
+  "docs_url": "https://docs.example.com/errors#internal-error",
+  "debug": {
+    "stack_summary": "Traceback (most recent call last): ...",
+    "hint": "See server logs with the same correlation id"
+  }
+}

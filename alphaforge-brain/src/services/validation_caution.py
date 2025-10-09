@@ -16,7 +16,7 @@ Intentionally pure & deterministic for hashing isolation; output does not affect
 
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 from settings.validation_caution import load_caution_settings
 

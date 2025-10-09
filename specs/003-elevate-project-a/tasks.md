@@ -157,8 +157,8 @@ T041 (depends on metrics + execution), T042 (depends on permutation + walk-forwa
 - [x] Determinism hashing & float policy tasks present (T002, T006, T062) ✔
 - [x] Performance guard tasks present (T066-T068) ✔
 - [x] Future adaptive placeholder (T076) ✔
-- [ ] Type hygiene gate tasks (T080-T086) pending
-	* Current status: COMPLETED in codebase (freeze_time + RNG centralization occurred post-hygiene; checklist not yet toggled here originally).
+- [x] Type hygiene gate tasks (T080-T086) completed
+	* Status: COMPLETED in codebase (freeze_time + RNG centralization occurred post-hygiene; checklist toggled).
 
 ## Notes
 - Keep tasks atomic; commit after each. Bundle 3-5 together only if its logical to do so. Provide clear commit decriptions.

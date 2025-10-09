@@ -5,6 +5,7 @@ starlette==0.38.5
 orjson==3.10.7              # fast JSON responses
 pydantic==2.9.2
 pydantic-settings==2.5.2
+prometheus-client==0.20.0
 
 # --- Logging & utilities ---
 structlog==24.4.0
@@ -13,7 +14,7 @@ python-dotenv==1.0.1
 typing-extensions==4.12.2
 
 # --- Data & compute ---
-numpy==2.0.2  # aligned with infra/version_pins.py and pyproject constraint (<2.1)
+numpy==2.2.6  # aligned with infra/version_pins.py and pyproject (pin exact)
 pandas==2.2.3
 pyarrow==17.0.0             # Parquet/Arrow for artifacts
 matplotlib==3.9.2

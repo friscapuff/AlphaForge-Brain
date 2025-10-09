@@ -22,8 +22,9 @@ Once normalization stable and tests (T031, T092) pass, we can switch default has
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from copy import copy
-from typing import Literal, Sequence
+from typing import Literal
 
 from models.equity_bar import EquityBar
 
@@ -98,4 +99,4 @@ def normalize_equity(
     return normalized
 
 
-__all__ = ["normalize_equity", "SCALE_FACTOR"]
+__all__ = ["SCALE_FACTOR", "normalize_equity"]

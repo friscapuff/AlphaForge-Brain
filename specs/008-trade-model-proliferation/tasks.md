@@ -74,7 +74,7 @@ Legend:
 | T042 | [x] | Backend Payload Update Tests | Contract tests verify new fields & semantics. | B | P0 | T040 | NH |
 | T043 | [x] | Frontend Badge Rendering | Mind displays caution indicator & metric tooltips. | M | P1 | T042 | NH |
 | T086 | [x] | Validation Disabled Behavior Test | Ensure caution flag false & list empty when validation disabled / distributions absent. | B | P0 | T040 | S |
-| T097 | [ ] | Validation Persistence Test | DB row includes persisted caution_flag & triggering metrics artifact; verifies migration added column & backfill logic. | B | P0 | T040,T062 | NH |
+| T097 | [x] | Validation Persistence Test | DB row includes persisted caution_flag & triggering metrics; verifies migration added column & backfill logic. Evidence: `alphaforge-brain/tests/feature008/test_t097_validation_persistence.py` seeds runs, applies `scripts/migrations/unify_trades.py`, and asserts `runs_extras.validation_caution` 0/1/NULL and JSON list persistence. | B | P0 | T040,T062 | NH |
 
 ### Phase 5 – Optimization Warning Layer
 | ID | Status | Title | Description | Root | Priority | Depends | Affects Hash |
@@ -83,7 +83,7 @@ Legend:
 | T051 | [x] | Structured Warning Emission | Populate `advanced.warnings` with `{ code: "OPTIMIZATION_DEFERRED", combinations, limit }`; set `optimization_mode="deferred"`. | B | P1 | T050 | NH |
 | T052 | [x] | Frontend Warning Display | Show deferred optimization warning in UI (Results header alert) and support tooltip. | M | P2 | T051 | NH |
 | T087 | [x] | Optimization Defer No-Exec Test | Verify `optimization_mode="deferred"` and warning emission when grid exceeds limit; baseline has no optimizer execution. | B | P0 | T051 | S |
-| T088 | [ ] | Optimization Guard Error Contract Test | Large grid triggers deterministic error & warning fields validated. | B | P0 | T050 | S |
+| T088 | [x] | Optimization Guard Error Contract Test | Large grid triggers deterministic warning and optimization_mode='deferred'. Evidence: `alphaforge-brain/tests/feature008/test_t088_optimization_guard_error_contract.py` compares repeated GETs for identical `{code,combinations,limit}` fields under `advanced.warnings`. | B | P0 | T050 | S |
 
 ### Phase 6 – Migration Tooling
 | ID | Status | Title | Description | Root | Priority | Depends | Affects Hash |
@@ -115,7 +115,7 @@ Legend:
 | T082 | [x] | Retention Behavior Validation | Ensure caution runs not promoted; normal runs unaffected. | B | P1 | T041 | NH |
 | T083 | [x] | Frontend Contract Snapshot | Type generation & snapshot tests updated. | M | P1 | T073 | NH |
 | T084 | [x] | Final Sign-off Report | Produce acceptance summary referencing FRs & test evidence. | Ops | P0 | T080,T081,T082,T083 | NH |
-| T094 | [x] | Performance Early Alert Harness | Test harness asserts 3% alert triggers without failing final 5% gate. | B | P1 | T081 | NH |
+| T094 | [x] | Performance Early Alert Harness | Test harness asserts 3% alert triggers without failing final 5% gate. Evidence: `scripts/ci/perf_early_alert.py` integrated in `scripts/ci/run_perf_gates.py`; baseline/current artifacts under `zz_artifacts/perf_run_baseline.json` and `zz_artifacts/perf_latest.json`; gate summary at `zz_artifacts/perf_gates_summary.json` shows early alert OK and non-zero exit only on ≥5% fail. | B | P1 | T081 | NH |
 
 ### Parallel Execution Suggestions
 - Group A (after T017): T020 [P], T021 [P] (separate modules), T023 [P]

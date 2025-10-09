@@ -1,4 +1,4 @@
-# ruff: noqa: E402
+# ruff: noqa: E402, I001
 from __future__ import annotations
 
 r"""
@@ -29,21 +29,6 @@ from statistics import median
 import numpy as np
 import pandas as pd
 
-# Ensure `alphaforge-brain` (which contains `src`) on sys.path when run as a script
-_THIS = Path(__file__).resolve()
-_PKG_ROOT = _THIS.parents[2]
-if str(_PKG_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PKG_ROOT))
-_SRC = _PKG_ROOT / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
-
-from src.domain.features.engine import build_features
-from src.domain.indicators.registry import indicator_registry
-from src.domain.indicators.sma import SimpleMovingAverage
-from src.infra.persistence import init_run, record_phase_timing, record_trace_span
-from src.infra.utils.hash import sha256_hex
-
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
@@ -67,10 +52,16 @@ def make_df(n: int) -> pd.DataFrame:
     )
 
 
-def setup_indicators() -> None:
-    indicator_registry.clear()
-    indicator_registry.register(SimpleMovingAverage(10))
-    indicator_registry.register(SimpleMovingAverage(50))
+def _ensure_paths() -> Path:
+    """Ensure repo src path is on sys.path and return that path."""
+    this = Path(__file__).resolve()
+    pkg_root = this.parents[2]
+    src = pkg_root / "src"
+    if str(pkg_root) not in sys.path:
+        sys.path.insert(0, str(pkg_root))
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+    return src
 
 
 @dataclass
@@ -82,10 +73,10 @@ class Result:
         return float(median(self.times)) if self.times else float("nan")
 
 
-def run_baseline(df: pd.DataFrame, repeat: int) -> Result:
+def run_baseline(df: pd.DataFrame, repeat: int, build_features):
     times: list[float] = []
     for _ in range(repeat):
-        setup_indicators()
+        # indicators are registered per run by caller
         t0 = time.perf_counter()
         _ = build_features(df, use_cache=False)
         t1 = time.perf_counter()
@@ -93,10 +84,18 @@ def run_baseline(df: pd.DataFrame, repeat: int) -> Result:
     return Result(times=times)
 
 
-def run_instrumented(df: pd.DataFrame, repeat: int, run_hash: str) -> Result:
+def run_instrumented(
+    df: pd.DataFrame,
+    repeat: int,
+    run_hash: str,
+    *,
+    build_features,
+    record_phase_timing,
+    record_trace_span,
+) -> Result:
     times: list[float] = []
     for i in range(repeat):
-        setup_indicators()
+        # indicators are registered per run by caller
         span_name = f"features_build_{i}"
         started = _now_ms()
         t0 = time.perf_counter()
@@ -136,17 +135,37 @@ def main() -> int:
     # Temporary DB path (ensure independent from dev DB)
     with tempfile.TemporaryDirectory() as td:
         db_path = Path(td) / "bench_observability.db"
+        # Set env BEFORE importing any project modules to avoid cached settings
         os.environ["APP_SQLITE_PATH"] = str(db_path)
+        # Ensure sys.path contains project src and import lazily now
+        _ensure_paths()
+        # Local imports after path setup (grouped to satisfy import order)
+        from src.domain.features.engine import build_features as _bf
+        from src.domain.indicators.registry import (
+            indicator_registry as _registry,
+        )
+        from src.domain.indicators.sma import SimpleMovingAverage as _SMA
+        from src.infra.persistence import (
+            init_run as _init_run,
+            record_phase_timing as _record_phase_timing,
+            record_trace_span as _record_trace_span,
+        )
+        from src.infra.utils.hash import sha256_hex as _sha256_hex
 
-        # Warmup (import paths are set; initialize DB once outside measurements)
+        def setup_indicators() -> None:
+            _registry.clear()
+            _registry.register(_SMA(10))
+            _registry.register(_SMA(50))
+
+        # Warmup: initialize DB and imports outside measurements
         setup_indicators()
-        _ = build_features(make_df(10_000), use_cache=False)
+        _ = _bf(make_df(10_000), use_cache=False)
 
         df = make_df(args.rows)
         # Initialize a runs row so instrumentation can reference a valid run_hash
         base = f"observability-bench-{args.rows}-{args.repeat}"
-        run_hash = sha256_hex(base.encode("utf-8"))
-        init_run(
+        run_hash = _sha256_hex(base.encode("utf-8"))
+        _init_run(
             run_hash=run_hash,
             created_at_ms=_now_ms(),
             status="pending",
@@ -163,8 +182,17 @@ def main() -> int:
             walk_forward_spec=None,
         )
 
-        off = run_baseline(df, args.repeat)
-        on = run_instrumented(df, args.repeat, run_hash)
+        off = run_baseline(df, args.repeat, _bf)
+        # re-register indicators for instrumented runs to keep symmetry
+        setup_indicators()
+        on = run_instrumented(
+            df,
+            args.repeat,
+            run_hash,
+            build_features=_bf,
+            record_phase_timing=_record_phase_timing,
+            record_trace_span=_record_trace_span,
+        )
         overhead = (
             (on.median - off.median) / off.median if off.median > 0 else float("nan")
         )

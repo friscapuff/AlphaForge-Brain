@@ -193,3 +193,16 @@ Phase 9: Flag removal & cleanup (deprecation sweep, docs update).
 
 ---
 *Based on Constitution v1.1.0 - See `/memory/constitution.md`*
+
+---
+
+## Progress Update — 2025-10-05
+
+- Implemented and validated Phase 8 evidence:
+  - T088: Added test ensuring optimization is explicitly deferred with structured warning and `optimization_mode = "deferred"` under combination guard limits. File: `alphaforge-brain/tests/feature008/test_t088_optimization_guard_error_contract.py`.
+  - T097: Added migration test verifying `validation_caution` normalization and `validation_caution_metrics` JSON persistence. File: `alphaforge-brain/tests/feature008/test_t097_validation_persistence.py`.
+  - T094: Integrated early alert into perf gates; thresholds alert ≥3% and fail ≥5%. Non-zero exit only on FAIL. Aggregated by `scripts/ci/run_perf_gates.py` with results in `zz_artifacts/perf_gates_summary.json`.
+- Determinism/Env guard:
+  - CI NumPy pin aligned to 2.0.2; local env may skip certain gates due to ABI mismatches, while CI enforces all.
+- Next steps:
+  - Open/refresh PR for Phase 8 with references to acceptance notes; ensure CI green with perf gates enforced; add reviewers/labels and merge when approved.

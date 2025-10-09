@@ -54,7 +54,7 @@ def main() -> int:
         except FileNotFoundError:
             config_hashes[str(cf)] = None
     entry: dict[str, object] = {
-        "timestamp_utc": dt.datetime.utcnow().isoformat() + "Z",
+        "timestamp_utc": dt.datetime.now(dt.UTC).isoformat().replace("+00:00", "Z"),
         "event": ns.event,
         "baseline_errors": ns.baseline_errors,
         "strictplus_errors": ns.strictplus_errors,

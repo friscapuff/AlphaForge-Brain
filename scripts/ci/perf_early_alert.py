@@ -31,8 +31,8 @@ def _extract(value: dict[str, Any], metric: str) -> float:
         return float(runs[key])
     # Try perf_baseline structure: {summary: {mean_ms, p95_ms, ...}}
     summary = value.get("summary", {})
-    if metric == "median" and "p95_ms" in summary and "mean_ms" in summary:
-        # No median in baseline; approximate using mean_ms as proxy
+    if metric == "median" and "mean_ms" in summary:
+        # No median in baseline; approximate using mean_ms as proxy (ms -> s)
         return float(summary.get("mean_ms", 0.0)) / 1000.0
     if metric == "mean" and "mean_ms" in summary:
         return float(summary.get("mean_ms", 0.0)) / 1000.0
@@ -53,7 +53,12 @@ def main() -> int:
     b = _extract(base, args.metric)
     c = _extract(curr, args.metric)
     if b <= 0:
-        raise SystemExit("Baseline metric is zero or missing; cannot compare")
+        print(
+            json.dumps(
+                {"status": "ERROR", "error": "Baseline metric is zero or missing"}
+            )
+        )
+        return 1
     delta = c - b
     pct = delta / b
     status = "OK"

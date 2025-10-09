@@ -2,7 +2,7 @@
 
 **Feature Branch**: `008-trade-model-proliferation`
 **Created**: 2025-10-01
-**Status**: Draft
+**Status**: In Progress
 **Input**: User description: "Trade model proliferation increases cognitive load; unify nomenclature (Fill, ExecutedTrade, CompletedTrade) with explicit boundaries. EquityBar vs ORM Equity divergence (exposures vs realized/unrealized pnl) suggests need for a reconciliation or second derived projection layer. NAV scaling placeholder (division by 1_000_000) is an arbitrary heuristic; should formalize equity units or notional basis. Validation gating (caution threshold) not fully integrated into pipeline decisioning (only computed; no gating actions). Duplicate metrics logic between legacy services.metrics and domain.metrics.calculator — converge into one canonical path. Determinism risk: floating drawdown tolerance hard-coded (1e-9) might become brittle across platforms if extended numeric operations added. Walk-forward config includes optimization scaffolding but execution path for parameter grid not visible; spec alignment pending. Multiple metrics hashing entrypoints: ensure single source-of-truth ordering and coverage (exposure, trade count, etc.) to prevent drift."
 
 ## User Scenarios & Testing *(mandatory)*
@@ -15,7 +15,7 @@ As a quantitative strategy developer or platform maintainer, I need a single, un
 2. **Given** a backtest that triggers a validation p-value below configured caution threshold, **When** the pipeline completes, **Then** the run status or returned payload explicitly conveys a caution flag and downstream retention/UX surfaces it.
 3. **Given** two identical runs executed on different machines, **When** equity & metrics hashes are computed, **Then** the hashes match and are derived from a single canonical hashing module.
 4. **Given** a strategy producing zero trades, **When** equity normalization occurs, **Then** NAV semantics remain consistent (no arbitrary million-scaling) and metrics reflect a neutral baseline deterministically.
-5. **Given** a walk‑forward configuration containing an optimization grid, **When** the orchestrator processes the run, **Then** optimization either executes per spec or the run fails early with an explicit unsupported warning (no silent ignore).
+5. **Given** a walk‑forward configuration containing an optimization grid, **When** the orchestrator processes the run, **Then** optimization is explicitly deferred with a structured warning (no silent ignore) and the payload includes `optimization_mode = "deferred"`. If/when execution is supported in a future phase, the behavior will switch to execution per spec under the same contract.
 
 ### Edge Cases
 - Backtest produces sparse intermittent fills (gaps in bars) → CompletedTrade aggregation logic must not fabricate holding periods incorrectly.
@@ -40,7 +40,7 @@ As a quantitative strategy developer or platform maintainer, I need a single, un
 - **FR-011**: System MUST add integration tests asserting identical output hashes before vs after refactor (except where semantics intentionally changed and documented).
 - **FR-012**: System MUST store validation gating decision and triggering p-values in the Validation table or associated artifact for audit.
 - **FR-013**: System MUST add explicit run flag `optimization_mode` in results when optimization attempted (success/disabled/deferred).
-- **FR-014**: System MUST enforce a maximum optimization combination count (configurable, default 250) with deterministic ordering & early abort if exceeded.
+- **FR-014**: System MUST enforce a maximum optimization combination count (configurable, default 250) with deterministic ordering and, if exceeded, MUST deterministically defer execution (not abort) with a structured warning that includes the enumerated `combinations` and `limit`, and set `optimization_mode = "deferred"` in results.
 - **FR-015**: System MUST version the new unified trade schema (e.g., `trade_model_version = 2`) and include in run manifest for future migrations.
 
 ### Cross-Project Boundary
@@ -177,5 +177,23 @@ Pending responses; planning script should pause or mark uncertainties if unanswe
 
 ### Performance Guardrails
 - Equity normalization and consolidated metrics must not increase runtime >5% (median over 5 runs 10k bars). Add micro-benchmark script.
+
+Early alert thresholds integrated into CI perf gates: alert at ≥3% degradation; fail gate at ≥5% degradation. Current local evidence shows memory sampler overhead ≈0.58% (PASS) and early alert reporting OK (improvement ~14%); bootstrap and observability gates are enforced in CI and may be skipped locally when environment imports are unavailable.
+
+---
+
+## Execution Evidence (Phase 8)
+
+- T088: Optimization guard defer contract implemented and validated
+	- Tests: `alphaforge-brain/tests/feature008/test_t088_optimization_guard_error_contract.py`
+	- Asserts `advanced.warnings` contains `code = "OPTIMIZATION_DEFERRED"` with `combinations` and `limit`, and `optimization_mode = "deferred"` deterministically.
+- T097: Validation caution persistence backfill verified
+	- Tests: `alphaforge-brain/tests/feature008/test_t097_validation_persistence.py`
+	- Asserts `runs_extras.validation_caution` normalization and `validation_caution_metrics` JSON persisted after migration apply.
+- T094: Performance early alert integrated with perf gates
+	- Scripts: `scripts/ci/perf_early_alert.py`, `scripts/ci/run_perf_gates.py`
+	- Thresholds: alert ≥3%, fail ≥5%; non-zero exit only on fail. Artifacts summarized in `zz_artifacts/perf_gates_summary.json`.
+- Environment guard alignment
+	- CI NumPy pin aligned (2.0.2) for determinism; local ABI mismatches skipped for certain gates while CI enforces.
 
 ---

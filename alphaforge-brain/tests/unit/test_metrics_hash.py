@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-from src.services.metrics_hash import equity_curve_hash, metrics_hash
+from services.hashes import metrics_signature
+from src.services.metrics_hash import equity_curve_hash
 
 
 def test_metrics_hash_order_independent() -> None:
     a = {"sharpe": 0.123456789, "total_return": 0.42}
     b = {"total_return": 0.42, "sharpe": 0.123456789}
-    assert metrics_hash(a) == metrics_hash(b)
+    assert metrics_signature(a) == metrics_signature(b)
 
 
 def test_metrics_hash_mutation_changes_hash() -> None:
     base = {"sharpe": 0.5, "total_return": 0.10}
-    h0 = metrics_hash(base)
+    h0 = metrics_signature(base)
     base["sharpe"] = 0.6
-    assert metrics_hash(base) != h0
+    assert metrics_signature(base) != h0
 
 
 def test_equity_curve_hash_identical_lists_equal() -> None:

@@ -1,0 +1,10 @@
+{
+  "error_code": "validation-error",
+  "message": "Request validation failed",
+  "details": [
+    { "field": "body.title", "message": "Field required", "code": "missing-field" },
+    { "field": "query.limit", "message": "Must be >= 1", "code": "value-too-small" }
+  ],
+  "correlation_id": "00000000-0000-0000-0000-000000000000",
+  "docs_url": "https://docs.example.com/errors#validation-error"
+}

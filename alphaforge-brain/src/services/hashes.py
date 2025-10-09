@@ -31,4 +31,4 @@ def equity_signature(curve: Sequence[Any] | pd.DataFrame) -> str:  # FR-015 stab
     return _legacy_equity_curve_hash(curve)
 
 
-__all__ = ["metrics_signature", "equity_signature"]
+__all__ = ["equity_signature", "metrics_signature"]

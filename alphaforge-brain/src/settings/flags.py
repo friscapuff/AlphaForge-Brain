@@ -53,7 +53,7 @@ def is_equity_hash_v2_enabled() -> bool:
 
 
 __all__ = [
-    "is_unified_trades_enabled",
-    "is_equity_normalizer_v2_enabled",
     "is_equity_hash_v2_enabled",
+    "is_equity_normalizer_v2_enabled",
+    "is_unified_trades_enabled",
 ]

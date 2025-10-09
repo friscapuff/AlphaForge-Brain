@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from api.app import create_app
 from fastapi.testclient import TestClient
-from services.metrics_hash import equity_curve_hash, metrics_hash
+from services.hashes import metrics_signature
+from services.metrics_hash import equity_curve_hash
 
 
 def _payload(seed: int = 123) -> dict[str, object]:  # mirrors other test helpers
@@ -36,7 +37,7 @@ def test_run_detail_exposes_hashes_and_they_match_recomputed(tmp_path, monkeypat
     # Recompute metrics hash from summary.metrics
     summary = body.get("summary") or {}
     metrics = summary.get("metrics", {}) if isinstance(summary, dict) else {}
-    recomputed_mh = metrics_hash(metrics)
+    recomputed_mh = metrics_signature(metrics)
     assert recomputed_mh == metrics_hash_api
     # Load equity parquet and recompute equity_curve_hash
     # artifact listing endpoint provides file names

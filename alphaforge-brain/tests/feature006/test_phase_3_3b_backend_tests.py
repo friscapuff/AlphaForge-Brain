@@ -54,15 +54,16 @@ def test_t060_candles_schema_parity() -> None:
     # Use narrow time window; fallback empty array still valid per schema (candles optional length)
     import datetime as _dt
 
-    now = _dt.datetime.utcnow().replace(microsecond=0)
+    # Use timezone-aware UTC timestamps (utcnow is deprecated); keep Z-suffix for API parameters
+    now = _dt.datetime.now(_dt.UTC).replace(microsecond=0)
     earlier = now - _dt.timedelta(hours=1)
     resp = client.get(
         "/api/v1/market/candles",
         params={
             "symbol": "TESTSYM",
             "interval": "1h",
-            "from_": earlier.isoformat() + "Z",
-            "to": now.isoformat() + "Z",
+            "from_": earlier.isoformat().replace("+00:00", "Z"),
+            "to": now.isoformat().replace("+00:00", "Z"),
             "limit": 50,
         },
     )
