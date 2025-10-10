@@ -1,706 +1,2599 @@
 openapi: 3.1.0
 info:
-  title: AlphaForge Brain API
+  title: Project A Backend
   version: 0.3.0
-  description: |-
-    Single-user backtesting, dataset ingestion, validation & artifact engine.
-    Additive 0.3.0: consolidates dataset provenance exposure (data_hash, calendar_id) and validation summary fields
-    (validation_summary + legacy alias validation) plus strict typing & instrumentation phases.
-servers:
-  - url: http://localhost:8000
 paths:
-  /runs:
-    post:
-      summary: Create or reuse a backtest run
-      operationId: createRun
+  /candles:
+    get:
+      tags:
+      - candles
+      summary: Candles
+      operationId: candles_candles_get
       parameters:
-        - in: header
-          name: Idempotency-Key
-          required: false
-          schema:
-            type: string
-      requestBody:
+      - name: symbol
+        in: query
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RunConfig'
-      responses:
-        '201':
-          description: Run created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RunCreated'
-        '200':
-          description: Existing run reused (idempotent)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RunCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-    get:
-      summary: List recent runs
-      operationId: listRuns
-      parameters:
-        - in: query
-          name: cursor
-          schema:
-            type: string
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 50
-      responses:
-        '200':
-          description: List of runs
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RunList'
-  /runs/{run_id}:
-    get:
-      summary: Get run detail
-      operationId: getRun
-      parameters:
-        - in: path
-          name: run_id
-          required: true
-          schema:
-            type: string
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 32
+          title: Symbol
+      - name: start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          description: ISO8601 start timestamp (inclusive)
+          title: Start
+        description: ISO8601 start timestamp (inclusive)
+      - name: end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          description: ISO8601 end timestamp (inclusive)
+          title: End
+        description: ISO8601 end timestamp (inclusive)
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 5000
+          minimum: 1
+          default: 500
+          title: Limit
+      - name: provider
+        in: query
+        required: false
+        schema:
+          type: string
+          description: Registered provider name
+          default: local
+          title: Provider
+        description: Registered provider name
       responses:
         '200':
-          description: Run detail
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RunDetail'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /runs/{run_id}/cancel:
-    post:
-      summary: Request cancellation
-      operationId: cancelRun
-      parameters:
-        - in: path
-          name: run_id
-          required: true
-          schema:
-            type: string
-      responses:
-        '202':
-          description: Cancellation requested
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /runs/{run_id}/restore:
-    post:
-      summary: Restore run artifacts from cold storage (or local evicted dir fallback)
-      operationId: restoreRun
-      parameters:
-        - in: path
-          name: run_id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Restore attempt result
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: object
-                properties:
-                  run_hash: { type: string }
-                  restored: { type: boolean }
-                  noop: { type: boolean }
-                  api_version: { type: string }
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /runs/{run_id}/events:
-    get:
-      summary: Fetch buffered run events (one-shot SSE, ETag cacheable)
-      operationId: streamRunEvents
-      parameters:
-        - in: path
-          name: run_id
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: after_id
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-        - in: header
-          name: Last-Event-ID
-          required: false
-          schema:
-            type: string
-        - in: header
-          name: If-None-Match
-          required: false
-          schema:
-            type: string
-      responses:
-        '200':
-          description: One-shot SSE event stream flush (connection closes after emitting current buffer). Includes ETag header of form "<run_id>:<last_event_id>".
-          content:
-            text/event-stream: {}
-  /runs/{run_id}/events/stream:
-    get:
-      summary: Long-lived incremental run events stream (SSE)
-      operationId: streamRunEventsIncremental
-      parameters:
-        - in: path
-          name: run_id
-          required: true
-          schema:
-            type: string
-        - in: header
-          name: Last-Event-ID
-          required: false
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Ongoing SSE stream (heartbeats every ~15s when idle).
-          content:
-            text/event-stream:
-              examples:
-                incrementalExample:
-                  summary: Incremental stream snippet
-                  value: |-
-                    id: 10
-                    event: stage
-                    data: {"type":"stage","ts":"2024-01-01T00:00:05Z","data":{"run_hash":"abc123","stage":"metrics"}}
-
-                    id: 11
-                    event: heartbeat
-                    data: {"type":"heartbeat","ts":"2024-01-01T00:00:20Z","data":{"status":"RUNNING"}}
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /runs/{run_id}/artifacts:
-    get:
-      summary: List artifact manifest
-      operationId: listArtifacts
-      parameters:
-        - in: path
-          name: run_id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Manifest
+                title: Response Candles Candles Get
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactManifest'
-              examples:
-                minimal:
-                  summary: Minimal manifest
-                  value:
-                    run_id: abc123
-                    config_hash: deadbeefcafebabe
-                    created_at: 1704067200
-                    files:
-                      - name: summary.json
-                        path: summary.json
-                        sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-                        size: 342
-                        mime: application/json
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /runs/{run_id}/artifact/{name}:
-    get:
-      summary: Download artifact
-      operationId: getArtifact
-      parameters:
-        - in: path
-          name: run_id
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: name
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Artifact file
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /candles:
-    get:
-      summary: Fetch candle slice
-      operationId: getCandles
-      parameters:
-        - in: query
-          name: symbol
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: timeframe
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: start
-          schema:
-            type: integer
-            format: int64
-        - in: query
-          name: end
-          schema:
-            type: integer
-            format: int64
-        - in: query
-          name: provider
-          schema:
-            type: string
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 10000
-      responses:
-        '200':
-          description: Candle data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CandleResponse'
+                $ref: '#/components/schemas/HTTPValidationError'
   /features/preview:
     post:
-      summary: Compute ad-hoc features preview
-      operationId: postFeaturePreview
+      tags:
+      - features
+      summary: Features Preview
+      operationId: features_preview_features_preview_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [symbol, start, end, limit]
-              properties:
-                symbol: { type: string }
-                start: { type: string, format: date-time }
-                end: { type: string, format: date-time }
-                limit: { type: integer, minimum: 1, maximum: 2000 }
-            examples:
-              basicPreview:
-                summary: Simple feature preview
-                value:
-                  symbol: TEST
-                  start: 2020-01-01T00:00:00Z
-                  end: 2020-01-02T00:00:00Z
-                  limit: 50
+              $ref: '#/components/schemas/FeaturePreviewRequest'
+        required: true
       responses:
         '200':
-          description: Feature preview
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FeaturePreview'
+                $ref: '#/components/schemas/FeaturePreviewResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /presets:
     get:
-      summary: List presets
-      operationId: listPresets
+      tags:
+      - presets
+      summary: List Presets
+      operationId: list_presets_presets_get
       responses:
         '200':
-          description: Preset list
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PresetList'
     post:
-      summary: Create preset (idempotent)
-      operationId: createPreset
+      tags:
+      - presets
+      summary: Create Preset
+      operationId: create_preset_presets_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/PresetCreate'
-            examples:
-              basicDualSma:
-                summary: Minimal dual SMA preset
-                value:
-                  name: mean_rev_fast
-                  config:
-                    strategy: { name: dual_sma, params: { fast: 5, slow: 20 } }
-                    risk: { model: fixed_fraction, params: { fraction: 0.1 } }
-                    execution: { slippage_bps: 5, fee_bps: 0.0 }
-                    indicators:
-                      - name: dual_sma
-                    seed: 42
+        required: true
       responses:
         '200':
-          description: Created or existing (idempotent)
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /presets/{preset_id}:
     get:
-      summary: Get preset by id
-      operationId: getPreset
+      tags:
+      - presets
+      summary: Get Preset
+      operationId: get_preset_presets__preset_id__get
       parameters:
-        - in: path
-          name: preset_id
-          required: true
-          schema:
-            type: string
+      - name: preset_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Preset Id
       responses:
         '200':
-          description: Preset
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Preset'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: '#/components/schemas/PresetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     delete:
-      summary: Delete preset
-      operationId: deletePreset
+      tags:
+      - presets
+      summary: Delete Preset
+      operationId: delete_preset_presets__preset_id__delete
       parameters:
-        - in: path
-          name: preset_id
-          required: true
-          schema:
-            type: string
+      - name: preset_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Preset Id
       responses:
         '200':
-          description: Deleted (confirmation object)
-        '404':
-          $ref: '#/components/responses/NotFound'
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                title: Response Delete Preset Presets  Preset Id  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/events:
+    get:
+      tags:
+      - runs
+      summary: Run Events
+      description: "Flush current buffered events (legacy one-shot) with optional\
+        \ incremental filter.\n\nEnhancements (T079):\n- Query param `after_id` returns\
+        \ only events with id > after_id.\n- ETag header (ETag: \"run_hash:last_id\"\
+        ) allowing client caching. If client sends If-None-Match\n  matching current\
+        \ ETag and no new events beyond after_id -> 304."
+      operationId: run_events_runs__run_hash__events_get
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      - name: after_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: After Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/events/stream:
+    get:
+      tags:
+      - runs
+      summary: Run Events Stream
+      description: 'Long-lived incremental SSE (T078).
+
+
+        Behavior:
+
+        - Reads Last-Event-ID header if present for resume.
+
+        - Streams any current buffered events, then keeps connection open.
+
+        - Emits heartbeat every HEARTBEAT_SEC while waiting for new events.
+
+        - Stops when run reaches terminal state and client has received final snapshot/completed
+        event.'
+      operationId: run_events_stream_runs__run_hash__events_stream_get
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /backtest/run:
+    post:
+      tags:
+      - backtest
+      summary: Create Backtest Run
+      operationId: create_backtest_run_backtest_run_post
+      parameters:
+      - name: x-correlation-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BacktestRunRequestModel'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestRunCreateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /backtests/{run_id}:
+    get:
+      tags:
+      - backtest
+      summary: Get Backtest Run Status
+      operationId: get_backtest_run_status_backtests__run_id__get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestRunStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/market/candles:
+    get:
+      tags:
+      - market-v1
+      summary: Get Candles
+      operationId: get_candles_api_v1_market_candles_get
+      parameters:
+      - name: symbol
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 32
+          title: Symbol
+      - name: interval
+        in: query
+        required: false
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 8
+          description: Interval code (e.g. 1m,5m,1h,1d)
+          default: 1d
+          title: Interval
+        description: Interval code (e.g. 1m,5m,1h,1d)
+      - name: from_
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          description: Start ISO8601 timestamp inclusive
+          title: 'From '
+        description: Start ISO8601 timestamp inclusive
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          description: End ISO8601 timestamp inclusive
+          title: To
+        description: End ISO8601 timestamp inclusive
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 5000
+          minimum: 1
+          default: 500
+          title: Limit
+      - name: provider
+        in: query
+        required: false
+        schema:
+          type: string
+          description: Provider id
+          default: local
+          title: Provider
+        description: Provider id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Get Candles Api V1 Market Candles Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/backtests:
+    post:
+      tags:
+      - backtests
+      summary: Submit Backtest
+      description: 'Create or queue a backtest run.
+
+
+        For now runs are computed synchronously elsewhere; we just persist config
+        & return id.
+
+        Deterministic seeding (T078) will reuse seed here; record currently stored
+        via create_or_get.'
+      operationId: submit_backtest_api_v1_backtests_post
+      parameters:
+      - name: x-correlation-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BacktestSubmission'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestSubmissionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - backtests
+      summary: List Backtests
+      description: 'T071: List recent backtest runs optionally filtered by symbol.
+
+
+        Data sourced from in-memory registry; ordering is newest-first by created_at.'
+      operationId: list_backtests_api_v1_backtests_get
+      parameters:
+      - name: symbol
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Symbol
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunHistoryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/backtests/{run_id}:
+    get:
+      tags:
+      - backtests
+      summary: Get Backtest Result
+      description: 'T069: Return enriched backtest result payload.
+
+
+        Derives equity curve & trades summary from stored record if present. Because
+        the
+
+        in-memory record currently keeps only summary & validation, we expose what
+        is
+
+        available; equity_curve synthesized to empty list for now (future: load from
+        artifact parquet).'
+      operationId: get_backtest_result_api_v1_backtests__run_id__get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestResultPayload'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/backtests/{run_id}/montecarlo:
+    post:
+      tags:
+      - backtests
+      summary: Generate Monte Carlo
+      description: 'T070: Generate deterministic Monte Carlo equity paths for a run
+        (baseline model).
+
+
+        Determinism (T063 expectation): same (run_id, seed, paths) yields identical
+        results.
+
+        Seed precedence: payload.seed > stored run seed > derived from strategy_hash
+        (ascii sum).
+
+        Simplified stochastic model: independent Gaussian returns with fixed drift/vol
+        per step.'
+      operationId: generate_monte_carlo_api_v1_backtests__run_id__montecarlo_post
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MonteCarloRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonteCarloResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/backtests/{run_id}/walkforward:
+    get:
+      tags:
+      - backtests
+      summary: Get Walk Forward
+      description: 'T072: Return deterministic walk-forward splits for a run.
+
+
+        Simple heuristic stub: produce up to 3 sequential train/test pairs splitting
+        the
+
+        overall date range into equal segments. Future implementation can derive from
+
+        validation config if present.'
+      operationId: get_walk_forward_api_v1_backtests__run_id__walkforward_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalkForwardResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/backtests/{run_id}/config:
+    get:
+      tags:
+      - backtests
+      summary: Export Config
+      description: 'T073: Return canonicalized original run configuration.
+
+
+        Uses stored config_original snapshot (added in create_or_get). No mutation.'
+      operationId: export_config_api_v1_backtests__run_id__config_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportConfigResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /canonical/hash:
+    post:
+      tags:
+      - canonical
+      summary: Canonical Hash
+      operationId: canonical_hash_canonical_hash_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CanonicalizeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalizeResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /canonical/ping:
+    get:
+      tags:
+      - canonical
+      summary: Canonical Ping
+      operationId: canonical_ping_canonical_ping_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Canonical Ping Canonical Ping Get
   /health:
     get:
-      summary: Health check
-      operationId: getHealth
+      tags:
+      - system
+      summary: Health
+      operationId: health_health_get
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Health'
-  /settings/retention:
+                additionalProperties:
+                  anyOf:
+                  - type: string
+                  - type: integer
+                type: object
+                title: Response Health Health Get
+  /runs:
     get:
-      summary: Get retention configuration
-      operationId: getRetentionSettings
+      tags:
+      - runs
+      summary: List Runs
+      operationId: list_runs_runs_get
       responses:
         '200':
-          description: Retention settings
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RetentionSettings'
+                $ref: '#/components/schemas/RunListResponse'
     post:
-      summary: Update retention configuration (applies immediately)
-      operationId: updateRetentionSettings
+      tags:
+      - runs
+      summary: Post Run
+      operationId: post_run_runs_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RetentionSettingsUpdate'
-      responses:
-        '200':
-          description: Updated settings
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RetentionSettings'
-  /retention/metrics:
-    get:
-      summary: Retention state counts and byte usage
-      operationId: getRetentionMetrics
-      responses:
-        '200':
-          description: Metrics
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RetentionMetrics'
-  /retention/plan:
-    get:
-      summary: Dry-run retention plan (no side-effects)
-      operationId: getRetentionPlan
-      responses:
-        '200':
-          description: Plan
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RetentionPlan'
-  /retention/plan/diff:
-    post:
-      summary: Diff current retention plan vs hypothetical configuration
-      operationId: diffRetentionPlan
-      requestBody:
+              $ref: '#/components/schemas/RunConfig'
         required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                keep_last: { type: integer }
-                top_k_per_strategy: { type: integer }
-                max_full_bytes: { type: integer, nullable: true }
       responses:
         '200':
-          description: Diff
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RetentionPlanDiff'
+                $ref: '#/components/schemas/RunCreateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/hashes:
+    get:
+      tags:
+      - runs
+      summary: Get Run Hashes
+      description: 'Lightweight hash attestation endpoint.
+
+
+        Returns only hash fields so external systems can verify provenance without
+        fetching
+
+        full run detail or manifest. `provenance_hash` is a canonical hash over the
+        triple
+
+        (manifest_hash, metrics_hash, equity_curve_hash) ignoring Nones.'
+      operationId: get_run_hashes_runs__run_hash__hashes_get
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunHashesResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}:
+    get:
+      tags:
+      - runs
+      summary: Get Run Detail
+      operationId: get_run_detail_runs__run_hash__get
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      - name: include_anomalies
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Include dataset anomaly counters when available
+          default: false
+          title: Include Anomalies
+        description: Include dataset anomaly counters when available
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/cancel:
+    post:
+      tags:
+      - runs
+      summary: Cancel Run
+      operationId: cancel_run_runs__run_hash__cancel_post
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                title: Response Cancel Run Runs  Run Hash  Cancel Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/artifacts:
+    get:
+      tags:
+      - runs
+      summary: List Artifacts
+      operationId: list_artifacts_runs__run_hash__artifacts_get
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response List Artifacts Runs  Run Hash  Artifacts Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/artifacts/{name}:
+    get:
+      tags:
+      - runs
+      summary: Get Artifact
+      operationId: get_artifact_runs__run_hash__artifacts__name__get
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - type: object
+                - type: array
+                  items: {}
+                - type: string
+                - type: integer
+                - type: number
+                - type: boolean
+                - type: string
+                  format: binary
+                - type: 'null'
+                title: Response Get Artifact Runs  Run Hash  Artifacts  Name  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/pin:
+    post:
+      tags:
+      - runs
+      summary: Pin Run
+      operationId: pin_run_runs__run_hash__pin_post
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Pin Run Runs  Run Hash  Pin Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/unpin:
+    post:
+      tags:
+      - runs
+      summary: Unpin Run
+      operationId: unpin_run_runs__run_hash__unpin_post
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Unpin Run Runs  Run Hash  Unpin Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/rehydrate:
+    post:
+      tags:
+      - runs
+      summary: Rehydrate Run
+      operationId: rehydrate_run_runs__run_hash__rehydrate_post
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Rehydrate Run Runs  Run Hash  Rehydrate Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /runs/{run_hash}/restore:
+    post:
+      tags:
+      - runs
+      summary: Restore Cold Storage
+      description: 'Restore run artifacts from cold storage (if available).
+
+
+        If run is already full this is a no-op. If manifest-only and cold manifest
+        exists, attempt
+
+        remote download + extraction. Falls back to standard rehydrate if cold storage
+        disabled.'
+      operationId: restore_cold_storage_runs__run_hash__restore_post
+      parameters:
+      - name: run_hash
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Hash
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Restore Cold Storage Runs  Run Hash  Restore Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /runs/retention/apply:
     post:
-      summary: Apply retention plan and perform demotions
-      operationId: applyRetention
+      tags:
+      - runs
+      summary: Apply Retention
+      operationId: apply_retention_runs_retention_apply_post
       responses:
         '200':
-          description: Result
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RetentionApplyResult'
+                type: object
+                title: Response Apply Retention Runs Retention Apply Post
+  /settings/retention:
+    get:
+      tags:
+      - runs
+      summary: Get Retention Settings
+      operationId: get_retention_settings_settings_retention_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Get Retention Settings Settings Retention Get
+    post:
+      tags:
+      - runs
+      summary: Update Retention Settings
+      operationId: update_retention_settings_settings_retention_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionUpdateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Update Retention Settings Settings Retention Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /retention/metrics:
+    get:
+      tags:
+      - runs
+      summary: Get Retention Metrics
+      operationId: get_retention_metrics_retention_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Get Retention Metrics Retention Metrics Get
+  /retention/plan:
+    get:
+      tags:
+      - runs
+      summary: Get Retention Plan
+      description: 'Dry-run retention plan. Computes classification and demotion set
+        without applying changes.
 
+
+        Returns same keys as apply plan plus meta counts. Does not perform physical
+        demotion.'
+      operationId: get_retention_plan_retention_plan_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Get Retention Plan Retention Plan Get
+  /retention/plan/diff:
+    post:
+      tags:
+      - runs
+      summary: Retention Plan Diff
+      description: 'Compute diff between current retention plan and a hypothetical
+        configuration.
+
+
+        Returns sets of runs that would change classification (new_demotions, new_full,
+        lost_full).
+
+        new_demotions: runs that are currently kept full but would be demoted.
+
+        new_full: runs currently demoted that would become full/top_k/pinned.
+
+        unchanged: counts summary for convenience.'
+      operationId: retention_plan_diff_retention_plan_diff_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionPlanDiffRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Retention Plan Diff Retention Plan Diff Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
-  responses:
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-          examples:
-            runMissing:
-              summary: Run not found
-              value:
-                error:
-                  code: NOT_FOUND
-                  message: run not found
-    BadRequest:
-      description: Invalid request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-          examples:
-            invalidParam:
-              summary: Invalid parameter
-              value:
-                error:
-                  code: BAD_REQUEST
-                  message: timeframe unsupported
-                  details: { field: timeframe, allowed: ["1m","5m"] }
   schemas:
-    RunConfig:
+    ArtifactDescriptor:
+      properties:
+        name:
+          type: string
+          title: Name
+        sha256:
+          type: string
+          title: Sha256
+        size:
+          type: integer
+          title: Size
       type: object
-      required: [symbol, timeframe, start, end, provider, indicators, strategy, risk, execution, seed]
-      description: Core configuration users send to start a backtest (instrument, time range, models, and randomness seed).
+      required:
+      - name
+      - sha256
+      - size
+      title: ArtifactDescriptor
+    BacktestResultPayload:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        status:
+          type: string
+          title: Status
+        equity_curve:
+          items:
+            type: object
+          type: array
+          title: Equity Curve
+        metrics:
+          type: object
+          title: Metrics
+        trades_summary:
+          type: object
+          title: Trades Summary
+        walk_forward:
+          type: object
+          title: Walk Forward
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+        strategy_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Strategy Hash
+        extended_validation_toggles:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Extended Validation Toggles
+        advanced:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Advanced
+        validation_caution:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Validation Caution
+          description: Pre-validation gating flag (Phase 4). Always None in Phase
+            1 baseline; populated later without breaking clients.
+        optimization_mode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Optimization Mode
+          description: Indicates optimization execution mode (e.g., 'none', 'deferred').
+            Present early with None to lock contract.
+        validation:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Validation
+        validation_summary:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Validation Summary
+        validation_schema_version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Validation Schema Version
+        validation_manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationManifestFragment'
+          - type: 'null'
+        validation_significance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validation Significance
+        validation_modules:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationModules'
+          - type: 'null'
+        validation_config:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationConfig'
+          - type: 'null'
+        validation_permutation:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationPermutationPayload'
+          - type: 'null'
+        validation_bias_adjustments:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationBiasAdjustments'
+          - type: 'null'
+        validation_cross_validation:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationCrossValidationPayload'
+          - type: 'null'
+        validation_execution_realism:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationExecutionRealismPayload'
+          - type: 'null'
+        validation_artifacts:
+          anyOf:
+          - additionalProperties:
+              $ref: '#/components/schemas/ValidationArtifactDescriptor'
+            type: object
+          - type: 'null'
+          title: Validation Artifacts
+        validation_manifest_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validation Manifest Hash
+      type: object
+      required:
+      - run_id
+      - status
+      title: BacktestResultPayload
+    BacktestRunCreateResponse:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        created:
+          type: boolean
+          title: Created
+      type: object
+      required:
+      - run_id
+      - created
+      title: BacktestRunCreateResponse
+    BacktestRunRequestModel:
+      properties:
+        ticker:
+          type: string
+          maxLength: 32
+          minLength: 1
+          title: Ticker
+        timeframe:
+          type: string
+          title: Timeframe
+          description: Timeframe code (e.g., 1m, 1h, 1d)
+          default: 1d
+        start:
+          type: string
+          title: Start
+          description: Start date YYYY-MM-DD
+        end:
+          type: string
+          title: End
+          description: End date YYYY-MM-DD
+        strategy_name:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Strategy Name
+        strategy_params:
+          type: object
+          title: Strategy Params
+        risk_model:
+          type: string
+          title: Risk Model
+          description: Risk model identifier
+          default: basic
+        risk_params:
+          type: object
+          title: Risk Params
+        validation:
+          type: object
+          title: Validation
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+      type: object
+      required:
+      - ticker
+      - start
+      - end
+      - strategy_name
+      title: BacktestRunRequestModel
+    BacktestRunStatusResponse:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        status:
+          type: string
+          title: Status
+        created_at:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Created At
+      type: object
+      required:
+      - run_id
+      - status
+      title: BacktestRunStatusResponse
+    BacktestSubmission:
       properties:
         symbol:
           type: string
-          description: Trading symbol (e.g. NVDA, TEST)
+          maxLength: 32
+          minLength: 1
+          title: Symbol
+        date_range:
+          additionalProperties:
+            type: string
+          type: object
+          title: Date Range
+        strategy:
+          type: object
+          title: Strategy
+        risk:
+          type: object
+          title: Risk
+        validation:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Validation
+        advanced:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Advanced
+        extended_validation_toggles:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Extended Validation Toggles
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+      type: object
+      required:
+      - symbol
+      - date_range
+      - strategy
+      - risk
+      title: BacktestSubmission
+    BacktestSubmissionResponse:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        status:
+          type: string
+          title: Status
+          default: queued
+      type: object
+      required:
+      - run_id
+      title: BacktestSubmissionResponse
+    CanonicalizeRequest:
+      properties:
+        payload:
+          anyOf:
+          - type: object
+          - type: array
+          - type: string
+          - type: number
+          - type: boolean
+          - type: 'null'
+          title: Payload
+          description: Arbitrary JSON payload to canonicalize using backend hashing
+            rules.
+      type: object
+      required:
+      - payload
+      title: CanonicalizeRequest
+    CanonicalizeResponse:
+      properties:
+        canonical:
+          type: string
+          title: Canonical
+        sha256:
+          type: string
+          title: Sha256
+      type: object
+      required:
+      - canonical
+      - sha256
+      title: CanonicalizeResponse
+    ExecutionSpec:
+      properties:
+        mode:
+          type: string
+          title: Mode
+          default: sim
+        slippage_bps:
+          type: number
+          title: Slippage Bps
+          default: 0.0
+        fee_bps:
+          type: number
+          title: Fee Bps
+          default: 0.0
+        borrow_cost_bps:
+          type: number
+          title: Borrow Cost Bps
+          default: 0.0
+        slippage_model:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Slippage Model
+      type: object
+      title: ExecutionSpec
+    ExportConfigResponse:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        original_request:
+          type: object
+          title: Original Request
+      type: object
+      required:
+      - run_id
+      - original_request
+      title: ExportConfigResponse
+    FeaturePreviewRequest:
+      properties:
+        symbol:
+          type: string
+          maxLength: 32
+          minLength: 1
+          title: Symbol
+        start:
+          type: string
+          format: date-time
+          title: Start
+        end:
+          type: string
+          format: date-time
+          title: End
+        limit:
+          type: integer
+          maximum: 2000.0
+          minimum: 1.0
+          title: Limit
+          default: 300
+      type: object
+      required:
+      - symbol
+      - start
+      - end
+      title: FeaturePreviewRequest
+    FeaturePreviewResponse:
+      properties:
+        symbol:
+          type: string
+          title: Symbol
+        count:
+          type: integer
+          title: Count
+        columns:
+          items:
+            type: string
+          type: array
+          title: Columns
+        items:
+          items:
+            type: object
+          type: array
+          title: Items
+      type: object
+      required:
+      - symbol
+      - count
+      - columns
+      - items
+      title: FeaturePreviewResponse
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    IndicatorSpec:
+      properties:
+        name:
+          type: string
+          title: Name
+        params:
+          type: object
+          title: Params
+      type: object
+      required:
+      - name
+      title: IndicatorSpec
+    MonteCarloRequest:
+      properties:
+        paths:
+          type: integer
+          maximum: 500.0
+          minimum: 20.0
+          title: Paths
+          description: Number of Monte Carlo equity paths
+          default: 200
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+          description: Override seed (defaults to run seed or strategy hash derived)
+        extended_percentiles:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Extended Percentiles
+          description: Include p5/p95 keys (deferred until T074); accepted but ignored
+            now
+          default: false
+      type: object
+      title: MonteCarloRequest
+    MonteCarloResponse:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        paths_meta:
+          type: object
+          title: Paths Meta
+        equity_paths:
+          items:
+            items:
+              type: number
+            type: array
+          type: array
+          title: Equity Paths
+        percentiles:
+          additionalProperties:
+            items:
+              type: number
+            type: array
+          type: object
+          title: Percentiles
+        extended_percentiles:
+          anyOf:
+          - additionalProperties:
+              items:
+                type: number
+              type: array
+            type: object
+          - type: 'null'
+          title: Extended Percentiles
+      type: object
+      required:
+      - run_id
+      - paths_meta
+      - equity_paths
+      - percentiles
+      title: MonteCarloResponse
+    PresetCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Name
+        config:
+          type: object
+          title: Config
+      type: object
+      required:
+      - name
+      - config
+      title: PresetCreate
+    PresetList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/PresetResponse'
+          type: array
+          title: Items
+      type: object
+      required:
+      - items
+      title: PresetList
+    PresetResponse:
+      properties:
+        preset_id:
+          type: string
+          title: Preset Id
+        name:
+          type: string
+          title: Name
+        config:
+          type: object
+          title: Config
+      type: object
+      required:
+      - preset_id
+      - name
+      - config
+      title: PresetResponse
+    RetentionPlanDiffRequest:
+      properties:
+        keep_last:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Keep Last
+        top_k_per_strategy:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Top K Per Strategy
+        max_full_bytes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Full Bytes
+      type: object
+      title: RetentionPlanDiffRequest
+    RetentionUpdateRequest:
+      properties:
+        keep_last:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Keep Last
+        top_k_per_strategy:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Top K Per Strategy
+        max_full_bytes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Full Bytes
+      type: object
+      title: RetentionUpdateRequest
+    RiskSpec:
+      properties:
+        model:
+          type: string
+          title: Model
+        params:
+          type: object
+          title: Params
+      type: object
+      required:
+      - model
+      title: RiskSpec
+    RunConfig:
+      properties:
+        indicators:
+          items:
+            $ref: '#/components/schemas/IndicatorSpec'
+          type: array
+          title: Indicators
+        strategy:
+          $ref: '#/components/schemas/StrategySpec'
+        risk:
+          $ref: '#/components/schemas/RiskSpec'
+        execution:
+          $ref: '#/components/schemas/ExecutionSpec'
+        validation:
+          $ref: '#/components/schemas/ValidationSpec'
+        symbol:
+          type: string
+          title: Symbol
         timeframe:
           type: string
-          description: Candle interval (e.g. 1m, 5m, 1h)
+          title: Timeframe
         start:
-          type: integer
-          format: int64
-          description: Inclusive start timestamp (epoch ms)
-        end:
-          type: integer
-          format: int64
-          description: Exclusive end timestamp (epoch ms)
-        provider:
           type: string
-          description: Data provider identifier
-        indicators:
+          title: Start
+        end:
+          type: string
+          title: End
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+      type: object
+      required:
+      - strategy
+      - risk
+      - symbol
+      - timeframe
+      - start
+      - end
+      title: RunConfig
+    RunCreateResponse:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        run_hash:
+          type: string
+          title: Run Hash
+        status:
+          type: string
+          title: Status
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        created:
+          type: boolean
+          title: Created
+        api_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Api Version
+        schema_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Schema Version
+        content_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Content Hash
+      type: object
+      required:
+      - run_id
+      - run_hash
+      - status
+      - created_at
+      - created
+      title: RunCreateResponse
+    RunDetailResponse:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        run_hash:
+          type: string
+          title: Run Hash
+        status:
+          type: string
+          title: Status
+        phase:
+          type: string
+          title: Phase
+        artifacts:
+          items:
+            $ref: '#/components/schemas/ArtifactDescriptor'
+          type: array
+          title: Artifacts
+        summary:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Summary
+        data_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Data Hash
+        calendar_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Calendar Id
+        validation_summary:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Validation Summary
+        validation:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Validation
+        manifest:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Manifest
+        api_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Api Version
+        schema_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Schema Version
+        content_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Content Hash
+        pinned:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Pinned
+        retention_state:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Retention State
+        metrics_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Metrics Hash
+        equity_curve_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Equity Curve Hash
+        validation_schema_version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Validation Schema Version
+        validation_manifest:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Validation Manifest
+        validation_significance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validation Significance
+        validation_manifest_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validation Manifest Hash
+      type: object
+      required:
+      - run_id
+      - run_hash
+      - status
+      - phase
+      - artifacts
+      title: RunDetailResponse
+    RunHashesResponse:
+      properties:
+        run_hash:
+          type: string
+          title: Run Hash
+        manifest_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Manifest Hash
+        metrics_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Metrics Hash
+        equity_curve_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Equity Curve Hash
+        provenance_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Provenance Hash
+        api_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Api Version
+        validation_manifest_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validation Manifest Hash
+      type: object
+      required:
+      - run_hash
+      title: RunHashesResponse
+    RunHistoryResponse:
+      properties:
+        symbol:
+          type: string
+          title: Symbol
+        runs:
+          items:
+            type: object
+          type: array
+          title: Runs
+      type: object
+      required:
+      - symbol
+      title: RunHistoryResponse
+    RunListItem:
+      properties:
+        run_hash:
+          type: string
+          title: Run Hash
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+        status:
+          type: string
+          title: Status
+          default: SUCCEEDED
+      type: object
+      required:
+      - run_hash
+      title: RunListItem
+    RunListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/RunListItem'
+          type: array
+          title: Items
+      type: object
+      required:
+      - items
+      title: RunListResponse
+    StrategySpec:
+      properties:
+        name:
+          type: string
+          title: Name
+        params:
+          type: object
+          title: Params
+      type: object
+      required:
+      - name
+      title: StrategySpec
+    ValidationArtifactDescriptor:
+      properties:
+        sha256:
+          type: string
+          title: Sha256
+        size:
+          type: integer
+          title: Size
+      additionalProperties: true
+      type: object
+      required:
+      - sha256
+      - size
+      title: ValidationArtifactDescriptor
+    ValidationBiasAdjustments:
+      properties:
+        observed_sharpe:
+          type: number
+          title: Observed Sharpe
+        deflated_sharpe:
+          type: number
+          title: Deflated Sharpe
+        probabilistic_sharpe:
+          type: number
+          title: Probabilistic Sharpe
+        assumed_trials:
+          type: integer
+          title: Assumed Trials
+        benchmark_sharpe:
+          type: number
+          title: Benchmark Sharpe
+        status:
+          type: string
+          title: Status
+        absolute_threshold:
+          type: number
+          title: Absolute Threshold
+        relative_threshold:
+          type: number
+          title: Relative Threshold
+        cscv_adjusted_sharpe:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Cscv Adjusted Sharpe
+        bias_flag:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Bias Flag
+        skewness:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Skewness
+        kurtosis:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Kurtosis
+      additionalProperties: true
+      type: object
+      required:
+      - observed_sharpe
+      - deflated_sharpe
+      - probabilistic_sharpe
+      - assumed_trials
+      - benchmark_sharpe
+      - status
+      - absolute_threshold
+      - relative_threshold
+      title: ValidationBiasAdjustments
+    ValidationConfig:
+      properties:
+        modules:
+          items:
+            type: string
+          type: array
+          title: Modules
+        permutation_count:
+          type: integer
+          title: Permutation Count
+        significance_threshold:
+          type: number
+          title: Significance Threshold
+        leakage_threshold:
+          type: number
+          title: Leakage Threshold
+        realism_capacity_bps_limit:
+          type: number
+          title: Realism Capacity Bps Limit
+        bias_absolute_threshold:
+          type: number
+          title: Bias Absolute Threshold
+        bias_relative_threshold:
+          type: number
+          title: Bias Relative Threshold
+      additionalProperties: true
+      type: object
+      required:
+      - modules
+      - permutation_count
+      - significance_threshold
+      - leakage_threshold
+      - realism_capacity_bps_limit
+      - bias_absolute_threshold
+      - bias_relative_threshold
+      title: ValidationConfig
+    ValidationCrossValidationFold:
+      properties:
+        fold_id:
+          type: string
+          title: Fold Id
+        train:
+          $ref: '#/components/schemas/ValidationFoldRange'
+        test:
+          $ref: '#/components/schemas/ValidationFoldRange'
+        purge_span:
+          type: string
+          title: Purge Span
+        metrics:
+          additionalProperties:
+            type: number
+          type: object
+          title: Metrics
+        leakage_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Leakage Score
+      additionalProperties: true
+      type: object
+      required:
+      - fold_id
+      - train
+      - test
+      - purge_span
+      - metrics
+      title: ValidationCrossValidationFold
+    ValidationCrossValidationPayload:
+      properties:
+        mode:
+          type: string
+          title: Mode
+        seed_root:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed Root
+        folds:
+          items:
+            $ref: '#/components/schemas/ValidationCrossValidationFold'
+          type: array
+          title: Folds
+        leakage_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Leakage Score
+        bias_flag:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Bias Flag
+        cscv_adjusted_sharpe:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Cscv Adjusted Sharpe
+        folds_artifact:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Folds Artifact
+        folds_artifact_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Folds Artifact Sha256
+      additionalProperties: true
+      type: object
+      required:
+      - mode
+      title: ValidationCrossValidationPayload
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    ValidationExecutionRealismPayload:
+      properties:
+        status:
+          type: string
+          title: Status
+        transaction_cost_bps:
+          type: number
+          title: Transaction Cost Bps
+        market_impact_bps:
+          type: number
+          title: Market Impact Bps
+        capacity_ratio:
+          type: number
+          title: Capacity Ratio
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+        guidance:
+          items:
+            type: string
+          type: array
+          title: Guidance
+        assumptions:
+          type: object
+          title: Assumptions
+        artifact:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Artifact
+        artifact_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Artifact Sha256
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      - transaction_cost_bps
+      - market_impact_bps
+      - capacity_ratio
+      title: ValidationExecutionRealismPayload
+    ValidationFoldRange:
+      properties:
+        start:
+          type: string
+          title: Start
+        end:
+          type: string
+          title: End
+      additionalProperties: true
+      type: object
+      required:
+      - start
+      - end
+      title: ValidationFoldRange
+    ValidationHistogramSummary:
+      properties:
+        bins:
+          type: integer
+          title: Bins
+        counts:
+          items:
+            type: integer
+          type: array
+          title: Counts
+        mean:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mean
+        std_dev:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Std Dev
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        percentiles:
+          anyOf:
+          - additionalProperties:
+              type: number
+            type: object
+          - type: 'null'
+          title: Percentiles
+      additionalProperties: true
+      type: object
+      required:
+      - bins
+      - counts
+      title: ValidationHistogramSummary
+    ValidationManifestFragment:
+      properties:
+        validation_schema_version:
+          type: integer
+          title: Validation Schema Version
+        validation_significance:
+          type: string
+          title: Validation Significance
+        modules:
+          $ref: '#/components/schemas/ValidationManifestModules'
+        permutation_summary:
+          $ref: '#/components/schemas/ValidationManifestPermutationSummary'
+        sharpe_adjustments:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Sharpe Adjustments
+        cross_validation:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Cross Validation
+        execution_realism:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Execution Realism
+      additionalProperties: true
+      type: object
+      required:
+      - validation_schema_version
+      - validation_significance
+      - modules
+      - permutation_summary
+      title: ValidationManifestFragment
+    ValidationManifestModuleConfig:
+      properties:
+        enabled:
+          type: boolean
+          title: Enabled
+        executed_permutations:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Executed Permutations
+      additionalProperties: true
+      type: object
+      required:
+      - enabled
+      title: ValidationManifestModuleConfig
+    ValidationManifestModules:
+      properties:
+        permutation:
+          $ref: '#/components/schemas/ValidationManifestModuleConfig'
+        dsr:
+          $ref: '#/components/schemas/ValidationManifestModuleConfig'
+        psr:
+          $ref: '#/components/schemas/ValidationManifestModuleConfig'
+        purged_kfold:
+          $ref: '#/components/schemas/ValidationManifestModuleConfig'
+        cpcv:
+          $ref: '#/components/schemas/ValidationManifestModuleConfig'
+        realism:
+          $ref: '#/components/schemas/ValidationManifestModuleConfig'
+      additionalProperties: true
+      type: object
+      required:
+      - permutation
+      - dsr
+      - psr
+      - purged_kfold
+      - cpcv
+      - realism
+      title: ValidationManifestModules
+    ValidationManifestPermutationSegment:
+      properties:
+        segment_id:
+          type: string
+          title: Segment Id
+        p_value:
+          type: number
+          title: P Value
+        effect_size:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Effect Size
+        artifact_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Artifact Path
+        artifact_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Artifact Sha256
+        fallback_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fallback Reason
+      additionalProperties: true
+      type: object
+      required:
+      - segment_id
+      - p_value
+      title: ValidationManifestPermutationSegment
+    ValidationManifestPermutationSummary:
+      properties:
+        segments:
+          items:
+            $ref: '#/components/schemas/ValidationManifestPermutationSegment'
+          type: array
+          title: Segments
+      additionalProperties: true
+      type: object
+      title: ValidationManifestPermutationSummary
+    ValidationModules:
+      properties:
+        permutation:
+          type: boolean
+          title: Permutation
+        bias_adjustments:
+          type: boolean
+          title: Bias Adjustments
+        cross_validation:
+          anyOf:
+          - type: boolean
+          - type: string
+          title: Cross Validation
+        execution_realism:
+          type: boolean
+          title: Execution Realism
+      additionalProperties: true
+      type: object
+      required:
+      - permutation
+      - bias_adjustments
+      - cross_validation
+      - execution_realism
+      title: ValidationModules
+    ValidationPermutationPayload:
+      properties:
+        segments:
+          items:
+            $ref: '#/components/schemas/ValidationPermutationSegment'
+          type: array
+          title: Segments
+      additionalProperties: true
+      type: object
+      title: ValidationPermutationPayload
+    ValidationPermutationSegment:
+      properties:
+        segment_id:
+          type: string
+          title: Segment Id
+        p_value:
+          type: number
+          title: P Value
+        effect_size:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Effect Size
+        requested_permutations:
+          type: integer
+          title: Requested Permutations
+        executed_permutations:
+          type: integer
+          title: Executed Permutations
+        observed_metric:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Observed Metric
+        histogram:
+          anyOf:
+          - $ref: '#/components/schemas/ValidationHistogramSummary'
+          - type: 'null'
+        artifact:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Artifact
+        fallback_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fallback Reason
+        seed_root:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed Root
+      additionalProperties: true
+      type: object
+      required:
+      - segment_id
+      - p_value
+      - requested_permutations
+      - executed_permutations
+      title: ValidationPermutationSegment
+    ValidationSpec:
+      properties:
+        permutation:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Permutation
+        block_bootstrap:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Block Bootstrap
+        monte_carlo:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Monte Carlo
+        walk_forward:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Walk Forward
+      type: object
+      title: ValidationSpec
+    WalkForwardResponse:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        splits:
+          items:
+            type: object
+          type: array
+          title: Splits
+      type: object
+      required:
+      - run_id
+      title: WalkForwardResponse
+    ErrorResponse:
+      type: object
+      properties:
+        error_code:
+          type: string
+          description: kebab-case error code
+        message:
+          type: string
+        details:
           type: array
           items:
             type: object
-            required: [name, params]
             properties:
-              name:
+              field:
+                type:
+                - string
+                - 'null'
+              message:
                 type: string
-                description: Indicator registry name
-              params:
-                type: object
-                description: Free-form parameter map for indicator
-                additionalProperties: true
-        strategy:
-          type: object
-          required: [name, params]
+              code:
+                type:
+                - string
+                - 'null'
+        correlation_id:
+          type:
+          - string
+          - 'null'
+        docs_url:
+          type:
+          - string
+          - 'null'
+        debug:
+          type:
+          - object
+          - 'null'
           properties:
-            name:
-              type: string
-              description: Strategy name
-            params:
-              type: object
-              description: Strategy parameter key/value map
-              additionalProperties: true
-        risk:
-          type: object
-          required: [model, params]
-          properties:
-            model:
-              type: string
-              enum: [fixed_fraction, volatility_target, kelly_fraction]
-              description: Risk model identifier
-            params:
-              type: object
-              description: |
-                Parameters by model:
-                  fixed_fraction:
-                    fraction: float (0,1]
-                  volatility_target:
-                    target_vol: float (desired annualized volatility, e.g. 0.15)
-                    lookback: int (>1)
-                    base_fraction: float base sizing fraction prior to scaling
-                  kelly_fraction:
-                    p_win: float [0,1]
-                    payoff_ratio: float (>0)
-                    base_fraction: float dampening multiplier on Kelly fraction
-              additionalProperties: true
-        execution:
-          type: object
-          properties:
-            commission_per_share:
-              type: number
-              description: Commission per share traded
-            slippage_bps:
-              type: number
-              description: Fixed slippage in basis points (1 bp = 0.0001)
-            borrow_bps:
-              type: number
-              description: Annualized borrow cost in basis points
-            fill_price:
-              type: string
-              enum: [open_next, mid_next, vwap_next]
-              default: open_next
-              description: Price model for fills
-            slippage_model:
-              type: object
-              required: [model]
-              properties:
-                model:
-                  type: string
-                  enum: [spread_pct, participation_rate]
-                  description: Slippage model identifier
-                params:
-                  type: object
-                  description: |
-                    Parameters by model:
-                      spread_pct:
-                        spread_pct: float (fraction; 0.001 = 10 bps total spread width)
-                      participation_rate:
-                        participation_pct: float (impact scaling factor relative to size/volume)
-                  additionalProperties: true
-        validation:
-          type: object
-          properties:
-            permutation:
-              type: object
-              properties:
-                n:
-                  type: integer
-                  minimum: 1
-            block_bootstrap:
-              type: object
-              properties:
-                n:
-                  type: integer
-                block_size:
-                  type: integer
-            monte_carlo:
-              type: object
-              properties:
-                n:
-                  type: integer
-            wfo:
-              type: object
-              properties:
-                windows:
-                  type: integer
-        seed:
-          type: integer
-          description: RNG seed for deterministic results
-        preset_ref:
-          type: string
-          description: Optional preset identifier being referenced
-    RunCreated:
-      type: object
-      properties:
-        run_id:
-          type: string
-          description: Server-generated run identifier
-        hash:
-          type: string
-          description: Deterministic hash of canonical configuration
-        status:
-          type: string
-          description: Current run status
-        reused:
-          type: boolean
-          description: True if idempotent create returned existing run
-    RunSummary:
-      type: object
-      description: Lightweight view of a run including identity, status and optional performance summary.
-      properties:
-        run_id:
-          type: string
-        status:
-          type: string
-        hash:
-          type: string
-        created_at:
-          type: integer
-          format: int64
-        metrics_summary:
-          $ref: '#/components/schemas/MetricsSummary'
-    RunList:
-      type: object
-      properties:
-        runs:
-          type: array
-          items:
-            $ref: '#/components/schemas/RunSummary'
+            stack_summary:
+              type:
+              - string
+              - 'null'
+            hint:
+              type:
+              - string
+              - 'null'
     RunDetail:
-      description: Detailed run record combining summary, configuration, artifacts, and dataset validation linkage.
+      title: RunDetail
       allOf:
-        - $ref: '#/components/schemas/RunSummary'
-        - type: object
-          description: Full run detail including original configuration, artifacts manifest and dataset linkage metadata.
-          properties:
-            config: { $ref: '#/components/schemas/RunConfig' }
-            artifacts: { $ref: '#/components/schemas/ArtifactManifest' }
-            data_hash:
-              type: string
-              description: Canonical sha256 of normalized dataset used.
-            calendar_id:
-              type: string
-              description: Exchange calendar identifier applied during ingestion.
-            validation_summary:
-              type: object
-              description: Lightweight anomaly & integrity counters (subset of validation.json artifact).
-              properties:
-                symbol: { type: string }
-                data_hash: { type: string }
-                counters:
-                  type: object
-                  additionalProperties: { type: integer }
-                unexpected_gaps: { type: integer }
-                expected_closures: { type: integer }
+      - $ref: '#/components/schemas/RunDetailResponse'
     ArtifactManifest:
-      type: object
       description: Integrity-preserving list of files produced by a run with hashes for reproducibility.
+      type: object
       properties:
         run_id:
           type: string
@@ -713,9 +2606,9 @@ components:
           format: int64
           description: UTC timestamp (epoch ms) manifest finalized.
         chain_prev:
-            type: string
-            nullable: true
-            description: Canonical hash of previous run's manifest (integrity chain head->tail). Null for first link.
+          type: string
+          nullable: true
+          description: Canonical hash of previous run's manifest (integrity chain head->tail). Null for first link.
         manifest_hash:
           type: string
           description: Canonical hash of this manifest (stable over idempotent rewrites).
@@ -729,7 +2622,11 @@ components:
           type: array
           items:
             type: object
-            required: [name, path, sha256, size]
+            required:
+            - name
+            - path
+            - sha256
+            - size
             properties:
               name:
                 type: string
@@ -742,262 +2639,11 @@ components:
               mime:
                 type: string
                 description: Optional mime-type; may be omitted for internal JSON assets.
-    ValidationSummary:
-      type: object
-      description: Complete validation details available in validation.json artifact.
-      properties:
-        symbol:
-          type: string
-        data_hash:
-          type: string
-        events:
-          type: array
-          items:
-            type: object
-            properties:
-              type:
-                type: string
-              count:
-                type: integer
-              sample:
-                type: array
-                items: { type: integer, format: int64 }
-              resolution:
-                type: string
-        counters:
-          type: object
-          additionalProperties: { type: integer }
-        expected_closures:
-          type: integer
-        unexpected_gaps:
-          type: integer
-        generated_at:
-          type: integer
-          format: int64
-    CandleResponse:
-      type: object
-      properties:
-        symbol:
-          type: string
-        timeframe:
-          type: string
-        candles:
-          type: array
-          items:
-            type: object
-            properties:
-              ts:
-                type: integer
-                format: int64
-              o:
-                type: number
-              h:
-                type: number
-              l:
-                type: number
-              c:
-                type: number
-              v:
-                type: number
-    FeaturePreview:
-      type: object
-      additionalProperties: true
-      description: Dynamic keys for features
-    MetricsSummary:
-      type: object
-      description: Key performance and risk metrics aggregated over the full run horizon.
-      properties:
-        total_return:
-          type: number
-        sharpe:
-          type: number
-        sortino:
-          type: number
-        max_drawdown:
-          type: number
-        trade_count:
-          type: integer
-        win_rate:
-          type: number
-        exposure_pct:
-          type: number
-        turnover:
-          type: number
-    PresetCreate:
-      type: object
-      required: [name, config]
-      properties:
-        name:
-          type: string
-        config:
-          type: object
-          additionalProperties: true
-    Preset:
-      type: object
-      properties:
-        preset_id:
-          type: string
-        name:
-          type: string
-        config:
-          type: object
-    PresetList:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Preset'
-    EventEnvelope:
-      type: object
-      description: Server-sent event entry describing progress, stage changes, heartbeats, or messages.
-      properties:
-        run_id:
-          type: string
-        seq:
-          type: integer
-        ts:
-          type: integer
-          format: int64
-        type:
-          type: string
-        stage:
-          type: string
-        progress:
-          type: number
-        message:
-          type: string
-        data:
-          type: object
-    Health:
-      type: object
-      properties:
-        status:
-          type: string
-        version:
-          type: string
-    RetentionSettings:
-      type: object
-      properties:
-        keep_last: { type: integer, minimum: 1 }
-        top_k_per_strategy: { type: integer, minimum: 0 }
-        max_full_bytes: { type: integer, nullable: true }
-        api_version: { type: string }
-      required: [keep_last, top_k_per_strategy, api_version]
-    RetentionSettingsUpdate:
-      type: object
-      properties:
-        keep_last: { type: integer }
-        top_k_per_strategy: { type: integer }
-        max_full_bytes: { type: integer, nullable: true }
-    RetentionMetrics:
-      type: object
-      properties:
-        api_version: { type: string }
-        counts:
-          type: object
-          additionalProperties: { type: integer }
-        bytes:
-          type: object
-          additionalProperties: { type: integer }
-        max_full_bytes: { type: integer, nullable: true }
-        budget_remaining: { type: integer, nullable: true }
-        audit_rotation:
-          type: object
-          nullable: true
-          properties:
-            rotation_count: { type: integer }
-            rotated_original_bytes: { type: integer }
-            rotated_compressed_bytes: { type: integer }
-            compression_ratio: { type: number, nullable: true }
-      required: [api_version, counts, bytes]
-    RetentionPlan:
-      type: object
-      properties:
-        api_version: { type: string }
-        keep_full:
-          type: array
-          items: { type: string }
-        demote:
-          type: array
-          items: { type: string }
-        pinned:
-          type: array
-          items: { type: string }
-        top_k:
-          type: array
-          items: { type: string }
-        summary:
-          type: object
-          properties:
-            kept: { type: integer }
-            demoted: { type: integer }
-            pinned: { type: integer }
-            top_k: { type: integer }
-        max_full_bytes: { type: integer, nullable: true }
-      required: [api_version, keep_full, demote, pinned, top_k]
-    RetentionApplyResult:
-      type: object
-      properties:
-        api_version: { type: string }
-        kept:
-          type: array
-          items: { type: string }
-        demoted:
-          type: array
-          items: { type: string }
-        pinned:
-          type: array
-          items: { type: string }
-        top_k:
-          type: array
-          items: { type: string }
-      required: [api_version, kept, demoted, pinned, top_k]
-    RetentionPlanDiff:
-      type: object
-      properties:
-        api_version: { type: string }
-        current:
-          type: object
-          properties:
-            kept: { type: integer }
-            demoted: { type: integer }
-        alternative:
-          type: object
-          properties:
-            kept: { type: integer }
-            demoted: { type: integer }
-            config:
-              type: object
-              properties:
-                keep_last: { type: integer }
-                top_k_per_strategy: { type: integer }
-                max_full_bytes: { type: integer, nullable: true }
-        diff:
-          type: object
-          properties:
-            new_demotions:
-              type: array
-              items: { type: string }
-            new_full:
-              type: array
-              items: { type: string }
-            lost_full:
-              type: array
-              items: { type: string }
-      required: [api_version, current, alternative, diff]
-    ErrorEnvelope:
-      type: object
-      properties:
-        error:
-          type: object
-          required: [code, message]
-          properties:
-            code:
-              type: string
-            message:
-              type: string
-            details:
-              type: object
-            retryable:
-              type: boolean
+      required:
+      - error_code
+      - message
+  headers:
+    X-Correlation-ID:
+      description: Correlation identifier echoed back in error responses and logs
+      schema:
+        type: string

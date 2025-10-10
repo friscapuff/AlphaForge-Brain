@@ -15,6 +15,17 @@ import os
 from typing import Any
 from typing import Any as _Any  # alias for clarity
 
+from api.models.validation import (
+    ValidationArtifactDescriptor,
+    ValidationBiasAdjustments,
+    ValidationConfig,
+    ValidationCrossValidationPayload,
+    ValidationExecutionRealismPayload,
+    ValidationManifestFragment,
+    ValidationModules,
+    ValidationPayload,
+    ValidationPermutationPayload,
+)
 from domain.run.create import InMemoryRunRegistry, create_or_get
 from domain.schemas.run_config import (
     ExecutionSpec,
@@ -24,7 +35,7 @@ from domain.schemas.run_config import (
     ValidationSpec,
 )
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 _np: _Any | None = None
 try:  # optional heavy dependency for fast simulation
@@ -283,6 +294,19 @@ class BacktestResultPayload(BaseModel):
             "Indicates optimization execution mode (e.g., 'none', 'deferred'). Present early with None to lock contract."
         ),
     )
+    validation: dict[str, Any] | None = None
+    validation_summary: dict[str, Any] | None = None
+    validation_schema_version: int | None = None
+    validation_manifest: ValidationManifestFragment | None = None
+    validation_significance: str | None = None
+    validation_modules: ValidationModules | None = None
+    validation_config: ValidationConfig | None = None
+    validation_permutation: ValidationPermutationPayload | None = None
+    validation_bias_adjustments: ValidationBiasAdjustments | None = None
+    validation_cross_validation: ValidationCrossValidationPayload | None = None
+    validation_execution_realism: ValidationExecutionRealismPayload | None = None
+    validation_artifacts: dict[str, ValidationArtifactDescriptor] | None = None
+    validation_manifest_hash: str | None = None
     # advanced.warnings lives under advanced; we surface convenience top-level list only once semantics finalize (future). For Phase 1 we keep warnings nested.
 
 
@@ -339,34 +363,182 @@ async def get_backtest_result(run_id: str, request: Request) -> BacktestResultPa
     # Metrics lives under summary.get('metrics') per orchestrator.
     metrics = summary.get("metrics", {}) if isinstance(summary, dict) else {}
     # Trades summary minimal: trade_count + win_rate if available.
-    trades_summary = {
-        k: summary.get(k)
-        for k in ["trade_count", "win_rate", "total_return", "max_drawdown"]
-        if k in summary
-    }
+    trades_summary = (
+        {
+            k: summary.get(k)
+            for k in ["trade_count", "win_rate", "total_return", "max_drawdown"]
+            if isinstance(summary, dict) and k in summary
+        }
+        if isinstance(summary, dict)
+        else {}
+    )
+    legacy_validation = (
+        rec.get("validation_summary")
+        if isinstance(rec.get("validation_summary"), dict)
+        else None
+    )
+
+    validation_v2 = rec.get("validation_v2")
+    if not isinstance(validation_v2, dict):
+        validation_v2 = None
+
+    validation_schema_version = rec.get("validation_schema_version")
+    validation_manifest_input = rec.get("validation_manifest")
+    validation_manifest: ValidationManifestFragment | None = None
+    if isinstance(validation_manifest_input, ValidationManifestFragment):
+        validation_manifest = validation_manifest_input
+    elif isinstance(validation_manifest_input, dict):
+        try:
+            validation_manifest = ValidationManifestFragment.model_validate(
+                validation_manifest_input
+            )
+        except ValidationError:  # pragma: no cover - tolerate legacy dicts
+            validation_manifest = None
+    validation_significance = rec.get("validation_significance")
+    validation_manifest_hash = rec.get("validation_manifest_hash")
+    validation_modules = None
+    validation_config = None
+    validation_permutation = None
+    validation_bias_adjustments = None
+    validation_cross_validation = None
+    validation_execution_realism = None
+    validation_artifacts = None
+
+    validation_payload: ValidationPayload | None = None
+    if validation_v2:
+        try:
+            validation_payload = ValidationPayload.model_validate(validation_v2)
+        except ValidationError:  # pragma: no cover - tolerate drifted payloads
+            validation_payload = None
+
+    if validation_payload is not None:
+        validation_schema_version = validation_payload.schema_version
+        if validation_manifest is None:
+            validation_manifest = validation_payload.manifest
+        validation_significance = validation_payload.significance_status
+        validation_modules = validation_payload.modules
+        validation_config = validation_payload.config
+        validation_permutation = validation_payload.permutation
+        validation_bias_adjustments = validation_payload.bias_adjustments
+        validation_cross_validation = validation_payload.cross_validation
+        validation_execution_realism = validation_payload.execution_realism
+        if validation_payload.artifacts:
+            validation_artifacts = dict(validation_payload.artifacts)
+        if validation_manifest_hash is None:
+            validation_manifest_hash = validation_payload.manifest_hash
+    elif validation_v2:
+        validation_schema_version = validation_v2.get(
+            "schema_version", validation_schema_version
+        )
+        manifest_val = validation_v2.get("manifest")
+        if isinstance(manifest_val, dict) and validation_manifest is None:
+            try:
+                validation_manifest = ValidationManifestFragment.model_validate(
+                    manifest_val
+                )
+            except ValidationError:  # pragma: no cover - tolerate drift
+                validation_manifest = None
+        validation_significance = validation_v2.get(
+            "significance_status", validation_significance
+        )
+        if validation_manifest_hash is None:
+            maybe_hash = validation_v2.get("manifest_hash")
+            if isinstance(maybe_hash, str):
+                validation_manifest_hash = maybe_hash
+        modules_val = validation_v2.get("modules")
+        if isinstance(modules_val, dict):
+            try:
+                validation_modules = ValidationModules.model_validate(modules_val)
+            except ValidationError:  # pragma: no cover - lenient fallback
+                validation_modules = None
+        config_val = validation_v2.get("config")
+        if isinstance(config_val, dict):
+            try:
+                validation_config = ValidationConfig.model_validate(config_val)
+            except ValidationError:  # pragma: no cover - lenient fallback
+                validation_config = None
+        perm_val = validation_v2.get("permutation")
+        if isinstance(perm_val, dict):
+            try:
+                validation_permutation = ValidationPermutationPayload.model_validate(
+                    perm_val
+                )
+            except ValidationError:  # pragma: no cover
+                validation_permutation = None
+        bias_val = validation_v2.get("bias_adjustments")
+        if isinstance(bias_val, dict):
+            try:
+                validation_bias_adjustments = ValidationBiasAdjustments.model_validate(
+                    bias_val
+                )
+            except ValidationError:  # pragma: no cover
+                validation_bias_adjustments = None
+        cross_val = validation_v2.get("cross_validation")
+        if isinstance(cross_val, dict):
+            try:
+                validation_cross_validation = (
+                    ValidationCrossValidationPayload.model_validate(cross_val)
+                )
+            except ValidationError:  # pragma: no cover
+                validation_cross_validation = None
+        realism_val = validation_v2.get("execution_realism")
+        if isinstance(realism_val, dict):
+            try:
+                validation_execution_realism = (
+                    ValidationExecutionRealismPayload.model_validate(realism_val)
+                )
+            except ValidationError:  # pragma: no cover
+                validation_execution_realism = None
+        artifacts_val = validation_v2.get("artifacts")
+        if isinstance(artifacts_val, dict):
+            try:
+                validation_artifacts = {
+                    name: ValidationArtifactDescriptor.model_validate(meta)
+                    for name, meta in artifacts_val.items()
+                    if isinstance(meta, dict)
+                }
+            except ValidationError:  # pragma: no cover
+                validation_artifacts = None
+
+    if legacy_validation is None:
+        legacy_validation = {}
+
     payload = BacktestResultPayload(
         run_id=run_id,
-        status="completed",  # synchronous baseline
-        equity_curve=[],  # placeholder until artifact read integrated
+        status="completed",
+        equity_curve=[],
         metrics=metrics,
         trades_summary=trades_summary,
-        walk_forward={"splits": []},  # T072 will populate
-        seed=rec.get("seed"),
-        strategy_hash=rec.get("strategy_hash"),
-        extended_validation_toggles=rec.get("extended_validation_toggles"),  # T075
+        walk_forward={"splits": []},
+        seed=rec.get("seed") if isinstance(rec.get("seed"), int) else None,
+        strategy_hash=(
+            rec.get("strategy_hash")
+            if isinstance(rec.get("strategy_hash"), str)
+            else None
+        ),
+        extended_validation_toggles=(
+            rec.get("extended_validation_toggles")
+            if isinstance(rec.get("extended_validation_toggles"), dict)
+            else None
+        ),
         advanced=(
             rec.get("advanced") if isinstance(rec.get("advanced"), dict) else None
         ),
-        # T015 fields default None to avoid implying semantics prematurely.
-        validation_caution=None,
-        optimization_mode=None,
+        validation=legacy_validation,
+        validation_summary=legacy_validation,
+        validation_schema_version=validation_schema_version,
+        validation_manifest=validation_manifest,
+        validation_significance=validation_significance,
+        validation_modules=validation_modules,
+        validation_config=validation_config,
+        validation_permutation=validation_permutation,
+        validation_bias_adjustments=validation_bias_adjustments,
+        validation_cross_validation=validation_cross_validation,
+        validation_execution_realism=validation_execution_realism,
+        validation_artifacts=validation_artifacts,
+        validation_manifest_hash=validation_manifest_hash,
     )
-    # Ensure advanced.warnings key exists (empty list) if advanced present to lock nested shape early.
-    if payload.advanced is not None and "warnings" not in payload.advanced:
-        payload.advanced = {**payload.advanced, "warnings": []}
 
-    # T050/T051: Optimization grid enumeration + deferred warning
-    # Inspect original config for walk-forward optimization param grid
     try:
         cfg = rec.get("config_original") if isinstance(rec, dict) else None
         wf = (
@@ -382,14 +554,12 @@ async def get_backtest_result(run_id: str, request: Request) -> BacktestResultPa
                 for v in grid.values():
                     if isinstance(v, list) and v:
                         combos *= len(v)
-            # Read max combinations from env (0 or missing means no limit)
             limit_env = os.getenv("AF_OPTIMIZATION_MAX_COMBINATIONS", "0")
             try:
                 limit = int(limit_env)
             except Exception:
                 limit = 0
             if limit > 0 and combos > limit:
-                # Defer optimization execution: set mode and emit warning object under advanced.warnings
                 if payload.advanced is None:
                     payload.advanced = {"warnings": []}
                 elif "warnings" not in payload.advanced:

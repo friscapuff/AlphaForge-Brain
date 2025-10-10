@@ -1,0 +1,24 @@
+{
+  "event": "validation.update",
+  "data": {
+    "run_id": "RUN-20251010-ABCD",
+    "correlation_id": "VAL-SEGMENT-in_sample",
+    "section": "permutation",
+    "payload": {
+      "segment_id": "in_sample",
+      "p_value": 0.0042,
+      "effect_size": 1.8,
+      "histogram_summary": {
+        "mean": 0.41,
+        "std_dev": 0.12,
+        "percentiles": {
+          "5": 0.19,
+          "50": 0.40,
+          "95": 0.62
+        }
+      },
+      "artifact_path": "validation/permutation/segment_in_sample.parquet",
+      "executed_permutations": 500
+    }
+  }
+}

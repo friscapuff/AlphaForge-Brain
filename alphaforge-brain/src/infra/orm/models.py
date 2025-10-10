@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -13,6 +13,7 @@ class Run(Base):
     created_at: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String)
     manifest_json: Mapped[str] = mapped_column(Text)
+    validation_schema_version: Mapped[int | None] = mapped_column(Integer, default=1)
 
 
 class Trade(Base):
@@ -73,6 +74,16 @@ class Validation(Base):
     ci_width: Mapped[float | None] = mapped_column(default=None)
     p_value: Mapped[float | None] = mapped_column(default=None)
     content_hash: Mapped[str | None] = mapped_column(String, default=None)
+    validation_type: Mapped[str | None] = mapped_column(String, default=None)
+    segment_id: Mapped[str | None] = mapped_column(String, default=None)
+    effect_size: Mapped[float | None] = mapped_column(default=None)
+    permutation_count: Mapped[int | None] = mapped_column(default=None)
+    dsr: Mapped[float | None] = mapped_column(default=None)
+    psr: Mapped[float | None] = mapped_column(default=None)
+    bias_flag: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    leakage_score: Mapped[float | None] = mapped_column(default=None)
+    realism_status: Mapped[str | None] = mapped_column(String, default=None)
+    metadata_json: Mapped[str | None] = mapped_column(Text, default=None)
 
 
 class AuditLog(Base):

@@ -55,6 +55,7 @@ def test_replay_hash_stability(tmp_path: Path, fast: int, slow: int) -> None:
     run_dir1 = artifacts_dir / run_hash1
     manifest_path1 = run_dir1 / "manifest.json"
     manifest1 = json.loads(manifest_path1.read_text("utf-8"))
+    vm_hash1 = manifest1.get("validation_manifest_hash")
 
     # Capture artifact hashes from manifest1
     hashes1 = {f["name"]: f["sha256"] for f in manifest1["files"]}
@@ -71,6 +72,10 @@ def test_replay_hash_stability(tmp_path: Path, fast: int, slow: int) -> None:
     hashes2 = {f["name"]: f["sha256"] for f in manifest2["files"]}
 
     assert manifest1 == manifest2, "Manifest mutated between identical replays"
+    vm_hash2 = manifest2.get("validation_manifest_hash")
+    if vm_hash1 or vm_hash2:
+        assert vm_hash1 == vm_hash2, "Validation manifest hash drifted"
+        assert isinstance(vm_hash1, str) and len(vm_hash1) == 64
 
     # Ensure stable hashes for required artifacts
     required = [

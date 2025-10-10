@@ -137,6 +137,10 @@ class RunDetailResponse(BaseModel):
     retention_state: str | None = None
     metrics_hash: str | None = None
     equity_curve_hash: str | None = None
+    validation_schema_version: int | None = None
+    validation_manifest: dict[str, Any] | None = None
+    validation_significance: str | None = None
+    validation_manifest_hash: str | None = None
 
 
 class RunHashesResponse(BaseModel):
@@ -146,6 +150,7 @@ class RunHashesResponse(BaseModel):
     equity_curve_hash: str | None = None
     provenance_hash: str | None = None  # combined attestation hash
     api_version: str | None = None
+    validation_manifest_hash: str | None = None
 
 
 @router.get("/runs/{run_hash}/hashes", response_model=RunHashesResponse)
@@ -176,6 +181,11 @@ async def get_run_hashes(
         if isinstance(rec.get("equity_curve_hash"), str)
         else None
     )
+    validation_manifest_hash_val = (
+        rec.get("validation_manifest_hash")
+        if isinstance(rec.get("validation_manifest_hash"), str)
+        else None
+    )
     manifest_path = base_path / run_hash / "manifest.json"
     if manifest_path.exists():
         try:
@@ -189,6 +199,8 @@ async def get_run_hashes(
                     metrics_hash_val = m["metrics_hash"]
                 if isinstance(m.get("equity_curve_hash"), str):
                     equity_curve_hash_val = m["equity_curve_hash"]
+                if isinstance(m.get("validation_manifest_hash"), str):
+                    validation_manifest_hash_val = m["validation_manifest_hash"]
         except Exception:  # pragma: no cover
             pass
     # Build provenance hash from available pieces (order-independent canonical form)
@@ -199,6 +211,8 @@ async def get_run_hashes(
         components["metrics_hash"] = metrics_hash_val
     if equity_curve_hash_val:
         components["equity_curve_hash"] = equity_curve_hash_val
+    if validation_manifest_hash_val:
+        components["validation_manifest_hash"] = validation_manifest_hash_val
     provenance_hash = hash_canonical(components) if components else None
     return RunHashesResponse(
         run_hash=run_hash,
@@ -207,6 +221,7 @@ async def get_run_hashes(
         equity_curve_hash=equity_curve_hash_val,
         provenance_hash=provenance_hash,
         api_version="0.1",
+        validation_manifest_hash=validation_manifest_hash_val,
     )
 
 
@@ -317,22 +332,46 @@ async def get_run_detail(
         "metrics_hash": metrics_hash_val,
         "equity_curve_hash": equity_curve_hash_val,
     }
-    payload["content_hash"] = hash_canonical(
-        {
-            k: (str(v) if not isinstance(v, (dict, list)) else k)
-            for k, v in payload.items()
-            if k
-            not in {
-                "content_hash",
-                "manifest",
-                "artifacts",
-                "summary",
-                "validation_summary",
-                "validation",
-            }
+    validation_schema = rec.get("validation_schema_version")
+    if validation_schema is None and manifest:
+        schema_from_manifest = manifest.get("validation_schema_version")
+        if isinstance(schema_from_manifest, int):
+            validation_schema = schema_from_manifest
+    payload["validation_schema_version"] = validation_schema
+    validation_manifest = rec.get("validation_manifest")
+    if validation_manifest is None and manifest:
+        maybe_manifest = manifest.get("validation_manifest")
+        if isinstance(maybe_manifest, dict):
+            validation_manifest = maybe_manifest
+    payload["validation_manifest"] = validation_manifest
+    validation_significance = rec.get("validation_significance")
+    if validation_significance is None and manifest:
+        validation_significance = manifest.get("validation_significance")
+    payload["validation_significance"] = validation_significance
+    validation_manifest_hash = rec.get("validation_manifest_hash")
+    if validation_manifest_hash is None and manifest:
+        maybe_hash = manifest.get("validation_manifest_hash")
+        if isinstance(maybe_hash, str):
+            validation_manifest_hash = maybe_hash
+    payload["validation_manifest_hash"] = validation_manifest_hash
+
+    response = RunDetailResponse(**payload)
+    serialized = response.model_dump(exclude_none=True)
+    canonical_source = {
+        k: (str(v) if not isinstance(v, (dict, list)) else k)
+        for k, v in serialized.items()
+        if k
+        not in {
+            "content_hash",
+            "manifest",
+            "artifacts",
+            "summary",
+            "validation_summary",
+            "validation",
         }
-    )
-    return RunDetailResponse(**payload)
+    }
+    content_hash = hash_canonical(canonical_source)
+    return response.model_copy(update={"content_hash": content_hash})
 
 
 @router.post("/runs/{run_hash}/cancel")

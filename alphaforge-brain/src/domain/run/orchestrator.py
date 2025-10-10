@@ -370,6 +370,8 @@ class Orchestrator:
                 "summary": summary,
                 "validation": validation,  # raw validation with distributions (where provided)
                 "equity_df": eq_curve,
+                "bars": candles,
+                "fills": fills,
             }
             self._result = result
             # Persist consolidated causality stats once per run (best-effort)

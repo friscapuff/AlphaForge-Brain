@@ -32,6 +32,7 @@
 - ❌ Avoid HOW to implement (no concrete frameworks unless contract boundary required)
 - 👥 Written for business stakeholders, not developers
 - 🧩 If feature spans both backend (Brain) and frontend (Mind), clearly separate concerns: backend computation vs frontend presentation.
+- 📊 If feature adjusts backtesting or validation, state how it interacts with Masters defaults (permutation count, significance, leakage, realism budgets) and why the change is justified.
 
 ### Section Requirements
 - **Mandatory sections**: Must be completed for every feature

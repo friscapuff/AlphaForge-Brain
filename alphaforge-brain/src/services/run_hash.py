@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import cast
 
 from src.models.manifest import ArtifactDescriptor, compute_composite_hash_from
 from src.models.run_config import RunConfig
@@ -17,7 +18,8 @@ def compute_run_hash(config: RunConfig, artifacts: Iterable[ArtifactDescriptor])
     canonical list of {name, path, content_hash} sorted by name.
     """
     cfg_sig = config.deterministic_signature()
-    return compute_composite_hash_from(cfg_sig, list(artifacts))
+    artifact_list: list[ArtifactDescriptor] = list(artifacts)
+    return cast(str, compute_composite_hash_from(cfg_sig, artifact_list))
 
 
 __all__ = ["compute_run_hash"]

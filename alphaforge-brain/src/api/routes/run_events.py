@@ -89,6 +89,9 @@ async def _stream(
         if last_event_id is None:
             # Fresh client -> send heartbeat + snapshot (ids 0 & 1)
             yield _event(0, "heartbeat", {"status": status}).encode()
+            validation_v2 = rec.get("validation_v2")
+            if not isinstance(validation_v2, dict):
+                validation_v2 = None
             snapshot = {
                 "run_hash": run_hash,
                 "summary": rec.get("summary"),
@@ -97,17 +100,92 @@ async def _stream(
                 # (legacy alias 'validation' retained for backward compatibility with older clients/tests)
                 "validation_summary": rec.get("validation_summary"),
                 "validation": rec.get("validation_summary"),
+                "validation_schema_version": rec.get("validation_schema_version")
+                or (validation_v2.get("schema_version") if validation_v2 else None),
+                "validation_manifest": rec.get("validation_manifest")
+                or (validation_v2.get("manifest") if validation_v2 else None),
+                "validation_manifest_hash": rec.get("validation_manifest_hash")
+                or (validation_v2.get("manifest_hash") if validation_v2 else None),
+                "validation_significance": rec.get("validation_significance")
+                or (
+                    validation_v2.get("significance_status") if validation_v2 else None
+                ),
+                "validation_modules": (
+                    validation_v2.get("modules") if validation_v2 else None
+                ),
+                "validation_config": (
+                    validation_v2.get("config") if validation_v2 else None
+                ),
+                "validation_sections": {
+                    "permutation": (
+                        validation_v2.get("permutation") if validation_v2 else None
+                    ),
+                    "bias_adjustments": (
+                        validation_v2.get("bias_adjustments") if validation_v2 else None
+                    ),
+                    "cross_validation": (
+                        validation_v2.get("cross_validation") if validation_v2 else None
+                    ),
+                    "execution_realism": (
+                        validation_v2.get("execution_realism")
+                        if validation_v2
+                        else None
+                    ),
+                },
+                "validation_artifacts": (
+                    validation_v2.get("artifacts") if validation_v2 else None
+                ),
+                "validation_correlation_id": f"{run_hash}:validation_snapshot",
                 "status": status,
             }
             yield _event(1, "snapshot", snapshot).encode()
         elif last_event_id == 0:
             # Client has heartbeat only, send snapshot
+            validation_v2 = rec.get("validation_v2")
+            if not isinstance(validation_v2, dict):
+                validation_v2 = None
             snapshot = {
                 "run_hash": run_hash,
                 "summary": rec.get("summary"),
                 "p_values": rec.get("p_values"),
                 "validation_summary": rec.get("validation_summary"),
                 "validation": rec.get("validation_summary"),
+                "validation_schema_version": rec.get("validation_schema_version")
+                or (validation_v2.get("schema_version") if validation_v2 else None),
+                "validation_manifest": rec.get("validation_manifest")
+                or (validation_v2.get("manifest") if validation_v2 else None),
+                "validation_manifest_hash": rec.get("validation_manifest_hash")
+                or (validation_v2.get("manifest_hash") if validation_v2 else None),
+                "validation_significance": rec.get("validation_significance")
+                or (
+                    validation_v2.get("significance_status") if validation_v2 else None
+                ),
+                "validation_modules": (
+                    validation_v2.get("modules") if validation_v2 else None
+                ),
+                "validation_config": (
+                    validation_v2.get("config") if validation_v2 else None
+                ),
+                "validation_sections": {
+                    "permutation": (
+                        validation_v2.get("permutation") if validation_v2 else None
+                    ),
+                    "bias_adjustments": (
+                        validation_v2.get("bias_adjustments") if validation_v2 else None
+                    ),
+                    "cross_validation": (
+                        validation_v2.get("cross_validation") if validation_v2 else None
+                    ),
+                    "execution_realism": (
+                        validation_v2.get("execution_realism")
+                        if validation_v2
+                        else None
+                    ),
+                },
+                "validation_artifacts": (
+                    validation_v2.get("artifacts") if validation_v2 else None
+                ),
+                "validation_correlation_id": f"{run_hash}:validation_snapshot",
                 "status": status,
             }
             yield _event(1, "snapshot", snapshot).encode()

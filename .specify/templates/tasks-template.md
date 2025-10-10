@@ -93,6 +93,7 @@ Launch T004–T007 concurrently (independent files) before any implementation.
 - For dual root architecture, enforce no direct imports from mind → brain except via defined contract modules (or API clients)
 - [P] tasks MUST not modify same file
 - Contract changes require version bump reasoning
+- Backtesting/validation changes MUST schedule tasks covering Masters module tests, artifact updates, and documentation of default thresholds/SLA impact.
 
 ## Validation Checklist
 - [ ] All contracts have tests

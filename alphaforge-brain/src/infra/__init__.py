@@ -15,4 +15,9 @@ except Exception:  # pragma: no cover
 
 from . import config as config  # explicit re-export for mypy attr-defined satisfaction
 
-__all__ = ["cache", "config", "time"]
+try:  # optional exposure for observability helpers
+    _import_module("infra.observability.tracing")
+except Exception:  # pragma: no cover
+    pass
+
+__all__ = ["cache", "config", "time", "observability"]

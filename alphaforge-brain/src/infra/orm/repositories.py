@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -80,6 +81,14 @@ class ValidationRepository:
         )
 
     def add(self, row: m.Validation) -> m.Validation:
+        self.s.add(row)
+        return row
+
+    def add_permutation_result(self, result: Any) -> m.Validation:
+        return self.add_domain_validation(result)
+
+    def add_domain_validation(self, model: Any) -> m.Validation:
+        row = cast(m.Validation, model.to_orm())
         self.s.add(row)
         return row
 

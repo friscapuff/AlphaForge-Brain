@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
-from services.hashes import metrics_signature
+from services.hashes import equity_signature, metrics_signature
 from src.domain.execution import simulator
 from src.domain.risk.engine import apply_risk
 from src.domain.schemas.run_config import (
@@ -17,7 +17,6 @@ from src.domain.schemas.run_config import (
 )
 from src.domain.strategy.runner import run_strategy
 from src.infra.utils.seed import derive_seed
-from src.services.metrics_hash import equity_curve_hash
 
 
 def _candles(n: int = 60) -> pd.DataFrame:
@@ -89,10 +88,10 @@ def test_two_runs_identical_outputs() -> None:
         mhash2 = metrics_signature(
             {"final_pnl": float(curve2_series.iloc[-1]), "n_fills": len(fills2)}
         )
-        echash1 = equity_curve_hash(equity_bars1)
-        echash2 = equity_curve_hash(equity_bars2)
+        echash1 = equity_signature(equity_bars1)
+        echash2 = equity_signature(equity_bars2)
         assert mhash1 == mhash2, "metrics_signature mismatch for identical runs"
-        assert echash1 == echash2, "equity_curve_hash mismatch for identical runs"
+        assert echash1 == echash2, "equity_signature mismatch for identical runs"
 
 
 def test_derive_seed_stability_across_subseeds() -> None:

@@ -7,6 +7,7 @@ This document centralizes conventions, fixtures, and patterns for writing and ma
 - Deterministic reproducibility: identical code + config + dataset => identical artifacts & metrics.
 - High signal: minimal boilerplate, explicit intent, clear failure diffs.
 - Fast feedback: unit tests <1s, integration <5s local (target), perf tests opt-in.
+- Validation proof: quickstart smoke run exercises all Masters modules and records artifacts for manual verification.
 
 ## Test Taxonomy
 | Layer | Folder | Purpose | Example Topics |
@@ -101,6 +102,19 @@ Ensure any doc change reflecting test behavior also updates:
 Note: CI uploads coverage/timing artifacts, but these are not committed locally (`coverage.xml`, typing timing files, and similar are in `.gitignore`).
 
 Happy testing – deterministic by default.
+
+## Masters Validation Smoke Run (2025-10-11)
+- Command: `poetry run python scripts/bench/perf_run.py --iterations 1 --warmup 0 --keep-artifacts --output zz_artifacts/validation_smoke.json`
+- Run hash: `b5a64f82b3d70a4b24b0f83a4be9fc15203e95ec0d9b68d7a60cf58597ab7d82`
+- Artifacts:
+    - `zz_artifacts/validation_smoke.json` — includes per-module durations (permutation 1243 ms, CPCV 8 ms, bias 11 ms, realism 113 ms) and SLA violations (total 1543 ms vs 34 ms limit, permutation ratio 0.81 vs 0.70 cap).
+    - `artifacts/<RUN_HASH>/validation/permutation/*.parquet` — segment histograms for in-sample and walk-forward windows.
+    - `artifacts/<RUN_HASH>/validation_detail.json` — structured payload with Masters module diagnostics (pending manifest wiring for CLI visibility).
+    - Standard backtest outputs (`summary.json`, `metrics.json`, `equity.parquet`).
+- Notes:
+    - All six Masters modules report `enabled_fraction=1.0`; validation aggregate marks four failed checks and one caution, matching smoke JSON output.
+    - `alphaforge-brain/scripts/validation/show_summary.py` currently prints placeholders because the manifest omits module metadata; open `validation_detail.json` for full metrics until the schema v2 writer lands.
+    - SLA guardrails fail by design right now (1543 ms total vs 34 ms limit); remediation tracked separately in Phase 3.6.
 
 ## New Test Additions (Feature 006 Enhancements)
 

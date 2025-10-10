@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-import pandas as pd  # type: ignore
+import pandas as pd
 from services.metrics_hash import equity_curve_hash as _legacy_equity_curve_hash
 
 # Re-use existing proven functions

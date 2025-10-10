@@ -52,6 +52,7 @@ def test_deterministic_replay(tmp_path: Path, fast: int, slow: int) -> None:  # 
     manifest_path = run_dir / "manifest.json"
     assert manifest_path.exists(), "manifest missing after first run"
     manifest1 = json.loads(manifest_path.read_text("utf-8"))
+    vm_hash1 = manifest1.get("validation_manifest_hash")
 
     hashes1 = {f["name"]: f["sha256"] for f in manifest1["files"]}
     required = [
@@ -77,8 +78,12 @@ def test_deterministic_replay(tmp_path: Path, fast: int, slow: int) -> None:  # 
         created2 is True or created2 is False
     )  # created flag semantics may differ with empty registry
     manifest2 = json.loads(manifest_path.read_text("utf-8"))
+    vm_hash2 = manifest2.get("validation_manifest_hash")
     hashes2 = {f["name"]: f["sha256"] for f in manifest2["files"]}
     assert hashes1 == hashes2, "Artifact hashes diverged under deterministic replay"
+    if vm_hash1 or vm_hash2:
+        assert vm_hash1 == vm_hash2
+        assert isinstance(vm_hash1, str) and len(vm_hash1) == 64
 
     # If trades are present ensure stability
     if "trades.parquet" in hashes1:

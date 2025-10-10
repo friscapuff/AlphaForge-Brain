@@ -34,6 +34,12 @@ pnpm install  # or npm install / yarn
 pnpm dev      # Vite dev server (will integrate routes incrementally)
 ```
 
+### Masters Validation Surface
+- **Environment toggles**: ensure the Brain process exports the validation modules env vars documented in the root README/quickstart so SSE payloads include permutation, bias, CPCV, and realism sections.
+- **Data adapters**: `src/services/api/backtests.ts` normalizes `validation.permutation`, `validation.bias_adjustments`, `validation.cross_validation`, and `validation.execution_realism` fields; keep schema changes additive.
+- **UI components**: `src/components/validation/` hosts charts/cards for each module. The Validation tab reads toggle state from `validation_config` and renders caution badges + remediation copy sourced from API payloads.
+- **Smoke checks**: run `npm test` (Vitest) plus `poetry run pytest alphaforge-brain/tests/property/validation/test_permutation_distribution.py --no-cov` to confirm both Mind adapters and Brain histograms remain in sync before releasing UI tweaks.
+
 ## Pending Setup Tasks (T001–T005)
 - [x] T001 Dual root scaffold & README stub
 - [x] T002 Dependencies validation / additions

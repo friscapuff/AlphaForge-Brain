@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from collections.abc import Iterable
@@ -239,28 +240,108 @@ def insert_validation(
     l_s, u_s = (None, None) if sharpe_ci is None else sharpe_ci
     l_c, u_c = (None, None) if cagr_ci is None else cagr_ci
     with get_connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO validation (
-                run_hash, payload_json, permutation_pvalue, bootstrap_sharpe_low, bootstrap_sharpe_high,
-                bootstrap_cagr_low, bootstrap_cagr_high, bootstrap_method, bootstrap_block_length,
-                bootstrap_jitter, bootstrap_fallback
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                run_hash,
-                json.dumps(payload_json, sort_keys=True, separators=(",", ":")),
-                permutation_pvalue,
-                l_s,
-                u_s,
-                l_c,
-                u_c,
-                method,
-                block_length,
-                jitter,
-                1 if fallback else 0 if fallback is not None else None,
-            ),
-        )
+        column_rows = conn.execute("PRAGMA table_info(validation)").fetchall()
+        columns = {row[1] for row in column_rows}
+        payload_text = json.dumps(payload_json, sort_keys=True, separators=(",", ":"))
+
+        if "payload_json" in columns:
+            conn.execute(
+                """
+                INSERT INTO validation (
+                    run_hash, payload_json, permutation_pvalue, bootstrap_sharpe_low, bootstrap_sharpe_high,
+                    bootstrap_cagr_low, bootstrap_cagr_high, bootstrap_method, bootstrap_block_length,
+                    bootstrap_jitter, bootstrap_fallback
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_hash,
+                    payload_text,
+                    permutation_pvalue,
+                    l_s,
+                    u_s,
+                    l_c,
+                    u_c,
+                    method,
+                    block_length,
+                    jitter,
+                    1 if fallback else 0 if fallback is not None else None,
+                ),
+            )
+        else:
+            summary = payload_json.get("summary")
+            params = payload_json.get("config") or payload_json.get("params")
+            params_text = (
+                json.dumps(params, sort_keys=True, separators=(",", ":"))
+                if params is not None
+                else None
+            )
+            results_text = (
+                json.dumps(summary, sort_keys=True, separators=(",", ":"))
+                if summary is not None
+                else None
+            )
+            ci_width_val = None
+            if isinstance(summary, dict):
+                ci_width_raw = summary.get("block_bootstrap_ci_width")
+                if ci_width_raw is not None:
+                    try:
+                        ci_width_val = float(ci_width_raw)
+                    except Exception:
+                        ci_width_val = None
+            if ci_width_val is None and l_s is not None and u_s is not None:
+                try:
+                    ci_width_val = float(u_s) - float(l_s)
+                except Exception:
+                    ci_width_val = None
+            summary_bias = None
+            if isinstance(summary, dict):
+                summary_bias = summary.get("bias_flag")
+            bias_flag_val: int | None
+            if summary_bias is None:
+                bias_flag_val = None
+            else:
+                bias_flag_val = 1 if bool(summary_bias) else 0
+            conn.execute(
+                """
+                INSERT INTO validation (
+                    run_hash, method, params_json, results_json, ci_width, p_value,
+                    validation_type, segment_id, effect_size, permutation_count,
+                    dsr, psr, bias_flag, leakage_score, realism_status, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_hash,
+                    method,
+                    params_text,
+                    results_text,
+                    ci_width_val,
+                    permutation_pvalue,
+                    "legacy",
+                    "aggregate",
+                    None,
+                    None,
+                    None,
+                    None,
+                    bias_flag_val,
+                    None,
+                    None,
+                    payload_text,
+                ),
+            )
+            try:
+                conn.execute(
+                    """
+                    UPDATE runs
+                    SET validation_schema_version = CASE
+                        WHEN validation_schema_version IS NULL OR validation_schema_version < 2 THEN 2
+                        ELSE validation_schema_version
+                    END
+                    WHERE run_hash=?
+                    """,
+                    (run_hash,),
+                )
+            except sqlite3.OperationalError:
+                pass
         # Also persist key metrics for quick access
         try:
             payload = payload_json
@@ -421,11 +502,11 @@ __all__ = [
 
 
 def _file_sha256(path: Path, chunk_size: int = 1 << 20) -> str:
-    h = __import__("hashlib").sha256()
+    hasher = hashlib.sha256()
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(chunk_size), b""):
-            h.update(chunk)
-    return h.hexdigest()
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 
 def record_feature_cache_artifact(

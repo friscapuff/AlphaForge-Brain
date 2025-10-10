@@ -3,6 +3,7 @@
  * Provides chartSlice and backtestSlice minimal state scaffolding for integration tests.
  */
 import { create } from 'zustand';
+import type { ValidationData } from '../services/api/backtests.js';
 
 // ---- Types ----
 export interface Candle {
@@ -29,7 +30,7 @@ export interface BacktestResultMeta {
   equityCurve: Array<{ t: string; equity: number }>; // simplified
   metrics?: Record<string, number>;
   tradesSummary?: { count: number; win_rate: number };
-  validation?: { bootstrap?: unknown; permutation?: unknown; walk_forward?: unknown };
+  validation?: ValidationData;
   monteCarloPaths?: number[][]; // matrix of paths (time-aligned)
   walkForwardSplits?: Array<{ start: string; end: string; inSample: boolean }>; // for visualization
   /**

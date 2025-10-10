@@ -25,7 +25,7 @@ Edge cases:
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -77,6 +77,71 @@ def _estimate_run_bytes(run_hash: str, rec: dict[str, Any]) -> int:
         return 0
 
 
+def _normalize_status(value: Any) -> str | None:
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        return normalized or None
+    return None
+
+
+def _significance_failed(record: Mapping[str, Any]) -> bool:
+    status = _normalize_status(record.get("validation_significance"))
+    if status == "fail":
+        return True
+    validation_v2 = record.get("validation_v2")
+    if isinstance(validation_v2, Mapping):
+        status = _normalize_status(validation_v2.get("significance_status"))
+        if status == "fail":
+            return True
+        metadata = validation_v2.get("metadata")
+        if isinstance(metadata, Mapping):
+            status = _normalize_status(metadata.get("significance_status"))
+            if status == "fail":
+                return True
+        manifest_fragment = validation_v2.get("manifest")
+        if isinstance(manifest_fragment, Mapping):
+            status = _normalize_status(manifest_fragment.get("validation_significance"))
+            if status == "fail":
+                return True
+    failed_checks = record.get("validation_failed_checks")
+    if isinstance(failed_checks, (list, tuple, set)):
+        for entry in failed_checks:
+            if _normalize_status(str(entry)) == "permutation_significance":
+                return True
+    return False
+
+
+def _realism_failed(record: Mapping[str, Any]) -> bool:
+    status = _normalize_status(record.get("execution_realism_status"))
+    if status == "fail":
+        return True
+    validation_v2 = record.get("validation_v2")
+    if isinstance(validation_v2, Mapping):
+        realism_payload = validation_v2.get("execution_realism")
+        if isinstance(realism_payload, Mapping):
+            status = _normalize_status(realism_payload.get("status"))
+            if status == "fail":
+                return True
+        metadata = validation_v2.get("metadata")
+        if isinstance(metadata, Mapping):
+            status = _normalize_status(metadata.get("realism_status"))
+            if status == "fail":
+                return True
+        manifest_fragment = validation_v2.get("manifest")
+        if isinstance(manifest_fragment, Mapping):
+            realism_fragment = manifest_fragment.get("execution_realism")
+            if isinstance(realism_fragment, Mapping):
+                status = _normalize_status(realism_fragment.get("status"))
+                if status == "fail":
+                    return True
+    failed_checks = record.get("validation_failed_checks")
+    if isinstance(failed_checks, (list, tuple, set)):
+        for entry in failed_checks:
+            if _normalize_status(str(entry)) == "execution_realism":
+                return True
+    return False
+
+
 def plan_retention(
     registry: InMemoryRunRegistry, cfg: RetentionConfig | None = None
 ) -> dict[str, set[str]]:
@@ -110,8 +175,14 @@ def plan_retention(
 
     # Validation caution gating: exclude flagged runs from promotion unless pinned.
     caution_hashes = {h for h, r in runs if r.get("validation_caution")}
-    # Pinned always kept regardless of caution; others are filtered out
-    keep_full = pinned_hashes | ((keep_last_hashes | top_k_hashes) - caution_hashes)
+    # Validation significance & realism gating (FR-010): block automatic promotion when either fails.
+    significance_failures = {h for h, r in runs if _significance_failed(r)}
+    realism_failures = {h for h, r in runs if _realism_failed(r)}
+    gated_failures = (significance_failures | realism_failures) - pinned_hashes
+    # Pinned always kept regardless of gating; others are filtered out
+    keep_full = pinned_hashes | (
+        (keep_last_hashes | top_k_hashes) - caution_hashes - gated_failures
+    )
     all_hashes = {h for h, _ in runs}
     demote = all_hashes - keep_full
 

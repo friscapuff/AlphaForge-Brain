@@ -58,6 +58,15 @@ def _apply_migrations(conn: sqlite3.Connection) -> None:
             (mig_id,),
         )
     conn.commit()
+    try:
+        from .alembic import apply_python_migrations  # lazy import to avoid circulars
+
+        apply_python_migrations(conn)
+    except ModuleNotFoundError:
+        LOGGER.debug("migration.python.skip", reason="alembic_package_missing")
+    except Exception as exc:  # pragma: no cover - defensive logging
+        LOGGER.error("migration.python.failed", error=str(exc))
+        raise
 
 
 @contextmanager

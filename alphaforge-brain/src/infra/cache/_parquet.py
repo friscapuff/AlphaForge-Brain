@@ -9,7 +9,7 @@ the pyarrow branch (without requiring a custom plugin).
 from __future__ import annotations
 
 from types import ModuleType
-from typing import Any, TypeGuard
+from typing import Any, TypeGuard, cast
 
 from infra.logging import get_logger
 
@@ -24,7 +24,7 @@ def _import_pyarrow() -> (
     try:
         import pyarrow as pa
 
-        return pa
+        return cast(ModuleType, pa)
     except Exception:
         return None
 
@@ -44,7 +44,10 @@ def parquet_available() -> bool:
 def load_pyarrow() -> ModuleType | None:
     """Return the imported pyarrow module (or None if unavailable)."""
     parquet_available()  # ensure probe executed
-    return _PYARROW_MODULE if isinstance(_PYARROW_MODULE, ModuleType) else None
+    module_obj = _PYARROW_MODULE
+    if isinstance(module_obj, ModuleType):
+        return module_obj
+    return None
 
 
 def is_pyarrow(mod: Any) -> TypeGuard[ModuleType]:  # pragma: no cover - trivial

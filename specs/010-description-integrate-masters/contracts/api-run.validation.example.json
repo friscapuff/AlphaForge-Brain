@@ -1,0 +1,101 @@
+{
+  "run_id": "RUN-20251010-ABCD",
+  "validation": {
+    "schema_version": 2,
+    "significance_status": "pass",
+    "config": {
+      "modules": ["permutation", "dsr", "psr", "purged_kfold", "cpcv", "realism"],
+      "permutation_count": 500,
+      "significance_threshold": 0.01,
+      "leakage_threshold": 0.1,
+      "realism_capacity_bps_limit": 500
+    },
+    "permutation": {
+      "segments": [
+        {
+          "segment_id": "in_sample",
+          "p_value": 0.0042,
+          "effect_size": 1.8,
+          "executed_permutations": 500,
+          "requested_permutations": 500,
+          "histogram_summary": {
+            "mean": 0.41,
+            "std_dev": 0.12,
+            "percentiles": {
+              "5": 0.19,
+              "50": 0.40,
+              "95": 0.62
+            }
+          },
+          "artifact_path": "validation/permutation/segment_in_sample.parquet"
+        },
+        {
+          "segment_id": "walk_forward_1",
+          "p_value": 0.0121,
+          "effect_size": 1.2,
+          "executed_permutations": 400,
+          "requested_permutations": 500,
+          "fallback_reason": "runtime_guard_triggered",
+          "histogram_summary": {
+            "mean": 0.35,
+            "std_dev": 0.15,
+            "percentiles": {
+              "5": 0.08,
+              "50": 0.33,
+              "95": 0.66
+            }
+          },
+          "artifact_path": "validation/permutation/segment_walk_forward_1.parquet"
+        }
+      ]
+    },
+    "bias_adjustments": {
+      "observed_sharpe": 1.95,
+      "deflated_sharpe": 1.62,
+      "probabilistic_sharpe": 0.987,
+      "assumed_trials": 120,
+      "benchmark_sharpe": 0.5,
+      "skewness": -0.3,
+      "kurtosis": 3.7,
+      "status": "pass"
+    },
+    "cross_validation": {
+      "mode": "cpcv",
+      "leakage_score": 0.04,
+      "folds": [
+        {
+          "fold_id": "F01",
+          "train": {"start": "2018-01-01", "end": "2019-12-31"},
+          "test": {"start": "2020-01-01", "end": "2020-03-31"},
+          "purge_span": "30D",
+          "metrics": {
+            "sharpe": 1.45,
+            "total_return": 0.12
+          }
+        },
+        {
+          "fold_id": "F02",
+          "train": {"start": "2018-04-01", "end": "2020-06-30"},
+          "test": {"start": "2020-07-01", "end": "2020-09-30"},
+          "purge_span": "30D",
+          "metrics": {
+            "sharpe": 1.51,
+            "total_return": 0.09
+          }
+        }
+      ]
+    },
+    "execution_realism": {
+      "status": "pass",
+      "transaction_cost_bps": 35,
+      "market_impact_bps": 20,
+      "capacity_ratio": 0.72,
+      "warnings": [],
+      "assumptions": {
+        "adv_window_days": 30,
+        "participation_rate": 0.1,
+        "slippage_model": "square_root"
+      }
+    }
+  }
+}

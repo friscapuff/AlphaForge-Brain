@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from .. import config as _config
@@ -15,7 +16,7 @@ def _build_sqlalchemy_url() -> str:
     return f"sqlite:///{path}"
 
 
-def get_engine(echo: bool = False):
+def get_engine(echo: bool = False) -> Engine:
     return create_engine(_build_sqlalchemy_url(), echo=echo, future=True)
 
 

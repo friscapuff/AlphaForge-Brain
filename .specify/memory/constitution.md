@@ -1,19 +1,16 @@
 <!--
 Sync Impact Report
-Version: 1.1.0 → 1.2.0 (MINOR)
-Modified Principles: Clarified Dual Root enforcement & added Transitional Migration Commitments.
-Added Sections: "Transitional Architecture Migration".
+Version: 1.2.0 → 1.3.0 (MINOR)
+Modified Principles: VI Performance Discipline (runtime SLA codified), Added XI Statistically Defensible Backtesting.
+Added Sections: "Backtesting & Validation Methodology", "Governance Record (Validation Defaults)".
 Removed Sections: None.
 Templates Requiring Updates:
-	.specify/templates/plan-template.md (✅ already updated for dual root)
-	.specify/templates/spec-template.md (✅ boundary checklist added)
-	.specify/templates/tasks-template.md (✅ dual root path conventions present)
-	.specify/templates/agent-file-template.md (⚠ still single-root extraction logic → needs dual root listing)
+	.specify/templates/plan-template.md (✅ validation methodology check added)
+	.specify/templates/spec-template.md (✅ validation default expectations noted)
+	.specify/templates/tasks-template.md (✅ validation/backtesting guidance included)
 Follow-up TODOs:
-	- Implement cross-root integrity script (brain forbids importing mind) → scripts/ci/check_cross_root.py
-	- Introduce WAIVERS.md template for constitution rule exceptions.
-	- Generate agent file update reflecting dual roots after next plan run.
-	- Create migration task list in specs/004 feature for repository restructuring.
+	- Draft WAIVERS.md template update referencing validation defaults.
+	- Publish validation reference sheet in docs/operations capturing override process.
 -->
 
 # AlphaForge Constitution
@@ -43,7 +40,7 @@ Prefer minimal abstractions; introduce layers only when they reduce coupling or 
 All phases emit structured timing + tracing spans. Errors persist with minimal, hash-stable diagnostic context. Provenance (hashes, schema version, seeds, config) MUST allow reconstruction of any historical run and its derived views in Mind.
 
 ### VI. Performance Discipline
-Performance targets are explicit & testable (memory reduction %, bootstrap overhead ratio, insert throughput). Benchmarks live beside unit tests; failing a target is a regression unless waived with rationale and temporary threshold adjustment.
+Performance targets are explicit & testable (memory reduction %, bootstrap overhead ratio, insert throughput). Benchmarks live beside unit tests; failing a target is a regression unless waived with rationale and temporary threshold adjustment. Masters validation stages carry a standing SLA: `validation.total` mean MUST remain within the current guard limit (34 ms baseline × 1.2 tolerance) or a waiver is required with remediation plan and runtime artifact evidence.
 
 ### VII. Data Integrity & Causality Safety
 No forward-looking data access in STRICT mode. Schema changes require explicit migration scripts + checksum. Validation & metrics reflect exact data & method parameters used. Data mutation post-hash calculation invalidates the run and must re-trigger pipeline.
@@ -65,6 +62,9 @@ Shared utilities (if any) live under `shared/` with pure, dependency-light modul
 
 ### X. Contract Versioning & Backward Compatibility
 Breaking changes to public Brain interfaces or artifact schemas MUST bump MAJOR version. Mind adopts new versions via upgrade path documented in migrations. Deprecations include sunset date & fallback strategy.
+
+### XI. Statistically Defensible Backtesting (NON-NEGOTIABLE)
+Every run MUST execute the Masters validation suite (permutation, DSR/PSR, purged & CPCV folds, execution realism) unless an approved waiver references FR coverage and remediation ETA. Default module toggles and thresholds (permutation count 500, significance 0.01, leakage threshold 0.1, capacity budget 500 bps, purge span = max(30 days, strategy lookback)) are canonical; deviations MUST be persisted in manifest metadata, logged in validation artifacts, and justified against empirical evidence. Validation artifacts (`validation_detail.json`, histogram parquet, realism guidance) MUST remain deterministic and reproducible for audit replay. Promotion or retention decisions rely on `validation_significance`, bias flags, leakage scores, and realism status; any bypass requires triparty approval (Validation WG, Data Governance, Compliance).
 
 ## Multi-Project Architecture
 1. Separation of Concerns: Brain focuses on computation, persistence, statistical engines; Mind focuses on visualization, orchestration, user workflows.
@@ -104,6 +104,27 @@ During the transition, Constitution rules treating dual roots as mandatory are i
 - No Hidden Globals: Configuration MUST flow via explicit parameters or immutable config objects.
 - Side-Effect Boundaries: IO restricted to persistence & dedicated adapters; models & statistical transforms remain pure.
 
+## Backtesting & Validation Methodology
+AlphaForge Brain treats validation as part of the deterministic execution pipeline. Every run follows the sequence: data integrity checks → feature/optimization derivation → execution simulation → Masters validation suite → manifest + retention gating. Outputs MUST remain reproducible given identical input configuration and dataset hashes.
+
+### Default Settings & Rationale
+| Setting | Default | Rationale | References |
+|---------|---------|-----------|------------|
+| Permutation trials per segment | 500 | Provides ≥95% power for medium effect sizes while keeping runtime bounded; aligns with Masters-style guidance and empirical variance studies. | Aronson 2006; López de Prado 2018 |
+| Significance threshold | 0.01 | Controls family-wise false discovery rate for high-variance strategies; balances caution vs. deployment agility. | Aronson 2006 |
+| Purge span embargo | `max(30 days, strategy lookback)` | Eliminates label leakage for daily data and respects Masters CPCV recommendations. | López de Prado 2018 |
+| Leakage caution threshold | 0.1 | Scores above 0.1 indicate materially biased folds; gating promotion prevents data snooping. | López de Prado 2018 |
+| Bias corrections | DSR + PSR enabled | DSR removes multiple-testing inflation; PSR estimates probability of true Sharpe exceeding threshold. | López de Prado 2014 |
+| Execution realism budget | 500 bps total cost/impact | Derived from institutional trading cost studies; alerting above this limit triggers capacity review. | Kissell 2013 |
+| Validation runtime SLA | `validation.total` ≤ 34 ms guard (1.2× tolerance) | Ensures Masters suite remains operationally feasible; breaches require waiver + remediation plan. | Internal benchmark log `zz_artifacts/validation_smoke.json` |
+
+### Operational Requirements
+- Defaults MUST be surfaced via configuration metadata (`ValidationConfig`) and recorded in manifests, CLI output, and `validation_detail.json`.
+- Any deviation (environment override or module disable) MUST emit a structlog warning, mark manifest entries (`status: "omitted"` or `override_reason`), and attach justification in `WAIVERS.md`.
+- Validation artifacts (histograms, CPCV fold summaries, realism reports) MUST retain deterministic ordering and hashing for audit replay.
+- Retention gates rely on `validation_significance`, bias flags, leakage score, and realism status; promotions ignoring these gates require sign-off from Validation WG, Data Governance, and Compliance with explicit expiry.
+- Benchmarks (`scripts/bench/perf_run.py`) MUST continue to capture module spans; smoke artifacts serve as evidence packets during governance reviews.
+
 ## Workflow & Quality Gates
 1. Lifecycle: Specify → Clarify → Plan → Tasks → Analyze → Implement → Validate → Release.
 2. /analyze MUST show zero HIGH gaps before implementation begins.
@@ -125,7 +146,7 @@ During the transition, Constitution rules treating dual roots as mandatory are i
 - Principle Waivers: Temporary waivers recorded in `WAIVERS.md` with expiry date (ISO) & justification.
 - Contract Sunset: Deprecated interfaces MUST list removal version & replacement path.
 
-**Version**: 1.2.0 | **Ratified**: 2025-09-23 | **Last Amended**: 2025-09-23
+**Version**: 1.3.0 | **Ratified**: 2025-09-23 | **Last Amended**: 2025-10-11
 
 ---
 ## Governance Record (Architecture Migration)
@@ -149,3 +170,17 @@ Outcome:
 - Documentation updated and linked from README.
 
 Sign-off Recommendation: ACCEPT Phase H and maintain CI gates as merge blockers for determinism and width policy.
+
+---
+## Governance Record (Validation Defaults)
+On 2025-10-11, the Masters validation defaults and gating policy were ratified.
+
+Evidence:
+- Validation smoke artifact: `zz_artifacts/validation_smoke.json` (runtime 1543 ms total; module spans recorded)
+- Retention policy: `docs/governance/retention_policy.md` (gating table, waiver workflow)
+- Backfill playbook: `docs/operations/validation_backfill.md` (replay guidance, override procedure)
+
+Outcome:
+- Default thresholds (permutation count 500, significance 0.01, leakage threshold 0.1, capacity budget 500 bps) codified in this constitution and config surfaces.
+- Waiver process requires Validation WG, Data Governance, and Compliance approvals with expiry dates.
+- Benchmarks and property-based tests recognized as certification evidence for validation runtime and statistical soundness.

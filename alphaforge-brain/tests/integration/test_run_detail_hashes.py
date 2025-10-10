@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from api.app import create_app
 from fastapi.testclient import TestClient
-from services.hashes import metrics_signature
-from services.metrics_hash import equity_curve_hash
+from services.hashes import equity_signature, metrics_signature
 
 
 def _payload(seed: int = 123) -> dict[str, object]:  # mirrors other test helpers
@@ -39,7 +38,7 @@ def test_run_detail_exposes_hashes_and_they_match_recomputed(tmp_path, monkeypat
     metrics = summary.get("metrics", {}) if isinstance(summary, dict) else {}
     recomputed_mh = metrics_signature(metrics)
     assert recomputed_mh == metrics_hash_api
-    # Load equity parquet and recompute equity_curve_hash
+    # Load equity parquet and recompute equity_signature
     # artifact listing endpoint provides file names
     art = client.get(f"/runs/{run_hash}/artifacts")
     assert art.status_code == 200
@@ -57,8 +56,8 @@ def test_run_detail_exposes_hashes_and_they_match_recomputed(tmp_path, monkeypat
             from lib.artifacts import read_parquet_or_csv
 
             df = read_parquet_or_csv(path)
-            recomputed_eh = equity_curve_hash(df)
+            recomputed_eh = equity_signature(df)
             assert recomputed_eh == equity_hash_api
     else:
-        # If equity not produced, equity_curve_hash may still be None; allow but document
+        # If equity not produced, equity_signature may still be None; allow but document
         assert equity_hash_api is None or isinstance(equity_hash_api, str)

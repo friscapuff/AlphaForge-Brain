@@ -87,6 +87,57 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 After launch, submit a backtest from the UI; progress & results are powered by the running backend.
 
+#### Masters Validation Modules Quick Actions (Phase 3.5)
+Masters permutation, bias adjustments, cross-validation, and execution realism ship enabled by default. To exercise the full pipeline:
+
+1. Export validation toggles (PowerShell example):
+  ```powershell
+  $env:AF_VALIDATION_MODULES="permutation,dsr,psr,purged_kfold,cpcv,realism"
+  $env:AF_VALIDATION_PERMUTATION_COUNT=500
+  $env:AF_VALIDATION_SIGNIFICANCE_THRESHOLD=0.01
+  $env:AF_LEAKAGE_THRESHOLD=0.1
+  $env:AF_REALISM_CAPACITY_BPS_LIMIT=500
+  ```
+  Bash users can swap `$env:` for `export`.
+2. Sanity-check the permutation engine with Hypothesis property tests:
+  ```powershell
+  poetry run pytest alphaforge-brain/tests/property/validation/test_permutation_distribution.py --no-cov
+  ```
+  The suite asserts histogram bin accounting, percentile ordering, p-value bounds, and constant-sample behaviour.
+3. Benchmark validation runtime and inspect SLA output:
+  ```powershell
+    poetry run python scripts/bench/perf_run.py --iterations 1 --warmup 0 --output zz_artifacts/perf_latest.json --keep-artifacts
+  ```
+  The JSON summary surfaces per-module timings; add `--keep-artifacts` (as shown) to persist the run directory for smoke analysis. Current baseline records `validation.total` ≈1543 ms versus a 34 ms guard limit (see `docs/decisions/validation_schema_v2.md`).
+4. Review UI wiring in `alphaforge-mind`: once the env vars above are set, the Validation tab renders permutation histograms, bias cards, CPCV timelines, and execution realism guidance with live toggle states.
+
+  ## Masters Validation & Backtesting Methodology
+
+  AlphaForge Brain treats validation as a first-class citizen in the backtesting loop so every experiment carries statistical weight. Each run produces deterministic artifacts, structured telemetry, and promotion gating metadata before retention or deployment decisions are made.
+
+  ### End-to-End Backtest Flow
+  1. **Data integrity guardrails** – candle series and fundamentals are hashed, schema-validated, and cached with deterministic fallbacks so repeated runs reuse identical datasets.
+  2. **Feature & signal derivation** – indicators, portfolio constraints, and optimization grids execute under recorded seeds. Configuration metadata travels with the run so replaying a historical hash yields the identical decision path.
+  3. **Fill simulation** – orders are priced through slippage, queue priority, and fee models. Resulting trades feed standard risk metrics (Sharpe, CAGR, drawdown) alongside diagnostic counters surfaced in the manifest.
+  4. **Masters validation suite** – permutation engines, bias controls, cross-validation schedulers, and execution realism overlays run in their own spans. Outputs populate both inline summaries and durable artifacts (`validation_detail.json`, parquet histograms) for forensic review.
+  5. **Manifest & retention** – the pipeline emits `validation_schema_version = 2`, module toggles, and promotion flags. Retention policies use these signals to demote or promote runs automatically (see `docs/governance/retention_policy.md`).
+
+  ### Statistical Assurances
+  - **Permutation significance** – Bar-level resampling follows the Masters playbook, permuting walk-forward segments and re-optimizing when strategies require it. P-values, effect sizes, and histogram density statistics are recorded for every segment.[^1][^2]
+  - **Bias-controlled Sharpe diagnostics** – Deflated Sharpe Ratio (DSR) and Probabilistic Sharpe Ratio (PSR) adjust for multiple-testing effects and non-Gaussian returns. The pipeline stores observed vs. adjusted Sharpe along with trial assumptions and applies caution/fail flags when thresholds are breached.[^2][^3]
+  - **Purged & combinatorial cross-validation** – Purged K-Fold and CPCV protect against temporal leakage by enforcing embargo windows (max of 30 days or strategy lookback). Leakage scores and fold metrics are persisted and exposed to Mind for visual inspection.[^2]
+  - **Execution realism** – Transaction cost, market impact, and capacity checks combine microstructure models with configured budget limits. When realism status fails, remediation guidance is captured alongside promotion gating metadata.[^4]
+
+  ### Governance & Reproducibility Hooks
+  - Deterministic seed derivation and manifest hashing ensure that rerunning the same configuration recomputes the same validation outcomes unless upstream data changes.
+  - Validation spans, benchmark outputs (`zz_artifacts/validation_smoke.json`), and property-based regression tests provide evidence tracks for operational reviews (see `docs/operations/validation_backfill.md`).
+  - SSE and REST payloads expose correlation IDs so support staff can join user-visible dashboards to backend traces when investigating discrepancies.
+
+  ### References
+  [^1]: David R. Aronson, *Evidence-Based Technical Analysis: Applying the Scientific Method and Statistical Inference to Trading Signals*, Wiley, 2006.
+  [^2]: Marcos López de Prado, *Advances in Financial Machine Learning*, Wiley, 2018.
+  [^3]: Marcos López de Prado, "The Deflated Sharpe Ratio: Correcting for Selection Bias in Backtested Portfolios," *The Journal of Portfolio Management*, 40(5), 2014.
+  [^4]: Robert Kissell, *The Science of Algorithmic Trading and Portfolio Management*, Academic Press, 2013.
 
 Note on architecture migration (2025-09-24): The repository has moved to a dual-root layout. Backend code now lives under `alphaforge-brain/src` with tests under `alphaforge-brain/tests`. A placeholder `alphaforge-mind/` root exists for future UI/visualization work. See `alphaforge-brain/ARCH_MIGRATION_STATUS.md` for exit criteria evidence and `ARCH_MIGRATION_RETROSPECTIVE.md` for lessons learned. An architecture diagram will be linked here in a future revision.
 

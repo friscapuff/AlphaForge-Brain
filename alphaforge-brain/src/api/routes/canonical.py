@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/canonical", tags=["canonical"])
 
@@ -34,7 +34,20 @@ except Exception:  # pragma: no cover
 
 
 class CanonicalizeRequest(BaseModel):
-    payload: Any
+    payload: Any = Field(
+        ...,
+        description="Arbitrary JSON payload to canonicalize using backend hashing rules.",
+        json_schema_extra={
+            "anyOf": [
+                {"type": "object"},
+                {"type": "array"},
+                {"type": "string"},
+                {"type": "number"},
+                {"type": "boolean"},
+                {"type": "null"},
+            ]
+        },
+    )
 
 
 class CanonicalizeResponse(BaseModel):

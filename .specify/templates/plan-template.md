@@ -53,6 +53,7 @@
 - Contract Versioning: Any breaking interface needs MAJOR bump justification?
 - Performance Targets: Benchmarks listed with thresholds?
 - Data Integrity: Migrations or schema diffs required?
+- Validation Defaults: Are Masters validation modules, thresholds, and SLA impacts documented (or justified if deviating)?
 
 If any FAIL → STOP.
 
@@ -150,4 +151,4 @@ shared/ (optional strictly pure utilities)
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution v1.1.0 - See `/memory/constitution.md`*
+*Based on Constitution v1.3.0 - See `/memory/constitution.md`*

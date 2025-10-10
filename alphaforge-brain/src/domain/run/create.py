@@ -235,25 +235,33 @@ def create_or_get(
         from services.validation_caution import compute_caution as _compute_caution
 
         # Gather p-values into flat mapping for evaluation
-        pvals_map = {}
+        pvals_map: dict[str, float] = {}
         pv = validation.get("permutation", {}) if isinstance(validation, dict) else {}
-        if isinstance(pv, dict) and "p_value" in pv:
-            pvals_map["permutation"] = pv.get("p_value")
+        if isinstance(pv, dict):
+            raw_p = pv.get("p_value")
+            if isinstance(raw_p, (int, float)):
+                pvals_map["permutation"] = float(raw_p)
         bb = (
             validation.get("block_bootstrap", {})
             if isinstance(validation, dict)
             else {}
         )
-        if isinstance(bb, dict) and "p_value" in bb:
-            pvals_map["block_bootstrap"] = bb.get("p_value")
+        if isinstance(bb, dict):
+            raw_p = bb.get("p_value")
+            if isinstance(raw_p, (int, float)):
+                pvals_map["block_bootstrap"] = float(raw_p)
         mc = (
             validation.get("monte_carlo_slippage", {})
             if isinstance(validation, dict)
             else {}
         )
-        if isinstance(mc, dict) and "p_value" in mc:
-            pvals_map["monte_carlo_slippage"] = mc.get("p_value")
-        caution_flag, caution_metrics = _compute_caution(pvals_map)
+        if isinstance(mc, dict):
+            raw_p = mc.get("p_value")
+            if isinstance(raw_p, (int, float)):
+                pvals_map["monte_carlo_slippage"] = float(raw_p)
+        caution_flag, caution_metrics = _compute_caution(
+            pvals_map if pvals_map else None
+        )
     except Exception:
         caution_flag, caution_metrics = False, []
 
@@ -357,6 +365,86 @@ def create_or_get(
 
         # Optional plotting dependency; do not fail artifact writing if unavailable
         base_path = resolve_artifact_root(artifacts_base)
+        try:
+            from services.validation.context import build_validation_context
+            from services.validation.manifest_v2 import (
+                build_validation_payload as _build_validation_payload,
+            )
+            from services.validation.pipeline import execute_validation_modules
+
+            validation_v2_payload = None
+            validation_v2_artifacts: list[Any] = []
+
+            bars_obj = result.get("bars")
+            equity_frame = result.get("equity_df")
+            fills_obj = result.get("fills")
+
+            validation_manifest_hash: str | None = None
+            if isinstance(bars_obj, _pd.DataFrame) and not bars_obj.empty:
+                bars_df = bars_obj.copy()
+                equity_df_final = (
+                    equity_frame.copy()
+                    if isinstance(equity_frame, _pd.DataFrame)
+                    else _pd.DataFrame(equity_frame or {})
+                )
+                trades_df_final = (
+                    trades_df
+                    if isinstance(trades_df, _pd.DataFrame)
+                    else _pd.DataFrame(trades_df or [])
+                )
+                fills_df = (
+                    fills_obj.copy()
+                    if isinstance(fills_obj, _pd.DataFrame)
+                    else (_pd.DataFrame(fills_obj) if fills_obj is not None else None)
+                )
+
+                run_config_adapter, runtime_config, seed_bundle = (
+                    build_validation_context(config)
+                )
+
+                validation_results = execute_validation_modules(
+                    run_hash=h,
+                    bars=bars_df,
+                    equity_curve=equity_df_final,
+                    trades=trades_df_final,
+                    fills=fills_df,
+                    summary=summary or {},
+                    run_config=run_config_adapter,
+                    runtime_config=runtime_config,
+                    seed_bundle=seed_bundle,
+                )
+
+                validation_v2_payload, artifacts = _build_validation_payload(
+                    h,
+                    base_path,
+                    runtime_config=runtime_config,
+                    results=validation_results,
+                )
+                validation_v2_artifacts = list(artifacts)
+                try:
+                    from services.hashing.validation_signature import (
+                        compute_validation_manifest_hash,
+                    )
+
+                    validation_manifest_hash = compute_validation_manifest_hash(
+                        validation_v2_payload
+                    )
+                except Exception:
+                    validation_manifest_hash = None
+                if (
+                    validation_manifest_hash
+                    and isinstance(validation_v2_payload, dict)
+                    and "manifest_hash" not in validation_v2_payload
+                ):
+                    validation_v2_payload["manifest_hash"] = validation_manifest_hash
+            else:
+                validation_v2_payload = None
+                validation_v2_artifacts = []
+                validation_manifest_hash = None
+        except Exception:
+            validation_v2_payload = None
+            validation_v2_artifacts = []
+            validation_manifest_hash = None
         # Persist equity & trades if structures convertible to DataFrame
         try:
             if equity_df is not None and isinstance(equity_df, _pd.DataFrame):
@@ -474,6 +562,47 @@ def create_or_get(
                 plots_path.write_bytes(placeholder)
         except Exception:
             pass
+        if validation_v2_payload is not None:
+            record["validation_v2"] = validation_v2_payload
+            record["validation_schema_version"] = validation_v2_payload.get(
+                "schema_version"
+            )
+            record["validation_significance"] = validation_v2_payload.get(
+                "significance_status"
+            )
+            record["validation_manifest"] = validation_v2_payload.get("manifest")
+            record["validation_artifacts_v2"] = [
+                {
+                    "path": v.path.as_posix(),
+                    "sha256": v.sha256,
+                    "size": v.size,
+                }
+                for v in validation_v2_artifacts
+            ]
+            failed_checks = validation_v2_payload.get("failed_checks")
+            if isinstance(failed_checks, list):
+                record["validation_failed_checks"] = tuple(
+                    str(item) for item in failed_checks
+                )
+            realism_status = None
+            execution_realism = validation_v2_payload.get("execution_realism")
+            if isinstance(execution_realism, dict):
+                realism_status = execution_realism.get("status")
+            if realism_status is None:
+                metadata_payload = validation_v2_payload.get("metadata")
+                if isinstance(metadata_payload, dict):
+                    realism_status = metadata_payload.get("realism_status")
+            if realism_status is None:
+                manifest_fragment = validation_v2_payload.get("manifest")
+                if isinstance(manifest_fragment, dict):
+                    realism_fragment = manifest_fragment.get("execution_realism")
+                    if isinstance(realism_fragment, dict):
+                        realism_status = realism_fragment.get("status")
+            if isinstance(realism_status, str) and realism_status:
+                record["execution_realism_status"] = realism_status
+            if validation_manifest_hash:
+                record["validation_manifest_hash"] = validation_manifest_hash
+
         write_artifacts(h, record, base_path=base_path)
         # Augment record with artifact index for API consumers (not persisted separately yet)
         record["artifact_index"] = artifact_index(h, base_dir=base_path)

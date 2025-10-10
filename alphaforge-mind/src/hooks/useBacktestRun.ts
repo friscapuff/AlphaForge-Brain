@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAppStore } from '../state/store.js';
 import { useFeatureFlags } from '../state/featureFlags.js';
 import { useUIStore } from '../state/ui.js';
-import { apiClient } from '../services/api/client.js';
+import { fetchBacktestValidation, deriveValidationCaution } from '../services/api/backtests.js';
 
 /**
  * useBacktestRun (T036)
@@ -70,20 +70,38 @@ export function useBacktestRun(): UseBacktestRunReturn {
     } else if (current === 'running') {
       setStatus('completed');
       const flags = useFeatureFlags.getState();
-      setResult(lastRunId, {
-        equityCurve: [
-          { t: new Date(Date.now() - 60000).toISOString(), equity: 10000 },
-          { t: new Date().toISOString(), equity: 10025 }
-        ],
-        metrics: { cagr: 0.12, sharpe: 1.4 },
-        // Basic demo: if advancedValidation is enabled, return a caution flag with two metrics.
-        // In real integration, these would be returned from backend API payload (T042).
-        validationCaution: flags.advancedValidation ? true : false,
-        validationCautionMetrics: flags.advancedValidation ? ['permutation.p', 'block_bootstrap.p'] : [],
-      });
-      if (slowTimerRef.current) {
-        window.clearTimeout(slowTimerRef.current);
-        slowTimerRef.current = null;
+      try {
+        const { validation } = await fetchBacktestValidation(lastRunId);
+        const caution = deriveValidationCaution(validation);
+        setResult(lastRunId, {
+          equityCurve: [
+            { t: new Date(Date.now() - 60000).toISOString(), equity: 10000 },
+            { t: new Date().toISOString(), equity: 10025 }
+          ],
+          metrics: { cagr: 0.12, sharpe: 1.4 },
+          validation,
+          validationCaution: caution.caution || (flags.advancedValidation ? validation === undefined : false),
+          validationCautionMetrics: caution.metrics.length
+            ? caution.metrics
+            : (flags.advancedValidation && !validation ? ['validation.mock'] : []),
+        });
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[Backtest] Failed to fetch validation payload', error);
+        setResult(lastRunId, {
+          equityCurve: [
+            { t: new Date(Date.now() - 60000).toISOString(), equity: 10000 },
+            { t: new Date().toISOString(), equity: 10025 }
+          ],
+          metrics: { cagr: 0.12, sharpe: 1.4 },
+          validationCaution: flags.advancedValidation,
+          validationCautionMetrics: flags.advancedValidation ? ['validation.fetch_error'] : [],
+        });
+      } finally {
+        if (slowTimerRef.current) {
+          window.clearTimeout(slowTimerRef.current);
+          slowTimerRef.current = null;
+        }
       }
     }
   }, [lastRunId, status, setResult]);

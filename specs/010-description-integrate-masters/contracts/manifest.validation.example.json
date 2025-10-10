@@ -1,0 +1,51 @@
+{
+  "validation_schema_version": 2,
+  "validation_significance": "pass",
+  "modules": {
+    "permutation": {"enabled": true, "executed_permutations": 500},
+    "dsr": {"enabled": true},
+    "psr": {"enabled": true},
+    "purged_kfold": {"enabled": true},
+    "cpcv": {"enabled": true},
+    "realism": {"enabled": true}
+  },
+  "permutation_summary": {
+    "segments": [
+      {
+        "segment_id": "in_sample",
+        "p_value": 0.0042,
+        "effect_size": 1.8,
+        "artifact_path": "validation/permutation/segment_in_sample.parquet",
+        "artifact_sha256": "d2c0e5e3f4d1478d7f95accc6f9320c2c9b7efeb1a5d8c2f6f3e3c9d4a1b2e3c"
+      },
+      {
+        "segment_id": "walk_forward_1",
+        "p_value": 0.0121,
+        "effect_size": 1.2,
+        "artifact_path": "validation/permutation/segment_walk_forward_1.parquet",
+        "artifact_sha256": "68af5de61e43e8231f8a2d5b0f5bb3e9ff8a618ce42d398b6d58c93f8f6afde1",
+        "fallback_reason": "runtime_guard_triggered"
+      }
+    ]
+  },
+  "sharpe_adjustments": {
+    "observed_sharpe": 1.95,
+    "deflated_sharpe": 1.62,
+    "probabilistic_sharpe": 0.987,
+    "assumed_trials": 120,
+    "benchmark_sharpe": 0.5
+  },
+  "cross_validation": {
+    "mode": "cpcv",
+    "leakage_score": 0.04,
+    "folds_artifact": "validation/cscv/folds.parquet",
+    "folds_artifact_sha256": "cb67f7e0667c2df0a7abfa6646d5ee8b47cc5e3298ebf1b6ab0c03d7b9151fb2"
+  },
+  "execution_realism": {
+    "status": "pass",
+    "transaction_cost_bps": 35,
+    "market_impact_bps": 20,
+    "capacity_ratio": 0.72,
+    "warnings": []
+  }
+}

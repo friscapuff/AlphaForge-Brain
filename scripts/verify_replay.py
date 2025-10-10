@@ -86,8 +86,15 @@ def collect_manifest_artifacts(host: str, run_hash: str) -> dict[str, str]:
     manifest_bytes = _fetch_artifact(host, run_hash, "manifest.json")
     manifest = json.loads(manifest_bytes.decode("utf-8"))
     hashes: dict[str, str] = {"_manifest_hash": manifest.get("manifest_hash", "")}
-    for art in manifest.get("artifacts", []):
+    vm_hash = manifest.get("validation_manifest_hash")
+    if isinstance(vm_hash, str) and vm_hash:
+        hashes["_validation_manifest_hash"] = vm_hash
+    for art in manifest.get("files", []):
+        if not isinstance(art, dict):
+            continue
         name = art.get("name")
+        if not isinstance(name, str):
+            continue
         hashes[name] = art.get("sha256", "")
     return hashes
 

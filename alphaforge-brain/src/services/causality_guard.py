@@ -148,8 +148,8 @@ __all__ += [
 # --- Pandas instrumentation to detect lookahead operations (e.g., shift(-1)) ---
 
 _PATCHED: bool = False
-_orig_series_shift = None
-_orig_frame_shift = None
+_orig_series_shift: _Any = None
+_orig_frame_shift: _Any = None
 
 
 def _extract_periods(args: tuple[object, ...], kwargs: dict[str, object]) -> int:
@@ -171,7 +171,9 @@ def _enable_pandas_instrumentation(enable: bool) -> None:
         _orig_series_shift = _pd.Series.shift
         _orig_frame_shift = _pd.DataFrame.shift
 
-        def _series_shift(self, *args, **kwargs):  # pragma: no cover - runtime patch
+        def _series_shift(
+            self: _pd.Series, *args: _Any, **kwargs: _Any
+        ) -> _pd.Series:  # pragma: no cover - runtime patch
             periods = _extract_periods(args, kwargs)
             if periods is not None and periods < 0:
                 record_future_access(
@@ -181,7 +183,9 @@ def _enable_pandas_instrumentation(enable: bool) -> None:
                 )
             return _orig_series_shift(self, *args, **kwargs)
 
-        def _frame_shift(self, *args, **kwargs):  # pragma: no cover - runtime patch
+        def _frame_shift(
+            self: _pd.DataFrame, *args: _Any, **kwargs: _Any
+        ) -> _pd.DataFrame:  # pragma: no cover - runtime patch
             periods = _extract_periods(args, kwargs)
             if periods is not None and periods < 0:
                 record_future_access(
@@ -192,12 +196,12 @@ def _enable_pandas_instrumentation(enable: bool) -> None:
             return _orig_frame_shift(self, *args, **kwargs)
 
         # Runtime monkeypatch (pandas exposes these attributes). Direct assignment preferred (Ruff B010)
-        _pd.Series.shift = cast(_Any, _series_shift)  # type: ignore[method-assign]
-        _pd.DataFrame.shift = cast(_Any, _frame_shift)  # type: ignore[method-assign]
+        _pd.Series.shift = cast(_Any, _series_shift)
+        _pd.DataFrame.shift = cast(_Any, _frame_shift)
         _PATCHED = True
     elif not enable and _PATCHED:
         if _orig_series_shift is not None:
-            _pd.Series.shift = cast(_Any, _orig_series_shift)  # type: ignore[method-assign]
+            _pd.Series.shift = cast(_Any, _orig_series_shift)
         if _orig_frame_shift is not None:
-            _pd.DataFrame.shift = cast(_Any, _orig_frame_shift)  # type: ignore[method-assign]
+            _pd.DataFrame.shift = cast(_Any, _orig_frame_shift)
         _PATCHED = False

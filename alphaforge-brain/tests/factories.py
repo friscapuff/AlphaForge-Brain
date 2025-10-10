@@ -68,7 +68,13 @@ def cost_config(**overrides: Any) -> CostModelConfig:
 
 
 def validation_config(**overrides: Any) -> ValidationConfig:
-    base = dict(permutation_trials=0, seed=1, caution_p_threshold=0.1)
+    base = dict(
+        seed=1,
+        permutation_count=0,
+        significance_threshold=0.1,
+        leakage_threshold=0.1,
+        realism_capacity_bps_limit=500,
+    )
     base.update(overrides)
     return ValidationConfig(**base)
 

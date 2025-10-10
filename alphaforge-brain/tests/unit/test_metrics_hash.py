@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from services.hashes import metrics_signature
-from src.services.metrics_hash import equity_curve_hash
+from services.hashes import equity_signature, metrics_signature
 
 
 def test_metrics_hash_order_independent() -> None:
@@ -25,7 +24,7 @@ def test_equity_curve_hash_identical_lists_equal() -> None:
 
     curve1 = [Bar(100 + i, 0.0) for i in range(5)]
     curve2 = [Bar(100 + i, 0.0) for i in range(5)]
-    assert equity_curve_hash(curve1) == equity_curve_hash(curve2)
+    assert equity_signature(curve1) == equity_signature(curve2)
 
 
 def test_equity_curve_hash_differs_on_change() -> None:
@@ -35,6 +34,6 @@ def test_equity_curve_hash_differs_on_change() -> None:
             self.drawdown = drawdown
 
     curve = [Bar(100 + i, 0.0) for i in range(5)]
-    h0 = equity_curve_hash(curve)
+    h0 = equity_signature(curve)
     curve[2].nav += 1.0
-    assert equity_curve_hash(curve) != h0
+    assert equity_signature(curve) != h0

@@ -84,9 +84,14 @@ class RunConfig(BaseModelStrict):  # FR aggregate (references many FR groups)
         add("cost_slip", self.cost.slippage_bps)
         add("cost_fee", self.cost.fee_bps)
         add("cost_borrow", self.cost.borrow_cost_bps)
-        add("valid_perm", self.validation.permutation_trials)
+        add("valid_modules", ",".join(self.validation.enabled_modules()))
+        add("valid_perm", self.validation.permutation_count)
         add("valid_seed", self.validation.seed)
-        add("valid_thresh", self.validation.caution_p_threshold)
+        add("valid_thresh", self.validation.significance_threshold)
+        add("valid_leak", self.validation.leakage_threshold)
+        add("valid_realism_cap", self.validation.realism_capacity_bps_limit)
+        add("valid_bias_abs", self.validation.bias_absolute_threshold)
+        add("valid_bias_rel", self.validation.bias_relative_threshold)
         if self.walk_forward:
             wf = self.walk_forward
             add("wf_train", wf.segment.train_bars)
@@ -119,9 +124,14 @@ class RunConfig(BaseModelStrict):  # FR aggregate (references many FR groups)
             self.cost.slippage_bps,
             self.cost.fee_bps,
             self.cost.borrow_cost_bps,
-            self.validation.permutation_trials,
+            ",".join(self.validation.enabled_modules()),
+            self.validation.permutation_count,
             self.validation.seed,
-            self.validation.caution_p_threshold,
+            self.validation.significance_threshold,
+            self.validation.leakage_threshold,
+            self.validation.realism_capacity_bps_limit,
+            self.validation.bias_absolute_threshold,
+            self.validation.bias_relative_threshold,
         ]
         if self.walk_forward:
             base.extend(
