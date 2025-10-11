@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ..models.manifest import ArtifactDescriptor, RunManifest
+from ..models.manifest import ArtifactDescriptor, RunManifest, TrustGateManifest
 from ..models.run_config import RunConfig
 
 if TYPE_CHECKING:  # pragma: no cover - typing only import
@@ -77,13 +77,14 @@ def build_manifest(
     *,
     run_root: Path | None = None,
     validation_artifacts: Iterable[ValidationArtifact] | None = None,
+    trust_gate: TrustGateManifest | None = None,
 ) -> RunManifest:
     artifacts = collect_artifacts(
         artifact_paths,
         run_root=run_root,
         validation_artifacts=validation_artifacts,
     )
-    return RunManifest.from_run_config(run_id, config, artifacts)
+    return RunManifest.from_run_config(run_id, config, artifacts, trust_gate)
 
 
 __all__ = ["build_manifest", "collect_artifacts"]

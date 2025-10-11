@@ -21,7 +21,7 @@ import json
 import statistics
 import sys
 import time
-from collections import OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -81,6 +81,25 @@ from domain.schemas.run_config import (  # noqa: E402
 )
 
 from infra.db import get_connection  # noqa: E402
+
+try:
+    from services.trust_gates.suite_service import (
+        DEFAULT_GATE_ORDER as _DEFAULT_TRUST_GATE_ORDER,
+    )
+
+    TRUST_GATE_ORDER: tuple[str, ...] = tuple(_DEFAULT_TRUST_GATE_ORDER)
+except (
+    Exception
+):  # pragma: no cover - benchmark should not fail if module layout shifts
+    TRUST_GATE_ORDER = (
+        "golden_run",
+        "causality",
+        "ingest_idempotency",
+        "timezone",
+        "universe_stamp",
+        "equity_reconciliation",
+        "accounting",
+    )
 
 DEFAULT_BASELINE_PATH = ROOT / "artifacts" / "perf_baseline.json"
 STAGE_ORDER: tuple[str, ...] = (
@@ -301,6 +320,184 @@ def summarize_validation(
     return ordered
 
 
+def _extract_trust_gate_summary(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+
+    summary: dict[str, Any] = {}
+    status = raw.get("status")
+    if isinstance(status, str):
+        summary["status"] = status
+
+    runtime_ms = _coerce_float(raw.get("runtime_ms"))
+    if runtime_ms is not None:
+        summary["runtime_ms"] = runtime_ms
+
+    for key in (
+        "suite_id",
+        "suite_version",
+        "tolerance_profile",
+        "config_hash",
+        "executed_at",
+        "signature_path",
+        "report_path",
+    ):
+        value = raw.get(key)
+        if value is not None:
+            summary[key] = value
+
+    enabled_gates = raw.get("enabled_gates")
+    if isinstance(enabled_gates, list):
+        summary["enabled_gates"] = [
+            gate for gate in enabled_gates if isinstance(gate, str)
+        ]
+
+    gates_payload: list[dict[str, Any]] = []
+    for gate in raw.get("gates", []):
+        if not isinstance(gate, dict):
+            continue
+        name = gate.get("name")
+        if not isinstance(name, str):
+            continue
+        gate_entry: dict[str, Any] = {"name": name}
+        gate_status = gate.get("status")
+        if isinstance(gate_status, str):
+            gate_entry["status"] = gate_status
+        duration = _coerce_float(gate.get("duration_ms"))
+        if duration is not None:
+            gate_entry["duration_ms"] = duration
+        for attr in ("artifact", "correlation_id", "waiver_ref"):
+            value = gate.get(attr)
+            if isinstance(value, str):
+                gate_entry[attr] = value
+        metrics = gate.get("metrics")
+        if isinstance(metrics, dict):
+            gate_entry["metrics"] = {
+                str(k): _normalise_metric_value(v) for k, v in metrics.items()
+            }
+        diagnostics = gate.get("diagnostics")
+        if isinstance(diagnostics, dict):
+            gate_entry["diagnostics"] = {
+                str(k): _normalise_metric_value(v) for k, v in diagnostics.items()
+            }
+        gates_payload.append(gate_entry)
+
+    summary["gates"] = gates_payload
+    return summary
+
+
+def summarize_trust_gates(
+    iteration_details: list[dict[str, Any]],
+) -> dict[str, Any]:
+    stage_durations: dict[str, list[float]] = defaultdict(list)
+    stage_status_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    stage_waived_counts: dict[str, int] = defaultdict(int)
+    stage_run_counts: dict[str, int] = defaultdict(int)
+    suite_status_counts: Counter[str] = Counter()
+    enabled_counts: Counter[str] = Counter()
+
+    total_stage_key = "trust_suite.total"
+
+    for detail in iteration_details:
+        trust_gate = detail.get("trust_gate")
+        if not isinstance(trust_gate, dict):
+            continue
+
+        stage_run_counts[total_stage_key] += 1
+        suite_status = trust_gate.get("status")
+        if isinstance(suite_status, str):
+            suite_status_counts[suite_status] += 1
+            stage_status_counts[total_stage_key][suite_status] += 1
+
+        runtime_ms = _coerce_float(trust_gate.get("runtime_ms"))
+        if runtime_ms is not None:
+            stage_durations[total_stage_key].append(runtime_ms)
+
+        enabled = trust_gate.get("enabled_gates")
+        if isinstance(enabled, list):
+            for gate_name in enabled:
+                if isinstance(gate_name, str):
+                    enabled_counts[gate_name] += 1
+
+        for gate in trust_gate.get("gates", []):
+            if not isinstance(gate, dict):
+                continue
+            gate_name = gate.get("name")
+            if not isinstance(gate_name, str):
+                continue
+            stage_key = f"trust_suite.{gate_name}"
+            stage_run_counts[stage_key] += 1
+            gate_status = gate.get("status")
+            if isinstance(gate_status, str):
+                stage_status_counts[stage_key][gate_status] += 1
+            duration = _coerce_float(gate.get("duration_ms"))
+            if duration is not None:
+                stage_durations[stage_key].append(duration)
+            waiver = gate.get("waiver_ref")
+            if isinstance(waiver, str):
+                stage_waived_counts[stage_key] += 1
+
+    def _rounded(value: float | None) -> float | None:
+        if value is None:
+            return None
+        return round(value, 4)
+
+    total_mean = (
+        statistics.mean(stage_durations[total_stage_key])
+        if stage_durations.get(total_stage_key)
+        else None
+    )
+
+    ordered: OrderedDict[str, dict[str, Any]] = OrderedDict()
+    stage_sequence = [total_stage_key] + [
+        f"trust_suite.{gate}" for gate in TRUST_GATE_ORDER
+    ]
+
+    for stage_key in stage_sequence:
+        durations = stage_durations.get(stage_key, [])
+        run_count = stage_run_counts.get(stage_key, 0)
+        status_counts = stage_status_counts.get(stage_key)
+        waived_runs = stage_waived_counts.get(stage_key, 0)
+
+        if not durations and run_count == 0 and not status_counts:
+            continue
+
+        stats: dict[str, Any] = {
+            "runs_observed": run_count,
+            "count": len(durations),
+        }
+        if durations:
+            stats.update(
+                {
+                    "mean_ms": _rounded(statistics.mean(durations)),
+                    "median_ms": _rounded(statistics.median(durations)),
+                    "p95_ms": _rounded(_percentile(durations, 0.95)),
+                    "max_ms": _rounded(max(durations)),
+                }
+            )
+            if stage_key != total_stage_key and total_mean and total_mean > 0:
+                stats["ratio_vs_suite_total"] = _rounded(
+                    stats["mean_ms"] / total_mean  # type: ignore[arg-type]
+                )
+            elif stage_key == total_stage_key:
+                stats["ratio_vs_suite_total"] = 1.0
+
+        if status_counts:
+            stats["status_counts"] = dict(sorted(status_counts.items()))
+        if stage_key != total_stage_key and run_count:
+            if waived_runs:
+                stats["waived_runs"] = waived_runs
+                stats["waived_fraction"] = _rounded(waived_runs / run_count)
+
+        ordered[stage_key] = stats
+
+    return {
+        "stages": ordered,
+        "suite_status_counts": dict(sorted(suite_status_counts.items())),
+        "enabled_counts": dict(sorted(enabled_counts.items())),
+    }
+
+
 def compute_sla(
     stage_stats: dict[str, dict[str, Any]],
     baseline_mean_ms: float | None,
@@ -376,12 +573,16 @@ def run_once(registry: InMemoryRunRegistry, cfg: RunConfig) -> dict[str, Any]:
     elapsed = time.perf_counter() - start
     summary = record.get("summary", {})
     validation_spans = fetch_validation_spans(run_hash)
+    trust_gate_summary = _extract_trust_gate_summary(
+        record.get("trust_gate_summary") if isinstance(record, dict) else None
+    )
     return {
         "run_hash": run_hash,
         "created": created,
         "elapsed_sec": elapsed,
         "trade_count": summary.get("trade_count"),
         "validation": validation_spans,
+        "trust_gate": trust_gate_summary,
     }
 
 
@@ -454,12 +655,17 @@ def main() -> None:
     }
 
     stage_stats = summarize_validation(iteration_details)
+    trust_gates_summary = summarize_trust_gates(iteration_details)
     baseline_mean_ms = load_baseline_mean_ms(Path(args.baseline))
     sla_summary = compute_sla(stage_stats, baseline_mean_ms)
     total_stats = stage_stats.get("total", {})
     if isinstance(total_stats, dict):
         summary["validation_total_mean_ms"] = total_stats.get("mean_ms")
     summary["validation_sla_pass"] = sla_summary.get("passes", True)
+
+    trust_suite_total = trust_gates_summary.get("stages", {}).get("trust_suite.total")
+    if isinstance(trust_suite_total, dict):
+        summary["trust_gate_total_mean_ms"] = trust_suite_total.get("mean_ms")
 
     payload = {
         "runs": summary,
@@ -469,6 +675,7 @@ def main() -> None:
             "stages": stage_stats,
             "sla": sla_summary,
         },
+        "trust_gates": trust_gates_summary,
     }
 
     print(json.dumps(payload, indent=2))

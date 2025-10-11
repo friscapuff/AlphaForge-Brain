@@ -1,0 +1,19 @@
+{
+  "event": "run.update",
+  "data": {
+    "run_id": "run_20251011_abcdef01",
+    "section": "trust_gate",
+    "payload": {
+      "status": "fail",
+      "executed_at": "2025-10-11T14:22:45.137Z",
+      "failed_gates": [
+        {
+          "name": "timezone",
+          "status": "fail",
+          "message": "Ambiguous DST transition detected for symbol AAPL on 2014-03-09",
+          "correlation_id": "tg-20251011-0005"
+        }
+      ]
+    }
+  }
+}

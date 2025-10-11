@@ -1,0 +1,21 @@
+$ poetry run trust-gates
+
+TRUST GATE SUITE (trust_gates.v1)
+Suite ID: tg_suite_20251011_abcdef01
+Baseline: golden_run/v3 (signed by data-governance@alphaforge)
+Tolerance Profile: institutional_default
+
+Gate                Status   Runtime   Details
+------------------  -------  --------  ------------------------------------------------
+Golden Run          PASS     8.4 s     Hashes match baseline (config sha256:4d9af0d4...)
+Causality           PASS     10.9 s    Leakage score 0.003 | Equity drift 0.00 | Dataset leak_catcher_v2
+Ingest Idempotency  WARN     18.8 s    Vendor retries 2/3 | Hashes match | see ingest_vendor_metadata.json
+Timezone            PASS     6.1 s     UTC-aligned across NYSE/LSE/TSE | DST anomalies: none
+Universe Stamp      PASS     4.7 s     Missing symbols: [] | Stamp v2025-09-30
+Equity Reconciliation PASS   7.2 s     Drift 0.003 bps | Within tolerance
+Accounting          PASS     9.4 s     Ledger variance 0.00 | Tolerance ±0.01
+
+Suite Runtime: 68.4 s | Status: PASS
+Artifacts: artifacts/trust_gates/reports/run_20251011_abcdef01/
+Signature: trust_gate_report.sig
+Exit Code: 0

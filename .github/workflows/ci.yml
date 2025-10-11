@@ -335,6 +335,10 @@ jobs:
       - name: Run unified quality gates (T020)
         run: |
           poetry run python scripts/ci/run_quality_gates.py
+      - name: Run trust gates (T045)
+        shell: pwsh
+        run: |
+          ./scripts/ci/run_trust_gates.ps1
       - name: Upload quality gates summary
         if: always()
         uses: actions/upload-artifact@v4

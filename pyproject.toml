@@ -17,6 +17,7 @@ packages = [
   { include = "services", from = "alphaforge-brain/src" },
   { include = "models", from = "alphaforge-brain/src" },
   { include = "lib", from = "alphaforge-brain/src" },
+  { include = "cli", from = "alphaforge-brain/src" },
 ]
 
 [tool.poetry.dependencies]

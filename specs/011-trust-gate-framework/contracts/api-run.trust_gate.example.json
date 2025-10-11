@@ -1,0 +1,42 @@
+{
+  "id": "run_20251011_abcdef01",
+  "status": "ready",
+  "trust_gate": {
+    "schema_version": "trust_gates.v1",
+    "executed_at": "2025-10-11T14:22:45.137Z",
+    "suite_version": 1,
+    "config_hash": "sha256:4d9af0d4...",
+    "tolerance_profile": "institutional_default",
+    "runtime_ms": 68432,
+    "status": "pass",
+    "gates": [
+      {
+        "name": "golden_run",
+        "status": "pass",
+        "duration_ms": 8421,
+        "tolerance": {"hash_equal": true},
+        "artifact": "artifacts/trust_gates/reports/run_20251011_abcdef01/gate_golden_run_diagnostics.json",
+        "correlation_id": "tg-20251011-0001"
+      },
+      {
+        "name": "causality",
+        "status": "pass",
+        "duration_ms": 10952,
+        "metrics": {"leakage_score": 0.003, "equity_drift": 0.0},
+        "artifact": "artifacts/trust_gates/reports/run_20251011_abcdef01/gate_causality_diagnostics.json",
+        "correlation_id": "tg-20251011-0002"
+      },
+      {
+        "name": "ingest_idempotency",
+        "status": "warn",
+        "duration_ms": 18765,
+        "metrics": {"dataset_hash_match": true, "vendor_retries": 2},
+        "tolerance": {"max_retries": 3},
+        "artifact": "artifacts/trust_gates/reports/run_20251011_abcdef01/ingest_vendor_metadata.json",
+        "correlation_id": "tg-20251011-0003",
+        "waiver_ref": "WAIVER-2025-103"
+      }
+    ],
+    "signature_path": "artifacts/trust_gates/reports/run_20251011_abcdef01/trust_gate_report.sig"
+  }
+}

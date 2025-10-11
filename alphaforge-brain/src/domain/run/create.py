@@ -365,6 +365,55 @@ def create_or_get(
 
         # Optional plotting dependency; do not fail artifact writing if unavailable
         base_path = resolve_artifact_root(artifacts_base)
+
+        trust_gate_summary: dict[str, Any] | None = None
+        trust_gate_manifest_block: dict[str, Any] | None = None
+        try:
+            from services.trust_gates.report_writer import write_suite_report
+            from services.trust_gates.suite_service import TrustGateSuiteService
+            from services.trust_gates.telemetry import (
+                create_registry,
+                emit_gate_metrics,
+            )
+
+            suite_service = TrustGateSuiteService()
+            trust_summary = suite_service.run(
+                run_id=h,
+                config_hash=config.deterministic_signature(),
+                candidate_manifest=suite_service.baseline.manifest_snapshot,
+            )
+            report_root = base_path / "trust_gates" / "reports"
+            trust_summary = write_suite_report(trust_summary, report_root, run_id=h)
+            telemetry_registry = create_registry()
+            for result in trust_summary.results:
+                emit_gate_metrics(
+                    registry=telemetry_registry,
+                    gate=result.name,
+                    status=result.status,
+                    duration_ms=result.duration_ms or 0,
+                )
+            trust_gate_summary = trust_summary.as_dict()
+            trust_gate_manifest_block = trust_summary.manifest_block()
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - trust gate suite optional during bring-up
+            trust_gate_summary = {
+                "status": "unavailable",
+                "error": str(exc),
+            }
+
+        if trust_gate_summary is not None:
+            record["trust_gate_summary"] = trust_gate_summary
+        if trust_gate_manifest_block is not None:
+            record["trust_gate_manifest"] = trust_gate_manifest_block
+            try:
+                from services.hashes import trust_gate_signature
+
+                record["trust_gate_signature"] = trust_gate_signature(
+                    trust_gate_manifest_block
+                )
+            except Exception:
+                pass
         try:
             from services.validation.context import build_validation_context
             from services.validation.manifest_v2 import (
@@ -603,7 +652,12 @@ def create_or_get(
             if validation_manifest_hash:
                 record["validation_manifest_hash"] = validation_manifest_hash
 
-        write_artifacts(h, record, base_path=base_path)
+        write_artifacts(
+            h,
+            record,
+            base_path=base_path,
+            trust_gate=trust_gate_manifest_block,
+        )
         # Augment record with artifact index for API consumers (not persisted separately yet)
         record["artifact_index"] = artifact_index(h, base_dir=base_path)
     except Exception:

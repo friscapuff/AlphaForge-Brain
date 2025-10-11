@@ -141,6 +141,7 @@ class RunDetailResponse(BaseModel):
     validation_manifest: dict[str, Any] | None = None
     validation_significance: str | None = None
     validation_manifest_hash: str | None = None
+    trust_gate: dict[str, Any] | None = None
 
 
 class RunHashesResponse(BaseModel):
@@ -151,6 +152,7 @@ class RunHashesResponse(BaseModel):
     provenance_hash: str | None = None  # combined attestation hash
     api_version: str | None = None
     validation_manifest_hash: str | None = None
+    trust_gate_signature: str | None = None
 
 
 @router.get("/runs/{run_hash}/hashes", response_model=RunHashesResponse)
@@ -186,6 +188,11 @@ async def get_run_hashes(
         if isinstance(rec.get("validation_manifest_hash"), str)
         else None
     )
+    trust_gate_signature_val = (
+        rec.get("trust_gate_signature")
+        if isinstance(rec.get("trust_gate_signature"), str)
+        else None
+    )
     manifest_path = base_path / run_hash / "manifest.json"
     if manifest_path.exists():
         try:
@@ -201,6 +208,8 @@ async def get_run_hashes(
                     equity_curve_hash_val = m["equity_curve_hash"]
                 if isinstance(m.get("validation_manifest_hash"), str):
                     validation_manifest_hash_val = m["validation_manifest_hash"]
+                if isinstance(m.get("trust_gate_signature"), str):
+                    trust_gate_signature_val = m["trust_gate_signature"]
         except Exception:  # pragma: no cover
             pass
     # Build provenance hash from available pieces (order-independent canonical form)
@@ -213,6 +222,8 @@ async def get_run_hashes(
         components["equity_curve_hash"] = equity_curve_hash_val
     if validation_manifest_hash_val:
         components["validation_manifest_hash"] = validation_manifest_hash_val
+    if trust_gate_signature_val:
+        components["trust_gate_signature"] = trust_gate_signature_val
     provenance_hash = hash_canonical(components) if components else None
     return RunHashesResponse(
         run_hash=run_hash,
@@ -222,6 +233,7 @@ async def get_run_hashes(
         provenance_hash=provenance_hash,
         api_version="0.1",
         validation_manifest_hash=validation_manifest_hash_val,
+        trust_gate_signature=trust_gate_signature_val,
     )
 
 
@@ -260,6 +272,21 @@ async def get_run_detail(
                     )
         except Exception:  # pragma: no cover - manifest parse resilience
             pass
+    trust_gate_payload: dict[str, Any] | None = None
+    trust_gate_summary = rec.get("trust_gate_summary")
+    if isinstance(trust_gate_summary, dict):
+        trust_gate_payload = dict(trust_gate_summary)
+    manifest_trust_gate = None
+    if manifest and isinstance(manifest.get("trust_gate"), dict):
+        manifest_trust_gate = manifest.get("trust_gate")
+    elif isinstance(rec.get("trust_gate_manifest"), dict):
+        manifest_trust_gate = rec.get("trust_gate_manifest")
+    if manifest_trust_gate:
+        if trust_gate_payload is None:
+            trust_gate_payload = dict(manifest_trust_gate)
+        else:
+            for key, value in manifest_trust_gate.items():
+                trust_gate_payload.setdefault(key, value)
     summary = rec.get("summary")
     if include_anomalies:
         # Always surface anomaly_counters key (empty dict fallback) when flag set
@@ -354,6 +381,7 @@ async def get_run_detail(
         if isinstance(maybe_hash, str):
             validation_manifest_hash = maybe_hash
     payload["validation_manifest_hash"] = validation_manifest_hash
+    payload["trust_gate"] = trust_gate_payload
 
     response = RunDetailResponse(**payload)
     serialized = response.model_dump(exclude_none=True)
@@ -368,6 +396,7 @@ async def get_run_detail(
             "summary",
             "validation_summary",
             "validation",
+            "trust_gate",
         }
     }
     content_hash = hash_canonical(canonical_source)

@@ -3,152 +3,102 @@
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
-## Execution Flow (/plan command scope)
-```
-1. Load feature spec from Input path
-   → If not found: ERROR "No feature spec at {path}"
-2. Fill Technical Context (scan for NEEDS CLARIFICATION)
-   → Detect Project Type from context (single, web(frontend+backend), mobile, or dual-project brain+mind)
-   → Set Structure Decision based on project type
-3. Fill the Constitution Check section based on the content of the constitution document (v1.1.0 or later).
-4. Evaluate Constitution Check section below
-   → If violations exist: Document in Complexity Tracking
-   → If no justification possible: ERROR "Simplify approach first"
-   → Update Progress Tracking: Initial Constitution Check
-5. Execute Phase 0 → research.md
-   → If NEEDS CLARIFICATION remain: ERROR "Resolve unknowns"
-6. Execute Phase 1 → contracts, data-model.md, quickstart.md, agent-specific template file
-7. Re-evaluate Constitution Check section
-   → If new violations: Refactor design, return to Phase 1
-   → Update Progress Tracking: Post-Design Constitution Check
-8. Plan Phase 2 → Describe task generation approach (DO NOT create tasks.md)
-9. STOP - Ready for /tasks command
-```
-
-**IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by other commands:
-- Phase 2: /tasks command creates tasks.md
-- Phase 3-4: Implementation execution (manual or via tools)
+**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
+
 [Extract from feature spec: primary requirement + technical approach from research]
 
 ## Technical Context
-**Language/Version**: [e.g., Python 3.11 or NEEDS CLARIFICATION]
-**Primary Dependencies**: [e.g., FastAPI, React, PyArrow or NEEDS CLARIFICATION]
-**Storage**: [e.g., SQLite, Parquet, Local FS or N/A]
-**Testing**: [frameworks]
-**Target Platform**: [runtime targets]
-**Project Type**: [single | web | mobile | brain+mind dual]
-**Performance Goals**: [explicit metrics]
-**Constraints**: [latency, memory, determinism, security]
-**Scale/Scope**: [volume, user count, data size]
+
+<!--
+  ACTION REQUIRED: Replace the content in this section with the technical details
+  for the project. The structure here is presented in advisory capacity to guide
+  the iteration process.
+-->
+
+**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
+**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
+**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Project Type**: [single/web/mobile - determines source structure]
+**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]
+**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]
+**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
 ## Constitution Check
+
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- Determinism: Seeds & replay plan documented?
-- Test-First: Failing test scaffolds enumerated?
-- Modular MVC / Dual Root: Does feature keep Brain (backend analytics) and Mind (frontend UX) isolated?
-- Observability: Timing/tracing instrumentation points identified?
-- Contract Versioning: Any breaking interface needs MAJOR bump justification?
-- Performance Targets: Benchmarks listed with thresholds?
-- Data Integrity: Migrations or schema diffs required?
-- Validation Defaults: Are Masters validation modules, thresholds, and SLA impacts documented (or justified if deviating)?
-
-If any FAIL → STOP.
+[Gates determined based on constitution file]
 
 ## Project Structure
 
 ### Documentation (this feature)
+
 ```
 specs/[###-feature]/
-├── plan.md
-├── research.md
-├── data-model.md
-├── quickstart.md
-├── contracts/
-└── tasks.md
+├── plan.md              # This file (/speckit.plan command output)
+├── research.md          # Phase 0 output (/speckit.plan command)
+├── data-model.md        # Phase 1 output (/speckit.plan command)
+├── quickstart.md        # Phase 1 output (/speckit.plan command)
+├── contracts/           # Phase 1 output (/speckit.plan command)
+└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
 ```
 
 ### Source Code (repository root)
+<!--
+  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
+  for this feature. Delete unused options and expand the chosen structure with
+  real paths (e.g., apps/admin, packages/something). The delivered plan must
+  not include Option labels.
+-->
+
 ```
-# Option 1: Single project (DEFAULT legacy)
+# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
 src/
-  models/
-  services/
-  cli/
-  lib/
+├── models/
+├── services/
+├── cli/
+└── lib/
 
 tests/
-  contract/
-  integration/
-  unit/
+├── contract/
+├── integration/
+└── unit/
 
-# Option 2: Web application (frontend + backend)
+# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
 backend/
-  src/
-    models/
-    services/
-    api/
-  tests/
+├── src/
+│   ├── models/
+│   ├── services/
+│   └── api/
+└── tests/
+
 frontend/
-  src/
-    components/
-    pages/
-    services/
-  tests/
+├── src/
+│   ├── components/
+│   ├── pages/
+│   └── services/
+└── tests/
 
-# Option 3: Mobile + API
+# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
 api/
-  src/
-  tests/
-ios/ or android/
-  src/
-  tests/
+└── [same as backend above]
 
-# Option 4: Dual Project (AlphaForge Brain + AlphaForge Mind)
-alphaforge-brain/
-  src/
-  tests/
-alphaforge-mind/
-  src/
-  tests/
-shared/ (optional strictly pure utilities)
+ios/ or android/
+└── [platform-specific structure: feature modules, UI flows, platform tests]
 ```
 
-**Structure Decision**: [choose one; dual project requires contract note]
-
-## Phase 0: Outline & Research
-[Same as earlier version; add research for architecture boundary if dual project]
-
-## Phase 1: Design & Contracts
-- Identify cross-project contracts: artifact schemas, API endpoints, CLI protocols.
-- Document version impact for any new exposed interface.
-
-## Phase 2: Task Planning Approach
-[Unchanged core, but tasks MUST tag which project root they modify]
-
-## Phase 3+: Future Implementation
-[Same]
+**Structure Decision**: [Document the selected structure and reference the real
+directories captured above]
 
 ## Complexity Tracking
+
+*Fill ONLY if Constitution Check has violations that must be justified*
+
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-
-## Progress Tracking
-**Phase Status**:
-- [ ] Phase 0: Research complete (/plan command)
-- [ ] Phase 1: Design complete (/plan command)
-- [ ] Phase 2: Task planning complete (/plan command - describe approach only)
-- [ ] Phase 3: Tasks generated (/tasks command)
-- [ ] Phase 4: Implementation complete
-- [ ] Phase 5: Validation passed
-
-**Gate Status**:
-- [ ] Initial Constitution Check: PASS
-- [ ] Post-Design Constitution Check: PASS
-- [ ] All NEEDS CLARIFICATION resolved
-- [ ] Complexity deviations documented
-
----
-*Based on Constitution v1.3.0 - See `/memory/constitution.md`*
+| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
+| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |

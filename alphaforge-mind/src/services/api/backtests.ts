@@ -4,6 +4,32 @@ import { apiClient } from './client.js';
 export interface ApiValidationRunResponse {
   run_id: string;
   validation?: ApiValidationPayload | null;
+  trust_gate?: ApiTrustGateSummary | null;
+}
+
+export interface ApiTrustGateSummary {
+  status?: string | null;
+  executed_at?: string | null;
+  suite_version?: number | null;
+  config_hash?: string | null;
+  tolerance_profile?: string | null;
+  runtime_ms?: number | null;
+  schema_version?: string | null;
+  signature_path?: string | null;
+  report_path?: string | null;
+  gates?: ApiTrustGateGate[] | null;
+}
+
+export interface ApiTrustGateGate {
+  name?: string | null;
+  status?: string | null;
+  artifact?: string | null;
+  correlation_id?: string | null;
+  waiver_ref?: string | null;
+  duration_ms?: number | null;
+  metrics?: Record<string, unknown> | null;
+  tolerance?: Record<string, unknown> | null;
+  details?: string | null;
 }
 
 export interface ApiValidationPayload {
@@ -217,6 +243,32 @@ export interface ValidationData {
 export interface BacktestRunData {
   runId: string;
   validation?: ValidationData;
+  trustGate?: TrustGateSummary;
+}
+
+export interface TrustGateResult {
+  name: string;
+  status: string;
+  artifact?: string;
+  correlationId?: string;
+  waiverRef?: string;
+  durationMs?: number;
+  metrics?: Record<string, unknown>;
+  tolerance?: Record<string, unknown>;
+  details?: string;
+}
+
+export interface TrustGateSummary {
+  status: string;
+  executedAt?: string;
+  suiteVersion?: number;
+  configHash?: string;
+  toleranceProfile?: string;
+  runtimeMs?: number;
+  schemaVersion?: string;
+  signaturePath?: string;
+  reportPath?: string;
+  gates: TrustGateResult[];
 }
 
 // ----- Constants -----
@@ -258,6 +310,13 @@ function normalizePercentiles(record?: Record<string, number> | null): Array<{ p
     })
     .filter((entry): entry is { percentile: number; value: number } => Boolean(entry))
     .sort((a, b) => a.percentile - b.percentile);
+}
+
+function normalizeStatus(value: string | null | undefined): string {
+  if (typeof value === 'string' && value.trim() !== '') {
+    return value.trim().toLowerCase();
+  }
+  return 'unknown';
 }
 
 function mapPermutationSegment(segment: ApiPermutationSegment): PermutationSegment {
@@ -413,6 +472,17 @@ function mapMetadata(metadata?: Record<string, unknown> | null): Record<string, 
   return result;
 }
 
+function normalizeLooseRecord(record?: Record<string, unknown> | null): Record<string, unknown> | undefined {
+  if (!record || typeof record !== 'object') return undefined;
+  const cloned = cloneMetadataValue(record);
+  if (!cloned || typeof cloned !== 'object' || Array.isArray(cloned)) {
+    return undefined;
+  }
+  const entries = Object.entries(cloned as Record<string, unknown>).filter(([, value]) => value !== undefined);
+  if (entries.length === 0) return undefined;
+  return Object.fromEntries(entries);
+}
+
 function mapArtifacts(records?: Record<string, ApiValidationArtifactMeta | null | undefined> | null): ValidationArtifact[] {
   if (!records || typeof records !== 'object') return [];
   return Object.entries(records)
@@ -524,6 +594,70 @@ export function mapBacktestValidation(payload?: ApiValidationPayload | null): Va
   };
 }
 
+export function mapTrustGateSummary(summary?: ApiTrustGateSummary | null): TrustGateSummary | undefined {
+  if (!summary) return undefined;
+  const status = normalizeStatus(summary.status ?? undefined);
+  const executedAt = typeof summary.executed_at === 'string' ? summary.executed_at : undefined;
+  const suiteVersion = toNumber(summary.suite_version ?? undefined);
+  const configHash = typeof summary.config_hash === 'string' && summary.config_hash.trim() ? summary.config_hash.trim() : undefined;
+  const toleranceProfile =
+    typeof summary.tolerance_profile === 'string' && summary.tolerance_profile.trim()
+      ? summary.tolerance_profile.trim()
+      : undefined;
+  const runtimeMs = toPositiveNumber(summary.runtime_ms ?? undefined);
+  const schemaVersion =
+    typeof summary.schema_version === 'string' && summary.schema_version.trim()
+      ? summary.schema_version.trim()
+      : undefined;
+  const signaturePath =
+    typeof summary.signature_path === 'string' && summary.signature_path.trim()
+      ? summary.signature_path.trim()
+      : undefined;
+  const reportPath =
+    typeof summary.report_path === 'string' && summary.report_path.trim()
+      ? summary.report_path.trim()
+      : undefined;
+  const gates: TrustGateResult[] = Array.isArray(summary.gates)
+    ? summary.gates
+        .map((gate): TrustGateResult | undefined => {
+          const name = typeof gate.name === 'string' ? gate.name.trim() : '';
+          if (!name) return undefined;
+          const artifact = typeof gate.artifact === 'string' && gate.artifact.trim() ? gate.artifact.trim() : undefined;
+          const correlationId =
+            typeof gate.correlation_id === 'string' && gate.correlation_id.trim() ? gate.correlation_id.trim() : undefined;
+          const waiverRef = typeof gate.waiver_ref === 'string' && gate.waiver_ref.trim() ? gate.waiver_ref.trim() : undefined;
+          const durationMs = toPositiveNumber(gate.duration_ms ?? undefined);
+          const metrics = normalizeLooseRecord(gate.metrics as Record<string, unknown> | null | undefined);
+          const tolerance = normalizeLooseRecord(gate.tolerance as Record<string, unknown> | null | undefined);
+          const details = typeof gate.details === 'string' && gate.details.trim() ? gate.details.trim() : undefined;
+          return {
+            name,
+            status: normalizeStatus(gate.status ?? undefined),
+            artifact,
+            correlationId,
+            waiverRef,
+            durationMs,
+            metrics,
+            tolerance,
+            details,
+          };
+        })
+        .filter((gate): gate is TrustGateResult => gate !== undefined)
+    : [];
+  return {
+    status,
+    executedAt,
+    suiteVersion,
+    configHash,
+    toleranceProfile,
+    runtimeMs,
+    schemaVersion,
+    signaturePath,
+    reportPath,
+    gates,
+  } satisfies TrustGateSummary;
+}
+
 export function deriveValidationCaution(validation?: ValidationData): { caution: boolean; metrics: string[] } {
   if (!validation) return { caution: false, metrics: [] };
   const metrics = new Set<string>();
@@ -588,5 +722,6 @@ export async function fetchBacktestValidation(runId: string): Promise<BacktestRu
   return {
     runId: response.run_id,
     validation: mapBacktestValidation(response.validation ?? undefined),
+    trustGate: mapTrustGateSummary(response.trust_gate ?? undefined),
   };
 }

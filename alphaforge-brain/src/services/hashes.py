@@ -22,6 +22,8 @@ from services.metrics_hash import equity_curve_hash as _legacy_equity_curve_hash
 # Re-use existing proven functions
 from services.metrics_hash import metrics_hash as _legacy_metrics_hash
 
+from infra.utils.hash import hash_canonical
+
 
 def metrics_signature(metrics: Mapping[str, Any]) -> str:  # FR-015 stability
     return _legacy_metrics_hash(metrics)
@@ -31,4 +33,10 @@ def equity_signature(curve: Sequence[Any] | pd.DataFrame) -> str:  # FR-015 stab
     return _legacy_equity_curve_hash(curve)
 
 
-__all__ = ["equity_signature", "metrics_signature"]
+def trust_gate_signature(summary: Mapping[str, Any]) -> str:
+    """Deterministically hash trust gate summary payloads."""
+
+    return hash_canonical(summary)
+
+
+__all__ = ["equity_signature", "metrics_signature", "trust_gate_signature"]

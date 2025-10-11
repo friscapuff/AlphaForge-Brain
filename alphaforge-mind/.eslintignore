@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+coverage/
+artifacts/
+.zz_artifacts/
+.playwright-report/
+*.config.cjs

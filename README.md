@@ -139,6 +139,24 @@ Masters permutation, bias adjustments, cross-validation, and execution realism s
   [^3]: Marcos López de Prado, "The Deflated Sharpe Ratio: Correcting for Selection Bias in Backtested Portfolios," *The Journal of Portfolio Management*, 40(5), 2014.
   [^4]: Robert Kissell, *The Science of Algorithmic Trading and Portfolio Management*, Academic Press, 2013.
 
+### Trust Gate Framework Guardrails (FR-211)
+
+- **Suite execution**: `poetry run trust-gates` evaluates golden-run determinism, causality, ingest idempotency, timezone normalization, universe coverage, equity reconciliation, and accounting balance in one pass. Diagnostic artifacts and signatures land under `artifacts/trust_gates/reports/<run_id>/`.
+- **Benchmark harness**: `poetry run python scripts/bench/perf_run.py --iterations 5 --warmup 1 --output zz_artifacts/perf_latest.json` now emits `trust_gates.stages.trust_suite.total.mean_ms` plus per-gate spans. The suite must remain at or below **1.5×** the Masters baseline mean recorded in `artifacts/perf_baseline.json` (28.49 ms today → **≤ 42.73 ms**). CI enforces the ceiling via `tests/perf/test_trust_gate_runtime.py`.
+- **Tolerance profile**: Institutional defaults (see `configs/trust_gates/tolerances/institutional_default.yaml`) harden key checks. Highlights:
+
+  | Gate | Institutional Default Expectations |
+  |------|-------------------------------------|
+  | Golden Run Determinism | Manifest + artifact hashes must match; baseline version mismatches fail. |
+  | Causality Guardrails | Leakage ≤ 0.05, equity drift ≤ 1×10⁻⁶, Sharpe floor ≥ 0.0. |
+  | Ingest Idempotency | Hash delta 0; schema version parity enforced; ≤ 3 retries; row counts fixed. |
+  | Timezone Normalization | UTC storage; 0 s offset; ≤ 5 min ambiguity buffer; DST gap ≤ 60 s. |
+  | Universe Stamp | Missing symbols forbidden; extra symbols warn only; delta limit 0. |
+  | Equity Reconciliation | Absolute drift ≤ 0.01 currency units; relative drift ≤ 5 bps; corp-action metadata required. |
+  | Accounting Balance | Same 0.01/5 bps drift limits; ledger precision 6 decimals using bankers rounding. |
+
+  The operational runbook, waiver workflow, and attestation templates live in `docs/operations/trust_gates.md`.
+
 Note on architecture migration (2025-09-24): The repository has moved to a dual-root layout. Backend code now lives under `alphaforge-brain/src` with tests under `alphaforge-brain/tests`. A placeholder `alphaforge-mind/` root exists for future UI/visualization work. See `alphaforge-brain/ARCH_MIGRATION_STATUS.md` for exit criteria evidence and `ARCH_MIGRATION_RETROSPECTIVE.md` for lessons learned. An architecture diagram will be linked here in a future revision.
 
 ### Accessibility (Mind UI Early Baseline)

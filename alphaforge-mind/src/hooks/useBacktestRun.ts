@@ -71,7 +71,7 @@ export function useBacktestRun(): UseBacktestRunReturn {
       setStatus('completed');
       const flags = useFeatureFlags.getState();
       try {
-        const { validation } = await fetchBacktestValidation(lastRunId);
+        const { validation, trustGate } = await fetchBacktestValidation(lastRunId);
         const caution = deriveValidationCaution(validation);
         setResult(lastRunId, {
           equityCurve: [
@@ -80,6 +80,7 @@ export function useBacktestRun(): UseBacktestRunReturn {
           ],
           metrics: { cagr: 0.12, sharpe: 1.4 },
           validation,
+          trustGate,
           validationCaution: caution.caution || (flags.advancedValidation ? validation === undefined : false),
           validationCautionMetrics: caution.metrics.length
             ? caution.metrics
@@ -94,6 +95,7 @@ export function useBacktestRun(): UseBacktestRunReturn {
             { t: new Date().toISOString(), equity: 10025 }
           ],
           metrics: { cagr: 0.12, sharpe: 1.4 },
+          trustGate: undefined,
           validationCaution: flags.advancedValidation,
           validationCautionMetrics: flags.advancedValidation ? ['validation.fetch_error'] : [],
         });

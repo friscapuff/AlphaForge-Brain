@@ -15,6 +15,7 @@ import { PercentileModeToggle } from '../components/backtest/PercentileModeToggl
 import { AdvancedValidationToggles } from '../components/backtest/AdvancedValidationToggles.js';
 import { ErrorBoundary } from '../components/common/ErrorBoundary.js';
 import { MonteCarloOverlay } from '../components/backtest/MonteCarloOverlay.js';
+import { TrustGateBadge } from '../components/TrustGateBadge.js';
 
 export function BacktestValidationPage() {
   const { status, submit, poll } = useBacktestRun();
@@ -26,6 +27,7 @@ export function BacktestValidationPage() {
   const cautionMetrics = results?.validationCautionMetrics ?? [];
   const optMode = results?.optimizationMode;
   const warnings = results?.advanced?.warnings ?? [];
+  const trustGateSuite = results?.trustGate;
   const [exportOpen, setExportOpen] = React.useState(false);
 
   // Allow tests to opt out of rendering heavier visual components (charts) by setting
@@ -66,6 +68,7 @@ export function BacktestValidationPage() {
             </span>
           )}
         </h2>
+  <TrustGateBadge suite={trustGateSuite} />
         {optMode === 'deferred' && warnings.length > 0 && (
           <div
             role="alert"

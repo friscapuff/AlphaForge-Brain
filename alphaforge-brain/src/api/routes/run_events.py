@@ -86,115 +86,142 @@ async def _stream(
         # Cancellation events may have been appended later; detect if buffer has a cancellation and expose it as id 2
         buffer = bufs[run_hash]
         cancelled_events = [e for e in buffer.since(None) if e.type == "cancelled"]
+        cancel_event_bytes = None
+        if cancelled_events:
+            cancel_event_bytes = _event(
+                3, "cancelled", {"run_hash": run_hash, "status": "CANCELLED"}
+            ).encode()
+
+        trust_gate_summary = rec.get("trust_gate_summary")
+        trust_gate_event_bytes = None
+        if isinstance(trust_gate_summary, dict):
+            failed_gates = []
+            for gate in trust_gate_summary.get("gates", []):
+                if not isinstance(gate, dict):
+                    continue
+                status_value = gate.get("status")
+                if status_value not in {"fail", "warn"}:
+                    continue
+                entry = {
+                    "name": gate.get("name"),
+                    "status": status_value,
+                    "correlation_id": gate.get("correlation_id"),
+                }
+                diagnostics = gate.get("diagnostics")
+                if isinstance(diagnostics, dict):
+                    message = diagnostics.get("message") or diagnostics.get("details")
+                    if message:
+                        entry["message"] = message
+                waiver = gate.get("waiver_ref")
+                if waiver:
+                    entry["waiver_ref"] = waiver
+                failed_gates.append(entry)
+            trust_gate_event_bytes = _event(
+                2,
+                "run.update",
+                {
+                    "run_id": run_hash,
+                    "section": "trust_gate",
+                    "payload": {
+                        "status": trust_gate_summary.get("status"),
+                        "executed_at": trust_gate_summary.get("executed_at"),
+                        "failed_gates": failed_gates,
+                    },
+                },
+            ).encode()
+
+        def _yield_snapshot(event_id: int) -> bytes:
+            validation_v2_inner = rec.get("validation_v2")
+            if not isinstance(validation_v2_inner, dict):
+                validation_v2_inner = None
+            snapshot_inner = {
+                "run_hash": run_hash,
+                "summary": rec.get("summary"),
+                "p_values": rec.get("p_values"),
+                "validation_summary": rec.get("validation_summary"),
+                "validation": rec.get("validation_summary"),
+                "validation_schema_version": rec.get("validation_schema_version")
+                or (
+                    validation_v2_inner.get("schema_version")
+                    if validation_v2_inner
+                    else None
+                ),
+                "validation_manifest": rec.get("validation_manifest")
+                or (
+                    validation_v2_inner.get("manifest") if validation_v2_inner else None
+                ),
+                "validation_manifest_hash": rec.get("validation_manifest_hash")
+                or (
+                    validation_v2_inner.get("manifest_hash")
+                    if validation_v2_inner
+                    else None
+                ),
+                "validation_significance": rec.get("validation_significance")
+                or (
+                    validation_v2_inner.get("significance_status")
+                    if validation_v2_inner
+                    else None
+                ),
+                "validation_modules": (
+                    validation_v2_inner.get("modules") if validation_v2_inner else None
+                ),
+                "validation_config": (
+                    validation_v2_inner.get("config") if validation_v2_inner else None
+                ),
+                "validation_sections": {
+                    "permutation": (
+                        validation_v2_inner.get("permutation")
+                        if validation_v2_inner
+                        else None
+                    ),
+                    "bias_adjustments": (
+                        validation_v2_inner.get("bias_adjustments")
+                        if validation_v2_inner
+                        else None
+                    ),
+                    "cross_validation": (
+                        validation_v2_inner.get("cross_validation")
+                        if validation_v2_inner
+                        else None
+                    ),
+                    "execution_realism": (
+                        validation_v2_inner.get("execution_realism")
+                        if validation_v2_inner
+                        else None
+                    ),
+                },
+                "validation_artifacts": (
+                    validation_v2_inner.get("artifacts")
+                    if validation_v2_inner
+                    else None
+                ),
+                "validation_correlation_id": f"{run_hash}:validation_snapshot",
+                "status": status,
+            }
+            return _event(event_id, "snapshot", snapshot_inner).encode()
+
         if last_event_id is None:
-            # Fresh client -> send heartbeat + snapshot (ids 0 & 1)
             yield _event(0, "heartbeat", {"status": status}).encode()
-            validation_v2 = rec.get("validation_v2")
-            if not isinstance(validation_v2, dict):
-                validation_v2 = None
-            snapshot = {
-                "run_hash": run_hash,
-                "summary": rec.get("summary"),
-                "p_values": rec.get("p_values"),
-                # Surface validation summary for parity with /runs/{run_hash} detail endpoint
-                # (legacy alias 'validation' retained for backward compatibility with older clients/tests)
-                "validation_summary": rec.get("validation_summary"),
-                "validation": rec.get("validation_summary"),
-                "validation_schema_version": rec.get("validation_schema_version")
-                or (validation_v2.get("schema_version") if validation_v2 else None),
-                "validation_manifest": rec.get("validation_manifest")
-                or (validation_v2.get("manifest") if validation_v2 else None),
-                "validation_manifest_hash": rec.get("validation_manifest_hash")
-                or (validation_v2.get("manifest_hash") if validation_v2 else None),
-                "validation_significance": rec.get("validation_significance")
-                or (
-                    validation_v2.get("significance_status") if validation_v2 else None
-                ),
-                "validation_modules": (
-                    validation_v2.get("modules") if validation_v2 else None
-                ),
-                "validation_config": (
-                    validation_v2.get("config") if validation_v2 else None
-                ),
-                "validation_sections": {
-                    "permutation": (
-                        validation_v2.get("permutation") if validation_v2 else None
-                    ),
-                    "bias_adjustments": (
-                        validation_v2.get("bias_adjustments") if validation_v2 else None
-                    ),
-                    "cross_validation": (
-                        validation_v2.get("cross_validation") if validation_v2 else None
-                    ),
-                    "execution_realism": (
-                        validation_v2.get("execution_realism")
-                        if validation_v2
-                        else None
-                    ),
-                },
-                "validation_artifacts": (
-                    validation_v2.get("artifacts") if validation_v2 else None
-                ),
-                "validation_correlation_id": f"{run_hash}:validation_snapshot",
-                "status": status,
-            }
-            yield _event(1, "snapshot", snapshot).encode()
+            yield _yield_snapshot(1)
+            if trust_gate_event_bytes:
+                yield trust_gate_event_bytes
+            if cancel_event_bytes:
+                yield cancel_event_bytes
         elif last_event_id == 0:
-            # Client has heartbeat only, send snapshot
-            validation_v2 = rec.get("validation_v2")
-            if not isinstance(validation_v2, dict):
-                validation_v2 = None
-            snapshot = {
-                "run_hash": run_hash,
-                "summary": rec.get("summary"),
-                "p_values": rec.get("p_values"),
-                "validation_summary": rec.get("validation_summary"),
-                "validation": rec.get("validation_summary"),
-                "validation_schema_version": rec.get("validation_schema_version")
-                or (validation_v2.get("schema_version") if validation_v2 else None),
-                "validation_manifest": rec.get("validation_manifest")
-                or (validation_v2.get("manifest") if validation_v2 else None),
-                "validation_manifest_hash": rec.get("validation_manifest_hash")
-                or (validation_v2.get("manifest_hash") if validation_v2 else None),
-                "validation_significance": rec.get("validation_significance")
-                or (
-                    validation_v2.get("significance_status") if validation_v2 else None
-                ),
-                "validation_modules": (
-                    validation_v2.get("modules") if validation_v2 else None
-                ),
-                "validation_config": (
-                    validation_v2.get("config") if validation_v2 else None
-                ),
-                "validation_sections": {
-                    "permutation": (
-                        validation_v2.get("permutation") if validation_v2 else None
-                    ),
-                    "bias_adjustments": (
-                        validation_v2.get("bias_adjustments") if validation_v2 else None
-                    ),
-                    "cross_validation": (
-                        validation_v2.get("cross_validation") if validation_v2 else None
-                    ),
-                    "execution_realism": (
-                        validation_v2.get("execution_realism")
-                        if validation_v2
-                        else None
-                    ),
-                },
-                "validation_artifacts": (
-                    validation_v2.get("artifacts") if validation_v2 else None
-                ),
-                "validation_correlation_id": f"{run_hash}:validation_snapshot",
-                "status": status,
-            }
-            yield _event(1, "snapshot", snapshot).encode()
-        elif last_event_id >= 1 and cancelled_events:
-            # If a cancellation event occurred after completion, expose it as synthetic id 2
-            if last_event_id < 2:
-                yield _event(
-                    2, "cancelled", {"run_hash": run_hash, "status": "CANCELLED"}
-                ).encode()
+            yield _yield_snapshot(1)
+            if trust_gate_event_bytes:
+                yield trust_gate_event_bytes
+            if cancel_event_bytes:
+                yield cancel_event_bytes
+        elif last_event_id == 1:
+            if trust_gate_event_bytes:
+                yield trust_gate_event_bytes
+                if cancel_event_bytes:
+                    yield cancel_event_bytes
+            elif cancel_event_bytes:
+                yield cancel_event_bytes
+        elif last_event_id >= 2 and cancel_event_bytes and last_event_id < 3:
+            yield cancel_event_bytes
         return
 
     # Fallback (future async path) - just stream raw buffer events

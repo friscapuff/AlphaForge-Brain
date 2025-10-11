@@ -86,6 +86,10 @@ class RunConfig(BaseModel):
         s: str = canonical_json(self.canonical_dict())
         return s
 
+    # Backwards-compatible alias for legacy callers (FR-201 migration)
+    def deterministic_signature(self) -> str:
+        return self.canonical_hash()
+
 
 __all__ = [
     "ExecutionSpec",
