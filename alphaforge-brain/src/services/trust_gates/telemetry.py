@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 import structlog
 from prometheus_client import CollectorRegistry, Gauge, Histogram
@@ -17,7 +16,7 @@ class _RegistryMetrics:
     duration: Histogram
 
 
-_REGISTRIES: Dict[int, _RegistryMetrics] = {}
+_REGISTRIES: dict[int, _RegistryMetrics] = {}
 _STATUS_STATES = ("pass", "warn", "fail")
 
 

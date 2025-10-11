@@ -9,7 +9,7 @@ import json
 import pathlib
 import subprocess
 import zipfile
-from typing import Any, Dict, Optional
+from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DOC_PATH = ROOT / "docs" / "operations" / "trust_gates.md"
@@ -51,8 +51,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_report(
-    run_id: str, report_path: Optional[str]
-) -> tuple[pathlib.Path, Dict[str, Any]]:
+    run_id: str, report_path: str | None
+) -> tuple[pathlib.Path, dict[str, Any]]:
     candidate = (
         pathlib.Path(report_path)
         if report_path
@@ -65,7 +65,7 @@ def load_report(
     return candidate, data
 
 
-def extract_attestation(report: Dict[str, Any]) -> Dict[str, Any]:
+def extract_attestation(report: dict[str, Any]) -> dict[str, Any]:
     trust = report.get("trust_gate") or report
     metadata = {
         "suite_version": trust.get("suite_version"),
@@ -97,7 +97,7 @@ def ensure_waiver_policy(waivers: Any) -> None:
             raise GovernanceError(f"Waiver expiry exceeds 90-day limit: {waiver}")
 
 
-def archive_waivers(run_id: str, attachments: list[str]) -> Optional[pathlib.Path]:
+def archive_waivers(run_id: str, attachments: list[str]) -> pathlib.Path | None:
     if not attachments:
         return None
     COLD_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
@@ -123,9 +123,9 @@ def compute_hash(path: pathlib.Path) -> str:
 
 def render_entry(
     run_id: str,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     operator: str,
-    cold_storage: Optional[pathlib.Path],
+    cold_storage: pathlib.Path | None,
     report_hash: str,
 ) -> str:
     executed = metadata["executed"]

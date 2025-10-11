@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import Iterable, Mapping, Sequence
 from uuid import uuid4
 
 
@@ -16,10 +16,10 @@ class TrustGateResult:
     status: str
     metrics: Mapping[str, object] = field(default_factory=dict)
     diagnostics: Mapping[str, object] = field(default_factory=dict)
-    artifact: Optional[str] = None
-    correlation_id: Optional[str] = None
-    duration_ms: Optional[int] = None
-    waiver_ref: Optional[str] = None
+    artifact: str | None = None
+    correlation_id: str | None = None
+    duration_ms: int | None = None
+    waiver_ref: str | None = None
 
     @property
     def is_failure(self) -> bool:
@@ -33,16 +33,16 @@ class TrustGateSummary:
     """Aggregated suite output across all trust gates."""
 
     status: str
-    results: List[TrustGateResult]
-    runtime_ms: Optional[int] = None
-    tolerance_profile: Optional[str] = None
-    report_path: Optional[str] = None
+    results: list[TrustGateResult]
+    runtime_ms: int | None = None
+    tolerance_profile: str | None = None
+    report_path: str | None = None
     suite_id: str = field(default_factory=lambda: f"tg_suite_{uuid4().hex[:12]}")
     suite_version: int = 1
-    config_hash: Optional[str] = None
+    config_hash: str | None = None
     enabled_gates: Sequence[str] = field(default_factory=list)
     executed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    signature_path: Optional[str] = None
+    signature_path: str | None = None
     schema_version: str = "trust_gates.v1"
 
     def failing_gates(self) -> Iterable[TrustGateResult]:
@@ -50,7 +50,7 @@ class TrustGateSummary:
 
         return (result for result in self.results if result.is_failure)
 
-    def as_dict(self) -> Dict[str, object]:
+    def as_dict(self) -> dict[str, object]:
         """Render the summary with full diagnostic payload for CLI / reporting."""
 
         return {
@@ -80,12 +80,11 @@ class TrustGateSummary:
             ],
         }
 
-    def manifest_block(self) -> Dict[str, object]:
+    def manifest_block(self) -> dict[str, object]:
         """Return manifest-friendly representation with minimal payload."""
-
-        manifest_results: List[Dict[str, object]] = []
+        manifest_results: list[dict[str, object]] = []
         for result in self.results:
-            entry = {
+            entry: dict[str, object] = {
                 "name": result.name,
                 "status": result.status,
             }
@@ -99,7 +98,7 @@ class TrustGateSummary:
                 entry["duration_ms"] = result.duration_ms
             manifest_results.append(entry)
 
-        block: Dict[str, object] = {
+        block: dict[str, object] = {
             "schema_version": self.schema_version,
             "status": self.status,
             "suite_id": self.suite_id,

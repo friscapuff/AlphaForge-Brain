@@ -12,7 +12,7 @@ import pytest
 @pytest.mark.perf
 @pytest.mark.timeout(120)
 def test_trust_gate_suite_runtime(tmp_path):
-    """Trust gate suite runtime should remain within 1.5× Masters baseline."""
+    """Trust gate suite runtime should remain within 1.5x Masters baseline."""
 
     repo_root = Path(__file__).resolve().parents[3]
     output_path = tmp_path / "perf_output.json"

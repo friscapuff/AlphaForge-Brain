@@ -6,7 +6,7 @@ import argparse
 import datetime as dt
 import hashlib
 import pathlib
-from typing import Any, Dict, Iterable
+from typing import Any, Iterable
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REPORTS_ROOT = ROOT / "artifacts" / "trust_gates" / "reports"
@@ -66,7 +66,7 @@ def compute_hash(path: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
-def load_attestation(run_id: str) -> Dict[str, Any]:
+def load_attestation(run_id: str) -> dict[str, Any]:
     if not DOC_PATH.exists():
         return {}
     with DOC_PATH.open("r", encoding="utf-8") as doc:
@@ -76,7 +76,7 @@ def load_attestation(run_id: str) -> Dict[str, Any]:
     if idx == -1:
         return {}
     section = content[idx:].split("\n## Run Attestation:", 1)[0]
-    attestation: Dict[str, Any] = {}
+    attestation: dict[str, Any] = {}
     for line in section.splitlines():
         if line.startswith("- "):
             key, _, value = line[2:].partition(": ")

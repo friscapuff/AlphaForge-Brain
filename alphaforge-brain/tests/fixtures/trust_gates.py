@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Mapping
+from typing import Mapping
 
 
 def _repo_root() -> Path:
@@ -47,8 +47,8 @@ class TrustGateBaselineFixture:
     tolerance_profile_name: str
     manifest_snapshot: Mapping[str, object]
     artifact_hashes: Mapping[str, object]
-    gates: Dict[str, GateBaseline]
-    dataset_hashes: Dict[str, str]
+    gates: dict[str, GateBaseline]
+    dataset_hashes: dict[str, str]
 
     def gate(self, name: str) -> GateBaseline:
         """Return canonical details for the requested gate.
@@ -89,7 +89,7 @@ def load_trust_gate_baseline() -> TrustGateBaselineFixture:
     run = manifest["run"]
     trust_gate = run["trust_gate"]
 
-    gates: Dict[str, GateBaseline] = {}
+    gates: dict[str, GateBaseline] = {}
     for gate in trust_gate["gates"]:
         gates[gate["name"]] = GateBaseline(
             name=gate["name"],

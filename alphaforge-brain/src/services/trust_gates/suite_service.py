@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import importlib
+from dataclasses import replace
 from pathlib import Path
 from time import perf_counter
 from typing import Iterable, Mapping, MutableSequence, Sequence
 
-from .baseline import load_baseline
+from .baseline import TrustGateBaseline, load_baseline
 from .models import TrustGateResult, TrustGateSummary
 
 DEFAULT_GATE_ORDER = (
@@ -46,7 +47,7 @@ class TrustGateSuiteService:
         self._tolerance_profile = tolerance_profile or self._baseline.tolerance_profile
 
     @property
-    def baseline(self):  # pragma: no cover - simple getter
+    def baseline(self) -> TrustGateBaseline:  # pragma: no cover - simple getter
         return self._baseline
 
     @property
@@ -70,16 +71,14 @@ class TrustGateSuiteService:
             if gate not in _GATE_MODULE_MAP:
                 raise UnknownGateError(f"Unknown trust gate: {gate}")
 
-        summary_kwargs = {}
-        if run_id:
-            summary_kwargs["suite_id"] = f"{run_id}:trust_suite"
+        suite_id_override = f"{run_id}:trust_suite" if run_id else None
         if dry_run:
             # Skip execution but provide structural summary for callers.
             placeholder_results = [
                 TrustGateResult(name=gate, status="dry-run", metrics={}, diagnostics={})
                 for gate in gates
             ]
-            return TrustGateSummary(
+            summary = TrustGateSummary(
                 status="dry-run",
                 results=placeholder_results,
                 runtime_ms=0,
@@ -87,8 +86,10 @@ class TrustGateSuiteService:
                 report_path=None,
                 config_hash=config_hash,
                 enabled_gates=list(gates),
-                **summary_kwargs,
             )
+            if suite_id_override:
+                summary = replace(summary, suite_id=suite_id_override)
+            return summary
 
         results: MutableSequence[TrustGateResult] = []
         start = perf_counter()
@@ -113,7 +114,7 @@ class TrustGateSuiteService:
 
         runtime_ms = int((perf_counter() - start) * 1000)
         status = "pass" if all(not result.is_failure for result in results) else "fail"
-        return TrustGateSummary(
+        summary = TrustGateSummary(
             status=status,
             results=list(results),
             runtime_ms=runtime_ms,
@@ -121,5 +122,7 @@ class TrustGateSuiteService:
             report_path=None,
             config_hash=config_hash or self._baseline.config_hash,
             enabled_gates=list(gates),
-            **summary_kwargs,
         )
+        if suite_id_override:
+            summary = replace(summary, suite_id=suite_id_override)
+        return summary
