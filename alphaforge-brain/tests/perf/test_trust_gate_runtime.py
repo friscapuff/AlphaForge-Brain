@@ -59,6 +59,30 @@ def test_trust_gate_suite_runtime(tmp_path):
     baseline_mean = baseline_data.get("summary", {}).get("mean_ms")
     assert baseline_mean is not None, "Baseline file missing summary.mean_ms"
 
+    sla_record = payload.get("perf_sla")
+    assert isinstance(sla_record, dict), "perf_sla record missing from benchmark output"
+    assert sla_record.get("suite") == "trust_gates"
+    assert (
+        isinstance(sla_record.get("run_id"), str) and sla_record["run_id"]
+    ), "perf_sla.run_id missing"
+    generated_at = sla_record.get("generated_at")
+    assert isinstance(generated_at, str) and generated_at.endswith(
+        "Z"
+    ), "perf_sla.generated_at must be UTC ISO string"
+
+    assert sla_record.get("mean_ms") == pytest.approx(trust_suite_mean)
+
+    baseline_from_record = sla_record.get("baseline_mean_ms")
+    if baseline_from_record is not None:
+        assert baseline_from_record == pytest.approx(baseline_mean)
+
+    limit_multiplier = sla_record.get("limit_multiplier")
+    assert limit_multiplier == pytest.approx(1.5)
+
+    assert (
+        sla_record.get("pass") is True
+    ), "perf_sla.pass should be true when suite meets SLA"
+
     limit = baseline_mean * 1.5
     assert (
         trust_suite_mean <= limit

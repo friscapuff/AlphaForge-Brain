@@ -97,7 +97,7 @@ def _provider() -> ColdStorageProvider | None:
         return LocalMirrorProvider(base / "cold-mirror")
     if name == "s3":
         try:  # pragma: no cover - optional dependency
-            import boto3
+            import boto3  # type: ignore[import-not-found]
 
             s3 = boto3.client("s3")
         except Exception:  # pragma: no cover
@@ -118,7 +118,7 @@ def _provider() -> ColdStorageProvider | None:
         return _S3Provider()
     if name == "gcs":  # Placeholder minimal implementation
         try:  # pragma: no cover - optional future dependency
-            from google.cloud import storage
+            from google.cloud import storage  # type: ignore[import-not-found]
         except Exception:
             return None
         bucket_name = _bucket()
@@ -226,13 +226,12 @@ def restore(run_hash: str) -> bool:  # pragma: no cover - network interactions
         with tarfile.open(mode="r:gz", fileobj=buf) as tf:
             for m in tf.getmembers():
                 out_path = target_dir / m.name
-                if out_path.exists():
-                    continue
-                try:
-                    tf.extract(m, path=target_dir)
-                    restored_any = True
-                except Exception:
-                    pass
+                if not out_path.exists():
+                    try:
+                        tf.extract(m, path=target_dir)
+                        restored_any = True
+                    except Exception:
+                        pass
         # update manifest with restore event
         manifest["restored_at"] = int(time.time())
         try:

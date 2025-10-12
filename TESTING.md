@@ -76,6 +76,27 @@ SSE tests assert:
 ## Performance Tests (Future Gating)
 Perf tests live under `tests/perf/` and SHOULD be skipped by default locally unless `PERF=1` environment variable is set (planned). They will establish regression thresholds before gating CI.
 
+## Perf Governance Quick Check
+- Run the benchmark harness when auditing validation performance:
+    ```powershell
+    poetry run python scripts/bench/perf_run.py --iterations 1 --warmup 0 --output zz_artifacts/perf_latest.json --keep-artifacts
+    ```
+    The resulting payload contains a `perf_sla` record (`suite`, `mean_ms`, `p95_ms`, `baseline_mean_ms`, `limit_multiplier`, `pass`, `run_id`, `generated_at`). Archive the JSON alongside any waiver discussion so governance reviews can trace the verdict.
+- Validate the CI wrapper script without tripping repo-wide coverage gates:
+    ```powershell
+    poetry run pytest --no-cov tests/ci/test_perf_gates_script.py
+    ```
+    Using `--no-cov` bypasses the 90 % fail-under floor that applies when running the single CI utility test outside the `alphaforge-brain/tests` tree.
+
+## Frontend Contract Quick Check
+- Confirm the OpenAPI snapshot matches the frozen baseline and write the governance artifact:
+    ```powershell
+    poetry run python scripts/contracts/verify_frontend_contract.py --spec openapi.deref.json --baseline-file contracts/frontend_contract.baseline.json --out zz_artifacts/frontend_contract.json
+    ```
+    A clean run exits 0 and records `status: "clean"`. Differences cause a non-zero exit (unless `--allow-diff` is provided) and the emitted JSON enumerates added/removed/changed paths, schemas, parameters, and security schemes.
+- CI smoke coverage lives in `tests/ci/test_frontend_contract_script.py`, giving fast feedback if the CLI signature or artifact schema drifts.
+- When promoting schema changes, update `contracts/frontend_contract.baseline.json` and re-run the frontend client regeneration in `alphaforge-mind` before merging.
+
 ## Lint & Type Discipline
 - All new Python files must pass `ruff` (format + lint) and mypy strict.
 - Avoid `# type: ignore`; if unavoidable, justify with an inline comment referencing an issue.
@@ -108,6 +129,7 @@ Happy testing – deterministic by default.
 - Run hash: `b5a64f82b3d70a4b24b0f83a4be9fc15203e95ec0d9b68d7a60cf58597ab7d82`
 - Artifacts:
     - `zz_artifacts/validation_smoke.json` — includes per-module durations (permutation 1243 ms, CPCV 8 ms, bias 11 ms, realism 113 ms) and SLA violations (total 1543 ms vs 34 ms limit, permutation ratio 0.81 vs 0.70 cap).
+    - `zz_artifacts/perf_latest.json` — benchmark harness output containing `trust_gates.*` spans plus the canonical `perf_sla` record (`suite`, `mean_ms`, `p95_ms`, `baseline_mean_ms`, `limit_multiplier`, `pass`, `run_id`, `generated_at`).
     - `artifacts/<RUN_HASH>/validation/permutation/*.parquet` — segment histograms for in-sample and walk-forward windows.
     - `artifacts/<RUN_HASH>/validation_detail.json` — structured payload with Masters module diagnostics (pending manifest wiring for CLI visibility).
     - Standard backtest outputs (`summary.json`, `metrics.json`, `equity.parquet`).
@@ -198,7 +220,7 @@ Recently uplifted (now healthy >=85% or functionally exercised):
 
 High-impact LOW coverage modules (priority tiers):
 Tier 1 (core runtime logic, currently ≤0–30% or critical untested branches):
-- `domain.run.async_orchestrator` (0%) – legacy / alt path; either deprecate or add parity tests mirroring synchronous orchestrator path. ACTION: Decide keep vs remove; if kept, add a minimal happy-path + cancellation test using an async stub strategy.
+    - Removed legacy `async_orchestrator`; sync orchestrator remains the supported path. No further action required.
 - `services.equity`, `services.metrics`, `services.execution` (0%) – pure service façade logic. ACTION: Unit tests mocking lower layers to assert orchestration/aggregation results & error propagation.
 - `infra.credentials` (0%) – placeholder? ACTION: If intentional stub, mark with `# pragma: no cover` or add minimal parse/validation test.
 - `infra.utils.time` (0%) – functions unused? Either mark `no cover` or add deterministic tests with `freeze_time` verifying conversions.
@@ -211,11 +233,10 @@ Tier 3 (models / DTOs with largely declarative fields):
 - `models.summary_snapshot`, `models.walk_forward`, etc. Many lines show as 0% because runtime construction occurs only in long E2E flows. ACTION: Either: (a) build lightweight factory-driven instantiation tests; or (b) annotate trivial pydantic models with `# pragma: no cover` if they are purely declarative containers.
 
 Deprecation / Prune Candidates:
-- If `async_orchestrator` is superseded by sync orchestrator + event buffer, prefer removal to chasing coverage.
 - Any unused legacy models under `models.*` not referenced by API or persistence should be deleted or migrated.
 
 Planned Next Test Wave (ordered):
-1. Decide keep/remove: `async_orchestrator` (PR: removal or add 2 tests) – ownership: runtime maintainer.
+1. Removed legacy `async_orchestrator`; sync orchestrator remains the supported path. No further action required.
 2. Add unit tests for `services.metrics` & `services.equity` validating aggregation math & empty-input edge.
 3. `services.execution` – simulate minimal execution cycle with fake state; assert emitted trades and error branch.
 4. `services.chunking` – parameterized test for (exact division, remainder, single element, zero items).

@@ -21,8 +21,10 @@ import pytest
 # Ensure repository root is on sys.path so imports like `import src.services...` work.
 _repo_root = Path(__file__).parent.parent
 _src_dir = _repo_root / "src"
-# Prioritize src directory first (shadows any site-packages 'infra' or 'domain' names), then repo root.
-for p in (str(_src_dir), str(_repo_root)):
+_workspace_root = _repo_root.parent
+# Prioritize src directory first (shadows any site-packages 'infra' or 'domain' names), then repo root,
+# followed by the workspace root so shared tooling under scripts/ is importable.
+for p in (str(_src_dir), str(_repo_root), str(_workspace_root)):
     if p not in sys.path:
         sys.path.insert(0, p)
 

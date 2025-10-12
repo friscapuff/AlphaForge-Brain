@@ -21,7 +21,9 @@ import json
 import statistics
 import sys
 import time
+import uuid
 from collections import Counter, OrderedDict, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -552,6 +554,52 @@ def compute_sla(
     return summary
 
 
+def build_perf_sla_record(
+    trust_gates_summary: dict[str, Any],
+    baseline_mean_ms: float | None,
+    limit_multiplier: float,
+    run_hashes: Iterable[str],
+) -> dict[str, Any]:
+    stages = trust_gates_summary.get("stages", {})
+    stage = {}
+    if isinstance(stages, dict):
+        stage = stages.get("trust_suite.total", {}) or {}
+
+    mean_ms = stage.get("mean_ms") if isinstance(stage, dict) else None
+    p95_ms = stage.get("p95_ms") if isinstance(stage, dict) else None
+
+    mean_value = float(mean_ms) if isinstance(mean_ms, (int, float)) else None
+    p95_value = float(p95_ms) if isinstance(p95_ms, (int, float)) else None
+    baseline_value = (
+        float(baseline_mean_ms) if isinstance(baseline_mean_ms, (int, float)) else None
+    )
+
+    passes = False
+    if mean_value is not None and baseline_value is not None:
+        passes = mean_value <= baseline_value * limit_multiplier
+
+    run_id = None
+    for candidate in run_hashes:
+        if isinstance(candidate, str) and candidate:
+            run_id = candidate
+            break
+    if run_id is None:
+        run_id = f"bench-{uuid.uuid4()}"
+
+    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    return {
+        "suite": "trust_gates",
+        "mean_ms": mean_value,
+        "p95_ms": p95_value,
+        "baseline_mean_ms": baseline_value,
+        "limit_multiplier": limit_multiplier,
+        "pass": passes,
+        "run_id": run_id,
+        "generated_at": generated_at,
+    }
+
+
 def build_config(seed: int) -> RunConfig:
     return RunConfig(
         symbol="TEST",
@@ -613,6 +661,12 @@ def main() -> None:
         default=str(DEFAULT_BASELINE_PATH),
         help="Path to JSON baseline with summary.mean_ms for SLA comparison",
     )
+    parser.add_argument(
+        "--limit-multiplier",
+        type=float,
+        default=1.5,
+        help="Multiplier applied to baseline mean when evaluating trust gate SLA",
+    )
     args = parser.parse_args()
 
     registry = InMemoryRunRegistry()
@@ -667,6 +721,15 @@ def main() -> None:
     if isinstance(trust_suite_total, dict):
         summary["trust_gate_total_mean_ms"] = trust_suite_total.get("mean_ms")
 
+    perf_sla_record = build_perf_sla_record(
+        trust_gates_summary,
+        baseline_mean_ms,
+        args.limit_multiplier,
+        hashes,
+    )
+
+    summary["trust_gate_sla_pass"] = perf_sla_record["pass"]
+
     payload = {
         "runs": summary,
         "raw_times": times,
@@ -676,6 +739,7 @@ def main() -> None:
             "sla": sla_summary,
         },
         "trust_gates": trust_gates_summary,
+        "perf_sla": perf_sla_record,
     }
 
     print(json.dumps(payload, indent=2))

@@ -1,50 +1,153 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+Version: 1.2.0 → 1.3.0 (MINOR)
+Modified Principles: II. Test-First & Traceability (clarified FR mapping), V. Observability & Forensic Auditability (added trust-gate metrics), VI. Performance Discipline (linked to Masters & trust gates), IX. Multi-Project Architecture (dual-root enforcement emphasis).
+Added Sections: None.
+Removed Sections: None.
+Templates Requiring Updates:
+	.specify/templates/plan-template.md (⚠ incorporate dual-root default + trust gate governance reminders)
+	.specify/templates/spec-template.md (⚠ add FR → test traceability guidance per Principle II)
+	.specify/templates/tasks-template.md (⚠ ensure waiver/contract checkpoints highlighted)
+	.specify/templates/agent-file-template.md (⚠ still assumes single-root discovery; update to list dual roots before next agent regen)
+Follow-up TODOs:
+	- Implement trust-gate waiver template automation in WAIVERS.md workflows.
+	- Extend scripts/ci/check_cross_root.py to validate shared/ directory purity by 2025-10-31.
+-->
+
+# AlphaForge Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Determinism First (NON-NEGOTIABLE)
+All computations MUST be reproducible from a single configuration + seed root. Any nondeterministic source (wall clock time, unsorted parallel reductions, random generators) MUST be explicitly seeded or eliminated. CI replays enforce hash + semantic equivalence; divergence blocks merge.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Test-First & Traceability (NON-NEGOTIABLE)
+Every Functional Requirement (FR) MUST map to at least one failing test before implementation. Commits MUST reference FR IDs (e.g., FR-120) in their message. Code without demonstrable test coverage is rejected. Removal of a test requires documented FR deprecation and governance approval.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Modular MVC & Bounded Contexts
+Architecture enforces an explicit dual-project separation:
+	- Project A: alphaforge-brain (backend simulation & analytics core, domain + persistence + services layers)
+	- Project B: alphaforge-mind (frontend UI/visualization & interactive orchestration)
+Each project follows MVC (or MV* variant) boundaries:
+	- Models: Pure domain/data logic (no IO side-effects)
+	- Views (Mind): Presentation & user interaction only
+	- Controllers/Services: Orchestrate workflows, enforce invariants
+Cross-project interaction occurs ONLY through versioned contracts (API/IPC or serialized artifact schemas). Direct module imports across project roots are forbidden.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Simplicity & Minimal Surface
+Prefer minimal abstractions; introduce layers only when they reduce coupling or encode stable contracts. Feature creep MUST be justified with user value or risk mitigation. Dead code is removed proactively. Complexity > benefit triggers refactor tasks.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Observability & Forensic Auditability
+All phases emit structured timing + tracing spans. Errors persist with minimal, hash-stable diagnostic context. Provenance (hashes, schema version, seeds, config) MUST allow reconstruction of any historical run and its derived views in Mind. Trust-gate and Masters validation suites MUST publish span-level telemetry and artifacts that can be replayed without bespoke tooling.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### VI. Performance Discipline
+Performance targets are explicit & testable (memory reduction %, bootstrap overhead ratio, trust-gate runtime). Benchmarks live beside unit tests; failing a target is a regression unless waived with rationale and temporary threshold adjustment. Perf SLAs integrate Masters benchmarks with trust-gate timing thresholds.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### VII. Data Integrity & Causality Safety
+No forward-looking data access in STRICT mode. Schema changes require explicit migration scripts + checksum. Validation & metrics reflect exact data & method parameters used. Data mutation post-hash calculation invalidates the run and must re-trigger pipeline. Trust gates enforce leak detection, universe stamping, and accounting reconciliation before promotion.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+### VIII. Documentation as Executable Interface
+Schemas, heuristics, gating policies, error taxonomies, and API contracts are canonicalized in docs. Quickstarts MUST remain runnable. Each public module references its governing FR(s) and doc anchors. Docs for trust gates, retention policy, and waiver process MUST stay synchronized with configuration defaults.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### IX. Multi-Project Architecture (Dual Root)
+Repository MUST maintain two explicit top-level roots:
+```
+alphaforge-brain/
+	src/
+	tests/
+alphaforge-mind/
+	src/
+	tests/
+```
+Shared utilities (if any) live under `shared/` with pure, dependency-light modules. Cross-root code movement requires governance review. Brain never imports Mind; Mind consumes Brain via published interfaces (Python API boundary, REST/OpenAPI, or artifact schema). Version negotiation MUST be explicit (semantic version on contract layer). Integrity checks guard against drift.
+
+### X. Contract Versioning & Backward Compatibility
+Breaking changes to public Brain interfaces or artifact schemas MUST bump MAJOR version. Mind adopts new versions via upgrade path documented in migrations. Deprecations include sunset date & fallback strategy. Frontend contract verification artifacts (`zz_artifacts/frontend_contract.json`) are treated as release blockers when drift is detected.
+
+## Multi-Project Architecture
+1. Separation of Concerns: Brain focuses on computation, persistence, statistical engines; Mind focuses on visualization, orchestration, user workflows.
+2. Deployment Independence: Either project can be deployed or tested in isolation (local dev harness, CI pipelines can run subset).
+3. Contract Boundary: Only serialized artifacts (SQLite exports, JSON metrics, OpenAPI endpoints) cross the boundary.
+4. Enforcement: Lint rule / script ensures no forbidden imports; tasks include gating check.
+
+## Transitional Architecture Migration
+Current State (2025-09-23 scan): Single-root layout under `src/` with subpackages: api/, domain/, infra/, lib/, models/, services/. Tests mirror layered domains across `tests/` (integration, api, strategy, risk, etc.). Historical specs (001–004) reference a single backend; dual root not yet physically realized.
+
+Target State: Physical separation into:
+```
+alphaforge-brain/ (existing backend code migrated here)
+	src/
+	tests/
+alphaforge-mind/ (future UI + orchestration)
+	src/
+	tests/
+shared/ (pure utilities only; optional & dependency-light)
+```
+
+Migration Commitments:
+1. No new frontend (Mind) code is added inside current root; placeholder directory structure introduced in a dedicated migration PR.
+2. Refactor Plan: (a) Create `alphaforge-brain/` and move existing `src/` & `tests/` contents; (b) Update import roots & tooling configs (mypy.ini, pytest paths, ruff includes); (c) Introduce stub `alphaforge-mind/` with README and placeholder package; (d) Add cross-root integrity CI script.
+3. Backward Compatibility: API paths & package import names preserved via transitional shim (`src/` left temporarily with re-export modules) until internal imports are updated; shim removal scheduled after 2 minor releases.
+4. Versioning: Migration PR must document any package name changes and bump MINOR (unless import paths break, then MAJOR).
+5. Tracking: Feature 004 tasks to include architecture migration subtasks before introducing Mind-specific code.
+6. Risk Mitigation: Determinism & tests executed after each directory move; hashing logic validated against pre-move snapshot.
+7. Exit Criteria: All internal imports reference `alphaforge_brain` namespace; legacy `src/` root deleted; integrity script passes.
+
+During the transition, Constitution rules treating dual roots as mandatory are interpreted as *planned enforcement* until Exit Criteria met; waivers recorded if interim deviations occur.
+
+## Additional Constraints
+- Storage: SQLite + Parquet (phase scope). No external DB without a ratified amendment.
+- Dtypes: Enforced (timestamps int64 ns; price float32; volumes int64; derived numeric features float32) unless a precision benchmark justifies exception.
+- Hash Canonicalization: All JSON artifacts use sorted keys + UTF-8; content hash recorded & validated during replay.
+- No Hidden Globals: Configuration MUST flow via explicit parameters or immutable config objects.
+- Side-Effect Boundaries: IO restricted to persistence & dedicated adapters; models & statistical transforms remain pure.
+- Trust Gate Artifacts: `trust_gate_report.json`, `ingest_vendor_metadata.json`, and Masters `perf_sla` records MUST persist under `zz_artifacts/` with SHA-256 hashes for compliance review.
+
+## Workflow & Quality Gates
+1. Lifecycle: Specify → Clarify → Plan → Tasks → Analyze → Implement → Validate → Release.
+2. /analyze MUST show zero HIGH gaps before implementation begins.
+3. Every PR includes: FR diff table, test diff summary, benchmark diff (where applicable), contract version impact.
+4. Benchmarks: Guard overhead, observability overhead (<3%), memory reduction (≥ target), bootstrap runtime (≤1.2x IID). Failures block unless waiver file `WAIVERS.md` references FR & expiry.
+5. Migrations: New/changed schemas require versioned migration + checksum update; unsupported drift = CI failure.
+6. Contract Change Review: Any artifact schema or API change requires dual-project impact note (Brain producer, Mind consumer).
+7. Cross-Root Integrity Script: Ensures no Brain→Mind imports; ensures shared utilities remain cycle-free.
+8. Trust Gate Governance: CI blocks when any gate fails without waiver; waiver entries include remediation tasks, expiry ≤90 days, and linkage to trust gate metrics dashboards.
+
+## Architecture Enforcement & Reviews
+- Monthly Architecture Review: Validate modular boundaries, detect erosion.
+- Complexity Thresholds: Module >400 LOC or function >75 LOC triggers review & potential decomposition issue.
+- Cyclic Dependency Scan: CI script fails build on new cycles across packages.
+- Validation Evidence: Trust gates and Masters validation artifacts MUST be attached to release candidates; absence is release blocker.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+- Amendment Types: MAJOR (remove/rename principles or break contract rules), MINOR (add principle/section), PATCH (clarification only).
+- Amendment Process: Proposal doc → review → consensus approval → version bump commit.
+- Violations: Logged as issues with label `constitution-violation`; remediation scheduled same iteration.
+- Principle Waivers: Temporary waivers recorded in `WAIVERS.md` with expiry date (ISO) & justification.
+- Contract Sunset: Deprecated interfaces MUST list removal version & replacement path.
+- Audit Trail: Release steward logs lineage/provenance attestations (dataset versions, waiver IDs, arbitration notes) in `docs/operations/trust_gates.md` and links to `WAIVERS.md` within 48 hours of each run.
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+**Version**: 1.3.0 | **Ratified**: 2025-09-23 | **Last Amended**: 2025-10-12
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+---
+## Governance Record (Architecture Migration)
+On 2025-09-24, the repository completed the transition to a dual-root layout.
+Reference status file: `alphaforge-brain/ARCH_MIGRATION_STATUS.md` (contains exit criteria and evidence).
+CI enforces cross-root integrity via `scripts/ci/check_cross_root.py`. Strict-plus type/lint overlays are informational with ratchet on PRs.
+
+Status file integrity: SHA-256 a0c86f61970a0fa7f6496dca36b37df51041d83efe098e220714c0dcd44543d0
+
+---
+## Governance Record (Phase H: Validation & Sign-Off)
+On 2025-09-25, Phase H documentation and acceptance validation were completed for feature 004 (AlphaForge Brain Refinement).
+
+Evidence:
+- Validation Checklist: `specs/004-alphaforge-brain-refinement/validation-checklist.md`
+- Acceptance Report: `specs/004-alphaforge-brain-refinement/ACCEPTANCE.md`
+- CI Acceptance Suite: determinism replay + bootstrap CI width gate passing on default branch
+
+Outcome:
+- All Functional Requirements (FR-100–162, FR-150–158) have mapped tests and passing evidence.
+- Documentation updated and linked from README.
+
+Sign-off Recommendation: ACCEPT Phase H and maintain CI gates as merge blockers for determinism and width policy.

@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://alphaforge.dev/schemas/quality_gate_summary.json",
+  "title": "QualityGateSummary",
+  "type": "object",
+  "required": [
+    "determinism",
+    "contract",
+    "migrations",
+    "memory",
+    "cross_root",
+    "failures",
+    "passed",
+    "generated_at",
+    "version"
+  ],
+  "properties": {
+    "determinism": {
+      "type": "object",
+      "required": ["exit_code"],
+      "properties": {
+        "exit_code": { "type": "integer" },
+        "baseline_hash": { "type": "string" },
+        "run_hash": { "type": "string" },
+        "diff": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "contract": {
+      "type": "object",
+      "required": ["committed_hash", "regen_hash", "drift"],
+      "properties": {
+        "committed_hash": { "type": "string" },
+        "regen_hash": { "type": "string" },
+        "drift": { "type": "boolean" },
+        "stderr": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "migrations": {
+      "type": "object",
+      "required": ["exit_code", "output"],
+      "properties": {
+        "exit_code": { "type": "integer" },
+        "output": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "memory": {
+      "type": "object",
+      "required": ["exit_code", "within_cap"],
+      "properties": {
+        "exit_code": { "type": "integer" },
+        "within_cap": { "type": "boolean" },
+        "rss_bytes": { "type": "integer", "minimum": 0 },
+        "cap_bytes": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "cross_root": {
+      "type": "object",
+      "required": ["exit_code", "output"],
+      "properties": {
+        "exit_code": { "type": "integer" },
+        "output": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "failures": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "passed": { "type": "boolean" },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "version": { "type": "string" }
+  },
+  "additionalProperties": false
+}

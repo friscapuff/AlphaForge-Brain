@@ -50,3 +50,32 @@ def test_restore_missing_manifest_returns_false(enable_cold_storage):
     if mp.exists():
         mp.unlink()
     assert restore(run_hash) is False
+
+
+def test_restore_populates_restored_at_timestamp(enable_cold_storage):
+    run_hash, run_dir = enable_cold_storage
+    files = list(run_dir.glob("*.*"))
+    offload(run_hash, files)
+    manifest_path = run_dir / "cold_manifest.json"
+    manifest_before = manifest_path.read_text(encoding="utf-8")
+    assert "restored_at" not in manifest_before
+
+    for p in list(run_dir.iterdir()):
+        if p.name == "cold_manifest.json":
+            continue
+        if p.suffix:
+            p.unlink(missing_ok=True)
+
+    assert restore(run_hash) is True
+    manifest_after = manifest_path.read_text(encoding="utf-8")
+    assert "restored_at" in manifest_after
+
+
+def test_restore_noop_when_files_already_present(enable_cold_storage):
+    run_hash, run_dir = enable_cold_storage
+    files = list(run_dir.glob("*.*"))
+    offload(run_hash, files)
+    # First restore repopulates the directory
+    assert restore(run_hash) is True
+    # Second restore should detect existing files and skip extraction
+    assert restore(run_hash) is False

@@ -108,7 +108,11 @@ Masters permutation, bias adjustments, cross-validation, and execution realism s
   ```powershell
     poetry run python scripts/bench/perf_run.py --iterations 1 --warmup 0 --output zz_artifacts/perf_latest.json --keep-artifacts
   ```
-  The JSON summary surfaces per-module timings; add `--keep-artifacts` (as shown) to persist the run directory for smoke analysis. Current baseline records `validation.total` ≈1543 ms versus a 34 ms guard limit (see `docs/decisions/validation_schema_v2.md`).
+  The JSON summary now exposes a `perf_sla` record (`suite`, `mean_ms`, `p95_ms`, `baseline_mean_ms`, `limit_multiplier`, `pass`, `run_id`, `generated_at`) so governance tooling can consume the SLA verdict directly. Add `--keep-artifacts` (as shown) to persist the run directory for smoke analysis. Current baseline records `validation.total` ≈1543 ms versus a 34 ms guard limit (see `docs/decisions/validation_schema_v2.md`). Follow up with the targeted governance test to confirm nothing regressed:
+
+  ```powershell
+  poetry run pytest --no-cov tests/ci/test_perf_gates_script.py
+  ```
 4. Review UI wiring in `alphaforge-mind`: once the env vars above are set, the Validation tab renders permutation histograms, bias cards, CPCV timelines, and execution realism guidance with live toggle states.
 
   ## Masters Validation & Backtesting Methodology
@@ -142,7 +146,21 @@ Masters permutation, bias adjustments, cross-validation, and execution realism s
 ### Trust Gate Framework Guardrails (FR-211)
 
 - **Suite execution**: `poetry run trust-gates` evaluates golden-run determinism, causality, ingest idempotency, timezone normalization, universe coverage, equity reconciliation, and accounting balance in one pass. Diagnostic artifacts and signatures land under `artifacts/trust_gates/reports/<run_id>/`.
-- **Benchmark harness**: `poetry run python scripts/bench/perf_run.py --iterations 5 --warmup 1 --output zz_artifacts/perf_latest.json` now emits `trust_gates.stages.trust_suite.total.mean_ms` plus per-gate spans. The suite must remain at or below **1.5×** the Masters baseline mean recorded in `artifacts/perf_baseline.json` (28.49 ms today → **≤ 42.73 ms**). CI enforces the ceiling via `tests/perf/test_trust_gate_runtime.py`.
+- **Benchmark harness**: `poetry run python scripts/bench/perf_run.py --iterations 5 --warmup 1 --output zz_artifacts/perf_latest.json` now emits `trust_gates.stages.trust_suite.total.mean_ms`, per-gate spans, and a top-level `perf_sla` record (`mean_ms`, `p95_ms`, `baseline_mean_ms`, `limit_multiplier`, `pass`, `run_id`, `generated_at`). The suite must remain at or below **1.5×** the Masters baseline mean recorded in `artifacts/perf_baseline.json` (28.49 ms today → **≤ 42.73 ms**); adjust the guard with `--limit-multiplier` when running exploratory benchmarks. CI enforces the ceiling via `tests/perf/test_trust_gate_runtime.py`.
+
+#### PerfSlaRecord schema
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `suite` | `str` | Source suite emitting the SLA verdict (`trust_gates` today). |
+| `mean_ms` | `float` | Average runtime of the measured suite. |
+| `p95_ms` | `float` | 95th percentile runtime across iterations. |
+| `baseline_mean_ms` | `float` | Baseline mean pulled from `artifacts/perf_baseline.json` when available. |
+| `limit_multiplier` | `float` | Guardrail multiplier applied to the baseline (defaults to **1.5×**). |
+| `pass` | `bool` | Indicates whether the run respected the computed SLA limit. |
+| `run_id` | `str` | Identifier of the run contributing timings (existing hash when reusable, otherwise bench-generated). |
+| `generated_at` | `str` | UTC ISO-8601 timestamp that marks when the record was emitted. |
+
 - **Tolerance profile**: Institutional defaults (see `configs/trust_gates/tolerances/institutional_default.yaml`) harden key checks. Highlights:
 
   | Gate | Institutional Default Expectations |
@@ -156,6 +174,16 @@ Masters permutation, bias adjustments, cross-validation, and execution realism s
   | Accounting Balance | Same 0.01/5 bps drift limits; ledger precision 6 decimals using bankers rounding. |
 
   The operational runbook, waiver workflow, and attestation templates live in `docs/operations/trust_gates.md`.
+
+### Frontend Contract Governance
+
+- **Baseline snapshot**: The frozen OpenAPI reference lives at `contracts/frontend_contract.baseline.json`. Update this file whenever the backend schema intentionally changes and regenerate the TypeScript client in `alphaforge-mind`.
+- **Local drift check**:
+  ```powershell
+  poetry run python scripts/contracts/verify_frontend_contract.py --spec openapi.deref.json --baseline-file contracts/frontend_contract.baseline.json --out zz_artifacts/frontend_contract.json
+  ```
+  The command exits non-zero when contract drift is detected unless `--allow-diff` is supplied. The emitted artifact captures SHA-256 digests, diff sections (paths, schemas, parameters, security schemes), and the verification timestamp for governance audits.
+- **CI integration**: `tests/ci/test_frontend_contract_script.py` sanity-checks the verifier and ensures the artifact structure stays stable. Pipelines should prefer `--baseline-ref origin/main` to compare against the canonical snapshot so releases block on breaking changes automatically.
 
 Note on architecture migration (2025-09-24): The repository has moved to a dual-root layout. Backend code now lives under `alphaforge-brain/src` with tests under `alphaforge-brain/tests`. A placeholder `alphaforge-mind/` root exists for future UI/visualization work. See `alphaforge-brain/ARCH_MIGRATION_STATUS.md` for exit criteria evidence and `ARCH_MIGRATION_RETROSPECTIVE.md` for lessons learned. An architecture diagram will be linked here in a future revision.
 

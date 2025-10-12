@@ -53,7 +53,7 @@ def test_preserve_nat_and_future_clip() -> None:
     series = pd.Series(["2024-01-01 00:00:00", pd.NaT, future])
     out = to_epoch_ms(series, clip_future=True)
     # Future removed, NaT preserved as <NA>
-    assert out.isna().sum() == 1
+    assert out.isna().to_list().count(True) == 1
     # Ensure no value > now
     assert (out.dropna() <= int(pd.Timestamp.utcnow().value // 1_000_000)).all()
 

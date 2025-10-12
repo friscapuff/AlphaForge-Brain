@@ -24,12 +24,15 @@ class EquityState:
 
 def _is_buy(side: Any, qty: float | None) -> bool:
     # Accept Enum with name/value, string, or infer from signed qty
+    side_text: str | None = None
     if side is not None:
         val = getattr(side, "name", None) or getattr(side, "value", None)
         if isinstance(val, str):
-            return val.upper() == "BUY"
-        if isinstance(side, str):
-            return side.upper() == "BUY"
+            side_text = val
+        if side_text is None and isinstance(side, str):
+            side_text = side
+    if side_text is not None:
+        return side_text.upper() == "BUY"
     if qty is not None:
         try:
             return float(qty) > 0

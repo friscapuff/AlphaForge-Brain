@@ -22,7 +22,7 @@ This document summarizes the additions, removals, and notable changes introduced
 - Existing run/orchestrator/retention tests left intact; no behavioral changes required.
 
 ## Removed / Dead Code Cleanup
-- `domain/run/async_orchestrator.py` (unused) retained only in historical path during initial pass; scheduled for deletion or isolation. Test suite no longer references it.
+- Removed `domain/run/async_orchestrator.py` (legacy stub) to tighten coverage focus.
 
 ## Import Hygiene Adjustments
 - Replaced relative imports in `services.equity` and `services.execution` with absolute imports to ensure direct module importability under pytest's path layout.
@@ -40,6 +40,11 @@ This document summarizes the additions, removals, and notable changes introduced
 
 ## Rationale
 Targeted low-risk additions maximize structural coverage (models/services/utilities) without entangling high-latency integration paths. Import path fixes ensure stability under varied PYTHONPATH resolutions.
+
+## Documentation Notes
+- README and TESTING guides now document the `perf_sla` record schema (`suite`, `mean_ms`, `p95_ms`, `baseline_mean_ms`, `limit_multiplier`, `pass`, `run_id`, `generated_at`).
+- Added an explicit local command for running the CI perf gate smoke test without coverage enforcement: `poetry run pytest --no-cov tests/ci/test_perf_gates_script.py`.
+- Added frontend contract governance instructions covering the verifier CLI, baseline snapshot (`contracts/frontend_contract.baseline.json`), and artifact output (`zz_artifacts/frontend_contract.json`).
 
 ---
 Generated automatically as part of the "tackle all" coverage uplift.

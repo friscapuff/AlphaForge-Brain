@@ -2,6 +2,7 @@ import types
 
 import pytest
 from domain.schemas.run_config import RiskSpec, RunConfig, StrategySpec
+from models.equity_bar import EquityBar
 
 
 @pytest.fixture
@@ -29,16 +30,13 @@ def _fake_trades(n=0):
 
 
 def test_services_metrics_zero_bars():
-    # coverage: services.metrics empty input path (compute_metrics returns empty dict)
     import services.metrics as m
 
     assert m.compute_metrics([]) == {}
 
 
 def test_services_metrics_basic_stub():
-    # coverage: services.metrics basic computation with synthetic equity bars
     import services.metrics as m
-    from models.equity_bar import EquityBar
 
     bars = [
         EquityBar(
@@ -50,7 +48,6 @@ def test_services_metrics_basic_stub():
             net_exposure=0.0,
             trade_count_cum=0,
         ),
-        # nav rises -> peak_nav updates, small drawdown 0 still
         EquityBar(
             ts="2025-01-01T00:01:00Z",
             nav=101.0,
@@ -60,7 +57,6 @@ def test_services_metrics_basic_stub():
             net_exposure=0.0,
             trade_count_cum=1,
         ),
-        # slight dip to 100.5 -> peak 101 maintained -> drawdown (101-100.5)/101
         EquityBar(
             ts="2025-01-01T00:02:00Z",
             nav=100.5,
@@ -76,17 +72,78 @@ def test_services_metrics_basic_stub():
     assert "sharpe" in res
 
 
+def test_services_metrics_single_bar_returns_total_only():
+    import services.metrics as m
+
+    bar = EquityBar(
+        ts="2025-01-01T00:00:00Z",
+        nav=150.0,
+        peak_nav=150.0,
+        drawdown=0.0,
+        gross_exposure=0.0,
+        net_exposure=0.0,
+        trade_count_cum=0,
+    )
+    res = m.compute_metrics([bar])
+    assert res == {"total_return": 0.0}
+
+
+def test_services_metrics_zero_volatility_has_zero_sharpe():
+    import services.metrics as m
+
+    bars = [
+        EquityBar(
+            ts="2025-01-01T00:00:00Z",
+            nav=100.0,
+            peak_nav=100.0,
+            drawdown=0.0,
+            gross_exposure=0.0,
+            net_exposure=0.0,
+            trade_count_cum=0,
+        ),
+        EquityBar(
+            ts="2025-01-01T00:01:00Z",
+            nav=100.0,
+            peak_nav=100.0,
+            drawdown=0.0,
+            gross_exposure=0.0,
+            net_exposure=0.0,
+            trade_count_cum=1,
+        ),
+        EquityBar(
+            ts="2025-01-01T00:02:00Z",
+            nav=100.0,
+            peak_nav=100.0,
+            drawdown=0.0,
+            gross_exposure=0.0,
+            net_exposure=0.0,
+            trade_count_cum=2,
+        ),
+        EquityBar(
+            ts="2025-01-01T00:03:00Z",
+            nav=100.0,
+            peak_nav=100.0,
+            drawdown=0.0,
+            gross_exposure=0.0,
+            net_exposure=0.0,
+            trade_count_cum=3,
+        ),
+    ]
+
+    res = m.compute_metrics(bars)
+    assert res["max_drawdown"] == 0.0
+    assert res["volatility"] == 0.0
+    assert res["sharpe"] == 0.0
+
+
 def test_services_equity_placeholder(basic_run_config):
-    # coverage: services.equity placeholder (ensure module import executes)
     import importlib
 
     mod = importlib.import_module("services.equity")
-    # some modules may export a build function later; ensure loaded
     assert isinstance(mod, types.ModuleType)
 
 
 def test_services_execution_placeholder(basic_run_config):
-    # coverage: services.execution import + simulate fallback
     import importlib
 
     mod = importlib.import_module("services.execution")

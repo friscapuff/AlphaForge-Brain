@@ -121,3 +121,37 @@ def test_generate_trades_small_delta_below_one_lot():
         run_id=None,
     )
     assert trades == []  # floor(0.5 lots)=0 -> ignored
+
+
+def test_generate_trades_ignores_tiny_delta_under_epsilon():
+    state = PositionState(symbol="XYZ", quantity=10.0)
+    cfg = _cfg(RoundingMode.ROUND, lot=1)
+    trades = generate_trades(
+        symbol="XYZ",
+        target_quantity=10.0 + 5e-13,
+        state=state,
+        price=1.0,
+        config=cfg,
+        ts=datetime.now(timezone.utc),
+        strategy_id="s1",
+        run_id="run-tiny",
+    )
+    assert trades == []
+
+
+def test_generate_trades_preserves_run_id_and_sell_side_enum():
+    state = PositionState(symbol="XYZ", quantity=0.0)
+    cfg = _cfg(RoundingMode.CEIL, lot=5)
+    trades = generate_trades(
+        symbol="XYZ",
+        target_quantity=-17,
+        state=state,
+        price=9.0,
+        config=cfg,
+        ts=datetime.now(timezone.utc),
+        strategy_id="s1",
+        run_id="run-123",
+    )
+    assert trades[0].run_id == "run-123"
+    assert trades[0].side.name == "SELL"
+    assert isinstance(trades[0].side, str)

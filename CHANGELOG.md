@@ -50,6 +50,7 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) a
 	- `hadj-bb-ci-width-policy.md` (heuristic and CI gate explained)
 	- `architecture-diagram.md` (Mermaid overview + narrative)
 - README updated with Persistence, Validation, Chunk Mode, and Architecture links.
+- Perf governance docs refreshed: README, TESTING guide, trust gate operations manual, and `TESTING_DELTA.md` now detail the `perf_sla` record schema plus the targeted `pytest --no-cov tests/ci/test_perf_gates_script.py` validation flow.
 
 ### Acceptance / Governance
 - Phase H completed:

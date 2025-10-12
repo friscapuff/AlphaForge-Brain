@@ -1,0 +1,39 @@
+{
+  "dataset_name": "NVDA_5y",
+  "generated_at": "2025-10-11T14:34:52.682923+00:00",
+  "path": "alphaforge-brain/Data/NVDA_5y.csv",
+  "row_count": 1256,
+  "schema_signature": [
+    {
+      "dtype": "string",
+      "name": "Date",
+      "nullable": false
+    },
+    {
+      "dtype": "string",
+      "name": "Close/Last",
+      "nullable": false
+    },
+    {
+      "dtype": "integer",
+      "name": "Volume",
+      "nullable": false
+    },
+    {
+      "dtype": "string",
+      "name": "Open",
+      "nullable": false
+    },
+    {
+      "dtype": "string",
+      "name": "High",
+      "nullable": false
+    },
+    {
+      "dtype": "string",
+      "name": "Low",
+      "nullable": false
+    }
+  ],
+  "sha256": "18bdaad43a07c2898ed7db591e9eefe68caafbb49d669e1269af265431f31bc9"
+}

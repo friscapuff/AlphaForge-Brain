@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://alphaforge.dev/schemas/coverage_policy.json",
+  "title": "CoverageThresholdPolicy",
+  "type": "object",
+  "required": [
+    "target_line",
+    "target_branch",
+    "target_function",
+    "target_integration",
+    "module_overrides",
+    "generated_at",
+    "enforced_by"
+  ],
+  "properties": {
+    "target_line": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "target_branch": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "target_function": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "target_integration": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "module_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["module", "min_line", "min_branch"],
+        "properties": {
+          "module": { "type": "string" },
+          "min_line": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "min_branch": { "type": "integer", "minimum": 0, "maximum": 100 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "enforced_by": { "type": "string" }
+  },
+  "additionalProperties": false
+}
