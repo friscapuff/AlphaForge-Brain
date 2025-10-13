@@ -98,7 +98,11 @@ def build_state(
       trade_count: number of round trips
     """
     trades = _infer_trades(fills)
-    cumulative_pnl = float(trades["pnl"].sum()) if not trades.empty else 0.0
+    if not trades.empty and "pnl" in trades:
+        pnl_series = pd.to_numeric(trades["pnl"], errors="coerce").fillna(0.0)
+        cumulative_pnl = float(sum(float(x) for x in pnl_series.to_list()))
+    else:
+        cumulative_pnl = 0.0
     summary = {
         "cumulative_pnl": cumulative_pnl,
         "trade_count": len(trades),

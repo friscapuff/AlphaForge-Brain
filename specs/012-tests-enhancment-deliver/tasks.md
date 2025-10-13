@@ -125,9 +125,12 @@
    - Dependencies: Task 12 (perf gate integration), Task 11 (frontend artifacts).
 
 15. **Final verification & sign-off**
-   - [X] Status: Completed (perf gate wrapper/test executed with --no-cov; telemetry artifact inspected and metrics validated)
+   - [ ] Status: Re-opened (full pytest rerun blocked by local provider regression; fix landed, awaiting governance rerun with coverage ≥90%).
    - Run hardened quality gates, full pytest suite, perf run.
    - Review artifacts for policy compliance and archive in governance records.
    - Owner: Release steward.
    - Duration: 1 day.
    - Dependencies: Tasks 1–14.
+   - Notes:
+     - ✅ Local CSV provider column ordering crash resolved (coverage instrumentation-safe).
+     - ⏳ Schedule new full-suite execution to confirm gates & restore coverage compliance.

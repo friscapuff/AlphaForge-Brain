@@ -20,18 +20,15 @@ def _coverage_xml(tmp_path: Path, modules: dict[str, tuple[float, float]]) -> Pa
     ]
     for module, (line_rate, branch_rate) in modules.items():
         filename = module.replace(".", "/") + ".py"
+        root_module = module.split(".")[0]
+        class_name = module.split(".")[-1]
         parts.extend(
             [
-                "    <package name='{0}'>".format(module.split(".")[0]),
+                f"    <package name='{root_module}'>",
                 "      <classes>",
                 (
-                    "        <class name='{name}' filename='{filename}' line-rate='{line:.3f}'"
-                    " branch-rate='{branch:.3f}'></class>"
-                ).format(
-                    name=module.split(".")[-1],
-                    filename=filename,
-                    line=line_rate,
-                    branch=branch_rate,
+                    f"        <class name='{class_name}' filename='{filename}' "
+                    f"line-rate='{line_rate:.3f}' branch-rate='{branch_rate:.3f}'></class>"
                 ),
                 "      </classes>",
                 "    </package>",

@@ -1,39 +1,39 @@
 {
   "dataset_name": "NVDA_5y",
-  "generated_at": "2025-10-11T14:34:52.682923+00:00",
-  "path": "alphaforge-brain/Data/NVDA_5y.csv",
-  "row_count": 1256,
+  "generated_at": "2025-10-12T17:07:53.138362+00:00",
+  "path": "C:/Users/amasr/AlphaForge3/alphaforge-brain/Data/NVDA_5y.csv",
+  "row_count": 400,
   "schema_signature": [
     {
       "dtype": "string",
-      "name": "Date",
+      "name": "timestamp",
       "nullable": false
     },
     {
-      "dtype": "string",
-      "name": "Close/Last",
+      "dtype": "float",
+      "name": "open",
+      "nullable": false
+    },
+    {
+      "dtype": "float",
+      "name": "high",
+      "nullable": false
+    },
+    {
+      "dtype": "float",
+      "name": "low",
+      "nullable": false
+    },
+    {
+      "dtype": "float",
+      "name": "close",
       "nullable": false
     },
     {
       "dtype": "integer",
-      "name": "Volume",
-      "nullable": false
-    },
-    {
-      "dtype": "string",
-      "name": "Open",
-      "nullable": false
-    },
-    {
-      "dtype": "string",
-      "name": "High",
-      "nullable": false
-    },
-    {
-      "dtype": "string",
-      "name": "Low",
+      "name": "volume",
       "nullable": false
     }
   ],
-  "sha256": "18bdaad43a07c2898ed7db591e9eefe68caafbb49d669e1269af265431f31bc9"
+  "sha256": "4a4e2863afa011a8ebb0390ae94d9d2190db55b52e244a7f99a094d3b044cef8"
 }

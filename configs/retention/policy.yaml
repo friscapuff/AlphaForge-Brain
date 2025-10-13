@@ -1,0 +1,10 @@
+policy_version: "2025.10.13"
+max_runs: 60
+per_strategy_top: 6
+pin_expiry_days: 90
+waiver_required: true
+audit_log_path: "zz_artifacts/retention_audit.log"
+breach_log_path: "zz_artifacts/retention_breaches.log"
+metric_labels:
+  policy: default
+  environment: production

@@ -6,7 +6,7 @@ import platform
 import time as _time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Any, Awaitable, Callable, cast
 
 from api.error_handlers import install_error_handlers
 from api.middleware.correlation import correlation_middleware
@@ -18,6 +18,7 @@ from fastapi import Response as _Response
 from infra.config import (
     get_settings as _get_settings,  # direct import to avoid mypy attr-defined on package proxy
 )
+from infra.import_guard import install_import_guard
 from infra.logging import init_logging
 
 try:  # pragma: no cover - lightweight runtime fetch
@@ -56,7 +57,74 @@ def resolve_package_version(dist_name: str) -> str | None:
     return py_ver or installed
 
 
+def _install_custom_openapi(app: FastAPI) -> None:
+    """Attach OpenAPI schema factory that injects shared components."""
+
+    try:  # pragma: no cover - exercised indirectly by tests
+        from fastapi.openapi.utils import get_openapi as _get_openapi_local
+    except Exception:  # pragma: no cover - defensive import guard
+        return
+
+    def _custom_openapi() -> dict[str, Any]:
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = _get_openapi_local(
+            title=app.title,
+            version=app.version,
+            routes=app.routes,
+            description=getattr(app, "description", None),
+        )
+        components = schema.setdefault("components", {})
+        schemas = components.setdefault("schemas", {})
+        if "ErrorResponse" not in schemas:
+            schemas["ErrorResponse"] = {
+                "type": "object",
+                "properties": {
+                    "error_code": {
+                        "type": "string",
+                        "description": "kebab-case error code",
+                    },
+                    "message": {"type": "string"},
+                    "details": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "field": {"type": ["string", "null"]},
+                                "message": {"type": "string"},
+                                "code": {"type": ["string", "null"]},
+                            },
+                        },
+                    },
+                    "correlation_id": {"type": ["string", "null"]},
+                    "docs_url": {"type": ["string", "null"]},
+                    "debug": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "stack_summary": {"type": ["string", "null"]},
+                            "hint": {"type": ["string", "null"]},
+                        },
+                    },
+                },
+                "required": ["error_code", "message"],
+            }
+        headers = components.setdefault("headers", {})
+        headers["X-Correlation-ID"] = {
+            "description": "Correlation identifier echoed back in error responses and logs",
+            "schema": {"type": "string"},
+        }
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    setattr(  # noqa: B010 deliberate instance mutation for FastAPI hook
+        app,
+        "openapi",
+        cast(Callable[[], dict[str, Any]], _custom_openapi),
+    )
+
+
 def create_app() -> FastAPI:
+    install_import_guard()
     settings = _get_settings()
     init_logging()
 
@@ -77,7 +145,10 @@ def create_app() -> FastAPI:
 
     # Request completion log (keep simple and independent of correlation implementation)
     @app.middleware("http")
-    async def _request_log_middleware(request: _Request, call_next):
+    async def _request_log_middleware(
+        request: _Request,
+        call_next: Callable[[_Request], Awaitable[_Response]],
+    ) -> _Response:
         start = _time.time()
         response: _Response = await call_next(request)
         duration_ms = int((_time.time() - start) * 1000)
@@ -226,136 +297,19 @@ def create_app() -> FastAPI:
                 app.include_router(_metrics_router)
             except Exception:
                 try:
-                    from prometheus_client import make_asgi_app  # type: ignore[attr-defined]
+                    import prometheus_client
 
-                    app.mount("/metrics", make_asgi_app())
+                    make_app = getattr(prometheus_client, "make_asgi_app", None)
+                    if callable(make_app):
+                        app.mount("/metrics", make_app())
                 except Exception:
                     pass
     except Exception:
         pass
 
-    # Attach custom OpenAPI schema with ErrorResponse + X-Correlation-ID components
-    try:  # pragma: no cover - exercised indirectly by tests
-        from fastapi.openapi.utils import get_openapi as _get_openapi_local
-
-        def _custom_openapi():
-            if app.openapi_schema:
-                return app.openapi_schema
-            schema = _get_openapi_local(
-                title=app.title,
-                version=app.version,
-                routes=app.routes,
-                description=getattr(app, "description", None),
-            )
-            comps = schema.setdefault("components", {})
-            schemas = comps.setdefault("schemas", {})
-            headers = comps.setdefault("headers", {})
-            if "ErrorResponse" not in schemas:
-                schemas["ErrorResponse"] = {
-                    "type": "object",
-                    "properties": {
-                        "error_code": {
-                            "type": "string",
-                            "description": "kebab-case error code",
-                        },
-                        "message": {"type": "string"},
-                        "details": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "field": {"type": ["string", "null"]},
-                                    "message": {"type": "string"},
-                                    "code": {"type": ["string", "null"]},
-                                },
-                            },
-                        },
-                        "correlation_id": {"type": ["string", "null"]},
-                        "docs_url": {"type": ["string", "null"]},
-                        "debug": {
-                            "type": ["object", "null"],
-                            "properties": {
-                                "stack_summary": {"type": ["string", "null"]},
-                                "hint": {"type": ["string", "null"]},
-                            },
-                        },
-                    },
-                    "required": ["error_code", "message"],
-                }
-            headers["X-Correlation-ID"] = {
-                "description": "Correlation identifier echoed back in error responses and logs",
-                "schema": {"type": "string"},
-            }
-            app.openapi_schema = schema
-            return app.openapi_schema
-
-        app.openapi = _custom_openapi  # type: ignore[assignment]
-    except Exception:
-        pass
+    _install_custom_openapi(app)
 
     return app
 
 
 app = create_app()
-
-# Customize OpenAPI to include canonical ErrorResponse and X-Correlation-ID header (FR-013)
-try:
-    from fastapi.openapi.utils import get_openapi as _get_openapi
-except Exception:  # pragma: no cover - defensive import
-    _get_openapi = None  # type: ignore[assignment]
-
-if _get_openapi is not None:
-    _original_openapi = app.openapi
-
-    def _custom_openapi():  # pragma: no cover - exercised in tests indirectly
-        if app.openapi_schema:
-            return app.openapi_schema
-        schema = _get_openapi(
-            title=app.title,
-            version=app.version,
-            routes=app.routes,
-            description=getattr(app, "description", None),
-        )
-        components = schema.setdefault("components", {}).setdefault("schemas", {})
-        # Minimal ErrorResponse schema aligned with api.errors_contract
-        components["ErrorResponse"] = {
-            "type": "object",
-            "properties": {
-                "error_code": {
-                    "type": "string",
-                    "description": "kebab-case error code",
-                },
-                "message": {"type": "string"},
-                "details": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "field": {"type": ["string", "null"]},
-                            "message": {"type": "string"},
-                            "code": {"type": ["string", "null"]},
-                        },
-                    },
-                },
-                "correlation_id": {"type": ["string", "null"]},
-                "docs_url": {"type": ["string", "null"]},
-                "debug": {
-                    "type": ["object", "null"],
-                    "properties": {
-                        "stack_summary": {"type": ["string", "null"]},
-                        "hint": {"type": ["string", "null"]},
-                    },
-                },
-            },
-            "required": ["error_code", "message"],
-        }
-        # Headers component
-        headers = schema.setdefault("components", {}).setdefault("headers", {})
-        headers["X-Correlation-ID"] = {
-            "description": "Correlation identifier echoed back in error responses and logs",
-            "schema": {"type": "string"},
-        }
-        app.openapi_schema = schema
-        return app.openapi_schema
-
-    app.openapi = _custom_openapi  # type: ignore[assignment]

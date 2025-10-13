@@ -1,0 +1,107 @@
+openapi: 3.1.0
+info:
+  title: AlphaForge Validation Promotion API
+  version: 0.1.0
+  description: >-
+    Contract updates for enforcing FAILED_VALIDATION status on runs and exposing
+    schema version metadata.
+servers:
+  - url: https://api.alphaforge.internal
+paths:
+  /runs/{run_hash}:
+    get:
+      summary: Retrieve run details with validation status.
+      parameters:
+        - in: path
+          name: run_hash
+          schema:
+            type: string
+            pattern: '^[A-Fa-f0-9]{64}$'
+          required: true
+      responses:
+        '200':
+          description: Run metadata returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDetail'
+        '404':
+          description: Run not found.
+  /runs/{run_hash}/promotion:
+    post:
+      summary: Request promotion of a run to validated catalog.
+      parameters:
+        - in: path
+          name: run_hash
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Fa-f0-9]{64}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromotionRequest'
+      responses:
+        '202':
+          description: Promotion accepted for processing.
+        '409':
+          description: Promotion rejected due to FAILED_VALIDATION status or retention waiver requirement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromotionConflict'
+components:
+  schemas:
+    RunDetail:
+      type: object
+      required:
+        - run_hash
+        - validation_status
+        - manifest
+      properties:
+        run_hash:
+          type: string
+        validation_status:
+          type: string
+          enum:
+            - PASSED
+            - FAILED_VALIDATION
+            - CAUTION
+        schema_version:
+          type: string
+          description: Schema version attached to primary persistence record.
+        manifest:
+          $ref: '#/components/schemas/RunManifest'
+    RunManifest:
+      type: object
+      properties:
+        tolerance_sla_version:
+          type: string
+        accounting_invariants_passed:
+          type: boolean
+        retention_policy_version:
+          type: string
+    PromotionRequest:
+      type: object
+      required:
+        - waiver_id
+      properties:
+        waiver_id:
+          type: string
+          description: Required if validation_status is FAILED_VALIDATION.
+    PromotionConflict:
+      type: object
+      required:
+        - error_code
+        - message
+      properties:
+        error_code:
+          type: string
+          enum:
+            - FAILED_VALIDATION
+            - RETENTION_PIN_BREACH
+            - WAIVER_REQUIRED
+        message:
+          type: string

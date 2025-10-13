@@ -30,6 +30,7 @@ Resilience:
 
 from __future__ import annotations
 
+import importlib
 import io
 import json
 import os
@@ -38,7 +39,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
 
 _MANIFEST_NAME = "cold_manifest.json"
 
@@ -97,9 +98,8 @@ def _provider() -> ColdStorageProvider | None:
         return LocalMirrorProvider(base / "cold-mirror")
     if name == "s3":
         try:  # pragma: no cover - optional dependency
-            import boto3  # type: ignore[import-not-found]
-
-            s3 = boto3.client("s3")
+            boto3_module = importlib.import_module("boto3")
+            s3 = cast(Any, boto3_module).client("s3")
         except Exception:  # pragma: no cover
             return None
 
@@ -118,13 +118,13 @@ def _provider() -> ColdStorageProvider | None:
         return _S3Provider()
     if name == "gcs":  # Placeholder minimal implementation
         try:  # pragma: no cover - optional future dependency
-            from google.cloud import storage  # type: ignore[import-not-found]
+            storage_module = importlib.import_module("google.cloud.storage")
         except Exception:
             return None
         bucket_name = _bucket()
         if not bucket_name:
             return None
-        client = storage.Client()
+        client = cast(Any, storage_module).Client()
         bucket_obj = client.bucket(bucket_name)
 
         class _GCSProvider:

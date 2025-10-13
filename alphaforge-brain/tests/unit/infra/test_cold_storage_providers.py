@@ -163,7 +163,7 @@ def test_restore_handles_corrupted_archive(monkeypatch, tmp_path):
     mirror_dir.mkdir(parents=True)
     manifest_path = run_dir / "cold_manifest.json"
     manifest_path.write_text(
-        '{"key": "runs/%s/bad.tar.gz"}' % run_hash, encoding="utf-8"
+        f'{{"key": "runs/{run_hash}/bad.tar.gz"}}', encoding="utf-8"
     )
     (mirror_dir / "bad.tar.gz").write_bytes(b"not a valid gzip stream")
 

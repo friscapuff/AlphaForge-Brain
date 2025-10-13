@@ -52,6 +52,12 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) a
 - README updated with Persistence, Validation, Chunk Mode, and Architecture links.
 - Perf governance docs refreshed: README, TESTING guide, trust gate operations manual, and `TESTING_DELTA.md` now detail the `perf_sla` record schema plus the targeted `pytest --no-cov tests/ci/test_perf_gates_script.py` validation flow.
 
+### Phase 6 Polish (2025-10-13)
+- T038: README, CHANGELOG, and `TYPE_HYGIENE_STATUS.md` refreshed with the governance quickstart evidence, CLI guidance, and latency summaries captured during the Phase 6 audit.
+- T039/T041/T042/T043: Trust gate suite, persistence insert, retention CLI sweep, and import guard smoke runs executed; artifacts stored under `zz_artifacts/governance/` with SLA deltas noted.
+- T040: Phase documentation cross-links (spec, plan, research, tasks) verified; runtime contracts remain mirrored in `alphaforge-brain/contracts/`.
+- T044: Constitution and waiver guidance reviewed—no new waivers required; governance steward notified via `WAIVERS.md` notes.
+
 ### Acceptance / Governance
 - Phase H completed:
 	- `validation-checklist.md` mapping FRs to concrete test/CI evidence

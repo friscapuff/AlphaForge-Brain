@@ -7,13 +7,21 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from domain.run.event_buffer import get_global_buffer
 from domain.schemas.run_config import RunConfig
+from models.run_validation_status import RunValidationStatus
 
+from infra.persistence import (
+    persist_persistence_record,
+    persistence_record_id,
+    persistence_schema_version,
+)
 from infra.utils.hash import hash_canonical
 
 from .orchestrator import orchestrate
 
 if TYPE_CHECKING:  # pragma: no cover - typing aid only
     from domain.data.ingest_nvda import DatasetMetadata as _RuntimeDatasetMetadata
+    from prometheus_client import CollectorRegistry as _CollectorRegistry
+    from services.trust_gates.models import TrustGateSummary as _TrustGateSummary
 else:  # runtime fallback placeholder to satisfy forward references
 
     class _RuntimeDatasetMetadata:  # pragma: no cover - lightweight placeholder
@@ -309,6 +317,7 @@ def create_or_get(
         ),
         "config_original": config.model_dump(mode="python"),
     }
+    record["schema_version"] = persistence_schema_version()
     if normalized_equity_df is not None:
         scaled = False
         scale_factor = None
@@ -368,35 +377,53 @@ def create_or_get(
 
         trust_gate_summary: dict[str, Any] | None = None
         trust_gate_manifest_block: dict[str, Any] | None = None
+        telemetry_registry: _CollectorRegistry | None = None
+        suite_service: TrustGateSuiteService | None = None
         try:
+            from services.trust_gates.config_loader import ToleranceConfigError
             from services.trust_gates.report_writer import write_suite_report
             from services.trust_gates.suite_service import TrustGateSuiteService
             from services.trust_gates.telemetry import (
                 create_registry,
+                emit_config_error,
                 emit_gate_metrics,
             )
 
+            telemetry_registry = create_registry()
             suite_service = TrustGateSuiteService()
-            trust_summary = suite_service.run(
+            trust_summary_local: _TrustGateSummary = suite_service.run(
                 run_id=h,
                 config_hash=config.deterministic_signature(),
                 candidate_manifest=suite_service.baseline.manifest_snapshot,
             )
             report_root = base_path / "trust_gates" / "reports"
-            trust_summary = write_suite_report(trust_summary, report_root, run_id=h)
-            telemetry_registry = create_registry()
-            for result in trust_summary.results:
+            trust_summary_local = write_suite_report(
+                trust_summary_local, report_root, run_id=h
+            )
+            for gate_result in trust_summary_local.results:
                 emit_gate_metrics(
                     registry=telemetry_registry,
-                    gate=result.name,
-                    status=result.status,
-                    duration_ms=result.duration_ms or 0,
+                    gate=gate_result.name,
+                    status=gate_result.status,
+                    duration_ms=gate_result.duration_ms or 0,
+                    profile=trust_summary_local.tolerance_profile,
                 )
-            trust_gate_summary = trust_summary.as_dict()
-            trust_gate_manifest_block = trust_summary.manifest_block()
+            trust_gate_summary = trust_summary_local.as_dict()
+            trust_gate_manifest_block = trust_summary_local.manifest_block()
         except (
             Exception
         ) as exc:  # pragma: no cover - trust gate suite optional during bring-up
+            if (
+                telemetry_registry is not None
+                and suite_service is not None
+                and isinstance(exc, ToleranceConfigError)
+            ):
+                emit_config_error(
+                    registry=telemetry_registry,
+                    gate="causality",
+                    profile=suite_service.tolerance_profile,
+                    reason="load_failure",
+                )
             trust_gate_summary = {
                 "status": "unavailable",
                 "error": str(exc),
@@ -414,12 +441,29 @@ def create_or_get(
                 )
             except Exception:
                 pass
+            try:
+                tg_status = None
+                if isinstance(trust_gate_summary, dict):
+                    tg_status = trust_gate_summary.get("status")
+                trust_gate_validation_status = (
+                    "accepted" if tg_status in {"pass", "dry-run"} else "rejected"
+                )
+                persist_persistence_record(
+                    record_id=persistence_record_id(run_hash=h, component="trust_gate"),
+                    payload=trust_gate_manifest_block,
+                    source_component="trust_gate",
+                    validation_status=trust_gate_validation_status,
+                )
+            except Exception:
+                pass
+        validation_status: RunValidationStatus | None = None
         try:
             from services.validation.context import build_validation_context
             from services.validation.manifest_v2 import (
                 build_validation_payload as _build_validation_payload,
             )
             from services.validation.pipeline import execute_validation_modules
+            from services.validation.status import determine_validation_status
 
             validation_v2_payload = None
             validation_v2_artifacts: list[Any] = []
@@ -463,6 +507,13 @@ def create_or_get(
                     seed_bundle=seed_bundle,
                 )
 
+                try:
+                    validation_status = determine_validation_status(
+                        validation_results.aggregate
+                    )
+                except Exception:
+                    validation_status = None
+
                 validation_v2_payload, artifacts = _build_validation_payload(
                     h,
                     base_path,
@@ -494,6 +545,7 @@ def create_or_get(
             validation_v2_payload = None
             validation_v2_artifacts = []
             validation_manifest_hash = None
+            validation_status = None
         # Persist equity & trades if structures convertible to DataFrame
         try:
             if equity_df is not None and isinstance(equity_df, _pd.DataFrame):
@@ -651,6 +703,9 @@ def create_or_get(
                 record["execution_realism_status"] = realism_status
             if validation_manifest_hash:
                 record["validation_manifest_hash"] = validation_manifest_hash
+
+        if validation_status is not None:
+            record["validation_status"] = validation_status.value
 
         write_artifacts(
             h,

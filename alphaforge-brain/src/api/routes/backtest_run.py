@@ -11,7 +11,7 @@ from domain.schemas.run_config import (
     ValidationSpec,
 )
 from fastapi import APIRouter, Header, HTTPException, Request, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 # NOTE: Existing API style mounts routes at root without explicit version segment.
 # Future task may introduce versioned grouping (e.g., /api/v1). For now align with current candles/features patterns.
@@ -38,14 +38,9 @@ class BacktestRunRequestModel(BaseModel):
     )
     seed: int | None = None
 
-    @field_validator("end")
-    @classmethod
-    def end_not_before_start(cls, v: str, info):
-        # Access previously validated data via info.data
-        start = info.data.get("start") if hasattr(info, "data") else None
-        if isinstance(start, str) and v < start:
+    def model_post_init(self, __context: Any) -> None:
+        if self.end < self.start:
             raise ValueError("end must be >= start")
-        return v
 
 
 class BacktestRunCreateResponse(BaseModel):

@@ -9,6 +9,17 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any, Union
 
+from api.errors_contract import ErrorResponse
+from api.models.runs import (
+    ArtifactDescriptor,
+    PromotionRequest,
+    PromotionResponse,
+    RunCreateResponse,
+    RunDetailResponse,
+    RunHashesResponse,
+    RunListItem,
+    RunListResponse,
+)
 from domain.errors import NotFoundError
 from domain.run.create import InMemoryRunRegistry, create_or_get
 from domain.run.event_buffer import get_global_buffer
@@ -19,11 +30,14 @@ from domain.run.retention_policy import (
 )
 from domain.schemas.run_config import RunConfig
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from lib.artifacts import artifact_index
+from models.run_validation_status import RunValidationStatus, coerce_validation_status
 from pydantic import BaseModel
 
 from infra.artifacts_root import evicted_dir, run_artifact_dir
 from infra.audit import write_event
+from infra.persistence import persistence_record_id, persistence_schema_version
 
 router = APIRouter(prefix="", tags=["runs"])  # Root mounted
 
@@ -38,25 +52,33 @@ class _RetentionSettings(BaseModel):
 _DEFAULT_RETENTION = _RetentionSettings()
 
 
-class RunCreateResponse(BaseModel):
-    run_id: str
-    run_hash: str
-    status: str
-    created_at: datetime
-    created: bool
-    api_version: str | None = None
-    schema_version: str | None = None
-    content_hash: str | None = None
+def _extract_trust_gate_status(payload: Mapping[str, Any] | None) -> str | None:
+    if not isinstance(payload, Mapping):
+        return None
+    status = payload.get("status")
+    if isinstance(status, str) and status:
+        return status
+    summary = payload.get("summary")
+    if isinstance(summary, Mapping):
+        alt = summary.get("status")
+        if isinstance(alt, str) and alt:
+            return alt
+    return None
 
 
-class RunListItem(BaseModel):
-    run_hash: str
-    created_at: datetime | None = None
-    status: str = "SUCCEEDED"
-
-
-class RunListResponse(BaseModel):
-    items: list[RunListItem]
+def _find_accounting_gate(
+    payload: Mapping[str, Any] | None
+) -> Mapping[str, Any] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    for key in ("results", "gates"):
+        gates = payload.get(key)
+        if not isinstance(gates, list):
+            continue
+        for gate in gates:
+            if isinstance(gate, Mapping) and gate.get("name") == "accounting":
+                return gate
+    return None
 
 
 def _registry(request: Request) -> InMemoryRunRegistry:
@@ -76,6 +98,7 @@ async def post_run(
     # Contract augmentation (api_version/schema_version/content_hash)
     from infra.utils.hash import hash_canonical
 
+    schema_version = persistence_schema_version()
     base_payload = {
         "run_id": run_hash,
         "run_hash": run_hash,
@@ -83,12 +106,58 @@ async def post_run(
         "created_at": created_at,
         "created": created,
         "api_version": "0.1",
-        "schema_version": "0.1",
+        "schema_version": schema_version,
     }
     base_payload["content_hash"] = hash_canonical(
         {k: str(v) for k, v in base_payload.items() if k != "content_hash"}
     )
     return RunCreateResponse(**base_payload)
+
+
+@router.post("/runs/{run_hash}/promotion", response_model=PromotionResponse)
+async def promote_run(
+    run_hash: str,
+    request: PromotionRequest,
+    registry: InMemoryRunRegistry = Depends(_registry),
+) -> PromotionResponse | JSONResponse:
+    record = registry.get(run_hash)
+    if record is None:
+        raise HTTPException(status_code=404, detail="run not found")
+
+    status_value = record.get("validation_status")
+    validation_status: RunValidationStatus
+    if status_value is not None:
+        try:
+            validation_status = coerce_validation_status(status_value)
+        except Exception:
+            validation_status = RunValidationStatus.PASSED
+    else:
+        validation_status = RunValidationStatus.PASSED
+
+    if validation_status is RunValidationStatus.FAILED_VALIDATION:
+        message = (
+            f"Run {run_hash} blocked: FAILED_VALIDATION requires governance waiver"
+        )
+        payload = ErrorResponse(
+            error_code="FAILED_VALIDATION",
+            message=message,
+        ).model_dump(exclude_none=True)
+        return JSONResponse(status_code=409, content=payload)
+
+    record["promotion_requested_at"] = datetime.now(timezone.utc).isoformat()
+    if request.waiver_id:
+        waivers = record.get("waivers")
+        if isinstance(waivers, list):
+            waivers.append(request.waiver_id)
+        else:
+            record["waivers"] = [request.waiver_id]
+    registry.set(run_hash, record)
+
+    return PromotionResponse(
+        run_hash=run_hash,
+        status="accepted",
+        processed_at=datetime.now(timezone.utc),
+    )
 
 
 @router.get("/runs", response_model=RunListResponse)
@@ -110,49 +179,6 @@ async def list_runs(
         for h, ts in entries
     ]
     return RunListResponse(items=items)
-
-
-class ArtifactDescriptor(BaseModel):
-    name: str
-    sha256: str
-    size: int
-
-
-class RunDetailResponse(BaseModel):
-    run_id: str
-    run_hash: str
-    status: str
-    phase: str
-    artifacts: list[ArtifactDescriptor]
-    summary: dict[str, Any] | None = None
-    data_hash: str | None = None
-    calendar_id: str | None = None
-    validation_summary: dict[str, Any] | None = None
-    validation: dict[str, Any] | None = None  # alias copy
-    manifest: dict[str, Any] | None = None
-    api_version: str | None = None
-    schema_version: str | None = None
-    content_hash: str | None = None
-    pinned: bool | None = None
-    retention_state: str | None = None
-    metrics_hash: str | None = None
-    equity_curve_hash: str | None = None
-    validation_schema_version: int | None = None
-    validation_manifest: dict[str, Any] | None = None
-    validation_significance: str | None = None
-    validation_manifest_hash: str | None = None
-    trust_gate: dict[str, Any] | None = None
-
-
-class RunHashesResponse(BaseModel):
-    run_hash: str
-    manifest_hash: str | None = None
-    metrics_hash: str | None = None
-    equity_curve_hash: str | None = None
-    provenance_hash: str | None = None  # combined attestation hash
-    api_version: str | None = None
-    validation_manifest_hash: str | None = None
-    trust_gate_signature: str | None = None
 
 
 @router.get("/runs/{run_hash}/hashes", response_model=RunHashesResponse)
@@ -340,6 +366,7 @@ async def get_run_detail(
 
     pinned = bool(rec.get("pinned", False))
     retention_state = rec.get("retention_state", "full")
+    schema_version = persistence_schema_version()
     payload = {
         "run_id": run_hash,
         "run_hash": run_hash,
@@ -353,11 +380,12 @@ async def get_run_detail(
         "validation": validation_summary,
         "manifest": manifest,
         "api_version": "0.1",
-        "schema_version": "0.1",
+        "schema_version": schema_version,
         "pinned": pinned,
         "retention_state": retention_state,
         "metrics_hash": metrics_hash_val,
         "equity_curve_hash": equity_curve_hash_val,
+        "validation_status": rec.get("validation_status"),
     }
     validation_schema = rec.get("validation_schema_version")
     if validation_schema is None and manifest:
@@ -382,6 +410,53 @@ async def get_run_detail(
             validation_manifest_hash = maybe_hash
     payload["validation_manifest_hash"] = validation_manifest_hash
     payload["trust_gate"] = trust_gate_payload
+
+    persistence_block: dict[str, Any] = {
+        "schema_version": schema_version,
+        "record_id": persistence_record_id(run_hash=run_hash, component="trust_gate"),
+        "source_component": "trust_gate",
+    }
+    tg_status = _extract_trust_gate_status(trust_gate_payload)
+    if tg_status:
+        normalized = tg_status.strip().lower()
+        persistence_block["validation_status"] = (
+            "accepted" if normalized in {"pass", "dry-run", "accepted"} else "rejected"
+        )
+    else:
+        persistence_block["validation_status"] = None
+    if isinstance(trust_gate_payload, Mapping):
+        executed_at = trust_gate_payload.get("executed_at")
+        if isinstance(executed_at, str) and executed_at:
+            persistence_block["executed_at"] = executed_at
+    payload["persistence"] = persistence_block
+
+    accounting_gate = _find_accounting_gate(trust_gate_payload)
+    if accounting_gate is not None:
+        metrics = accounting_gate.get("metrics")
+        diagnostics = accounting_gate.get("diagnostics")
+        metrics_map: Mapping[str, Any] = metrics if isinstance(metrics, Mapping) else {}
+        diagnostics_map: Mapping[str, Any] = (
+            diagnostics if isinstance(diagnostics, Mapping) else {}
+        )
+        accounting_info = {
+            "status": accounting_gate.get("status"),
+            "delta": metrics_map.get("delta", diagnostics_map.get("delta")),
+            "tolerance": metrics_map.get("tolerance", diagnostics_map.get("tolerance")),
+            "expected_equity": metrics_map.get("expected_equity"),
+            "observed_equity": metrics_map.get("observed_equity"),
+            "trade_ids": metrics_map.get("trade_ids")
+            or diagnostics_map.get("trade_ids"),
+            "baseline_max_currency_delta": metrics_map.get(
+                "baseline_max_currency_delta"
+            ),
+            "baseline_unmatched_trade_ids": metrics_map.get(
+                "baseline_unmatched_trade_ids"
+            ),
+        }
+        message = diagnostics_map.get("message")
+        if isinstance(message, str) and message:
+            accounting_info["message"] = message
+        payload["accounting"] = accounting_info
 
     response = RunDetailResponse(**payload)
     serialized = response.model_dump(exclude_none=True)
@@ -692,24 +767,27 @@ class RetentionUpdateRequest(BaseModel):
     max_full_bytes: int | None = None
 
 
+def _validate_retention_payload(body: RetentionUpdateRequest) -> None:
+    if body.keep_last is not None and not (1 <= body.keep_last <= 500):
+        raise HTTPException(status_code=400, detail="keep_last out of bounds")
+    if body.top_k_per_strategy is not None and not (0 <= body.top_k_per_strategy <= 50):
+        raise HTTPException(status_code=400, detail="top_k_per_strategy out of bounds")
+    if body.max_full_bytes is not None and body.max_full_bytes < 0:
+        raise HTTPException(status_code=400, detail="max_full_bytes out of bounds")
+
+
 @router.post("/settings/retention")
 async def update_retention_settings(
     body: RetentionUpdateRequest, registry: InMemoryRunRegistry = Depends(_registry)
 ) -> dict[str, Any]:
+    _validate_retention_payload(body)
     if body.keep_last is not None:
-        if not (1 <= body.keep_last <= 500):
-            raise HTTPException(status_code=400, detail="keep_last out of bounds")
         _DEFAULT_RETENTION.keep_last = body.keep_last
     if body.top_k_per_strategy is not None:
-        if not (0 <= body.top_k_per_strategy <= 50):
-            raise HTTPException(
-                status_code=400, detail="top_k_per_strategy out of bounds"
-            )
         _DEFAULT_RETENTION.top_k_per_strategy = body.top_k_per_strategy
     if body.max_full_bytes is not None:
-        if body.max_full_bytes < 0:
-            raise HTTPException(status_code=400, detail="max_full_bytes out of bounds")
         _DEFAULT_RETENTION.max_full_bytes = body.max_full_bytes
+
     write_event(
         "RETENTION_CONFIG_UPDATE",
         None,
@@ -717,7 +795,7 @@ async def update_retention_settings(
         top_k=_DEFAULT_RETENTION.top_k_per_strategy,
         max_full_bytes=_DEFAULT_RETENTION.max_full_bytes,
     )
-    # Immediately apply new plan
+
     cfg = RetentionConfig(
         keep_last=_DEFAULT_RETENTION.keep_last,
         top_k_per_strategy=_DEFAULT_RETENTION.top_k_per_strategy,
@@ -739,54 +817,42 @@ async def get_retention_metrics(
 ) -> dict[str, Any]:
     counts: dict[str, int] = {"full": 0, "pinned": 0, "top_k": 0, "manifest-only": 0}
     bytes_map: dict[str, int] = {k: 0 for k in counts}
+
     from infra.artifacts_root import resolve_artifact_root as _rar_metrics
+    from infra.audit import rotation_metrics
 
     base = _rar_metrics(None)
-    for h, rec in registry.store.items():
+    for run_hash, rec in registry.store.items():
         state = rec.get("retention_state") or "full"
-        if state not in counts:
-            counts[state] = 0
-            bytes_map.setdefault(state, 0)
+        counts.setdefault(state, 0)
+        bytes_map.setdefault(state, 0)
         counts[state] += 1
-        rdir = base / h
-        if rdir.exists():
-            sz = 0
-            for p in rdir.iterdir():
-                if not p.is_file():
-                    continue
-                if p.name in {"manifest.json", ".evicted"}:
-                    continue
-                try:
-                    sz += p.stat().st_size
-                except Exception:
-                    pass
-            bytes_map[state] += sz
-    total = sum(counts.values())
-    counts["total"] = total
-    bytes_map["total_bytes"] = sum(
-        bytes_map[k]
-        for k in bytes_map
-        if k in {"full", "pinned", "top_k", "manifest-only"}
-    )
+        run_dir = base / run_hash
+        if not run_dir.exists():
+            continue
+        size = 0
+        for path in run_dir.iterdir():
+            if not path.is_file():
+                continue
+            if path.name in {"manifest.json", ".evicted"}:
+                continue
+            try:
+                size += path.stat().st_size
+            except Exception:  # pragma: no cover - best effort sizing
+                continue
+        bytes_map[state] += size
+
+    counts["total"] = sum(counts.values())
+    total_bytes = sum(bytes_map.values())
+    bytes_map["total_bytes"] = total_bytes
+
     max_full = _DEFAULT_RETENTION.max_full_bytes
     budget_remaining: int | None = None
     if max_full is not None:
-        full_bytes = bytes_map.get("full", 0)
-        # budget_remaining is clipped at zero to avoid negative exposure
-        budget_remaining = max(0, max_full - full_bytes)
-    # Audit rotation metrics (best-effort)
-    audit_metrics: dict[str, Any] = {}
-    try:  # pragma: no cover - defensive
-        from infra.audit import rotation_metrics
+        budget_remaining = max(0, max_full - bytes_map.get("full", 0))
 
-        r = rotation_metrics()
-        if r["rotation_count"]:
-            ratio = None
-            if r["rotated_original_bytes"] > 0:
-                ratio = r["rotated_compressed_bytes"] / r["rotated_original_bytes"]
-            audit_metrics = {**r, "compression_ratio": ratio}
-    except Exception:
-        pass
+    audit_metrics = rotation_metrics()
+
     return {
         "api_version": "0.1",
         "counts": counts,
@@ -801,86 +867,83 @@ async def get_retention_metrics(
 async def get_retention_plan(
     registry: InMemoryRunRegistry = Depends(_registry),
 ) -> dict[str, Any]:
-    """Dry-run retention plan. Computes classification and demotion set without applying changes.
-
-    Returns same keys as apply plan plus meta counts. Does not perform physical demotion.
-    """
     cfg = RetentionConfig(
         keep_last=_DEFAULT_RETENTION.keep_last,
         top_k_per_strategy=_DEFAULT_RETENTION.top_k_per_strategy,
         max_full_bytes=_DEFAULT_RETENTION.max_full_bytes,
     )
     plan = plan_retention(registry, cfg)
+    summary = {
+        "total_runs": len(registry.store),
+        "kept": len(plan["keep_full"]),
+        "demoted": len(plan["demote"]),
+    }
     return {
         "api_version": "0.1",
         "keep_full": sorted(plan["keep_full"]),
         "demote": sorted(plan["demote"]),
         "pinned": sorted(plan["pinned"]),
         "top_k": sorted(plan["top_k"]),
-        "summary": {
-            "kept": len(plan["keep_full"]),
-            "demoted": len(plan["demote"]),
-            "pinned": len(plan["pinned"]),
-            "top_k": len(plan["top_k"]),
+        "summary": summary,
+        "config": {
+            "keep_last": cfg.keep_last,
+            "top_k_per_strategy": cfg.top_k_per_strategy,
+            "max_full_bytes": cfg.max_full_bytes,
         },
-        "max_full_bytes": _DEFAULT_RETENTION.max_full_bytes,
     }
 
 
-class RetentionPlanDiffRequest(BaseModel):
-    keep_last: int | None = None
-    top_k_per_strategy: int | None = None
-    max_full_bytes: int | None = None
+class RetentionPlanDiffRequest(RetentionUpdateRequest):
+    pass
 
 
 @router.post("/retention/plan/diff")
 async def retention_plan_diff(
     body: RetentionPlanDiffRequest, registry: InMemoryRunRegistry = Depends(_registry)
 ) -> dict[str, Any]:
-    """Compute diff between current retention plan and a hypothetical configuration.
+    _validate_retention_payload(body)
 
-    Returns sets of runs that would change classification (new_demotions, new_full, lost_full).
-    new_demotions: runs that are currently kept full but would be demoted.
-    new_full: runs currently demoted that would become full/top_k/pinned.
-    unchanged: counts summary for convenience.
-    """
     current_cfg = RetentionConfig(
         keep_last=_DEFAULT_RETENTION.keep_last,
         top_k_per_strategy=_DEFAULT_RETENTION.top_k_per_strategy,
         max_full_bytes=_DEFAULT_RETENTION.max_full_bytes,
     )
-    current_plan = plan_retention(registry, current_cfg)
     alt_cfg = RetentionConfig(
         keep_last=(
-            body.keep_last
-            if body.keep_last is not None
-            else _DEFAULT_RETENTION.keep_last
+            body.keep_last if body.keep_last is not None else current_cfg.keep_last
         ),
         top_k_per_strategy=(
             body.top_k_per_strategy
             if body.top_k_per_strategy is not None
-            else _DEFAULT_RETENTION.top_k_per_strategy
+            else current_cfg.top_k_per_strategy
         ),
         max_full_bytes=(
             body.max_full_bytes
             if body.max_full_bytes is not None
-            else _DEFAULT_RETENTION.max_full_bytes
+            else current_cfg.max_full_bytes
         ),
     )
+
+    current_plan = plan_retention(registry, current_cfg)
     alt_plan = plan_retention(registry, alt_cfg)
-    current_full = current_plan["keep_full"]
-    alt_full = alt_plan["keep_full"]
-    new_demotions = sorted(current_full - alt_full)
-    new_full = sorted(alt_full - current_full)
-    lost_full = new_demotions  # alias for explicitness
+
+    new_demotions = sorted(alt_plan["demote"] - current_plan["demote"])
+    new_full = sorted(alt_plan["keep_full"] - current_plan["keep_full"])
+    lost_full = sorted(current_plan["keep_full"] - alt_plan["keep_full"])
+
     return {
         "api_version": "0.1",
         "current": {
-            "kept": len(current_full),
+            "kept": len(current_plan["keep_full"]),
             "demoted": len(current_plan["demote"]),
+            "config": {
+                "keep_last": current_cfg.keep_last,
+                "top_k_per_strategy": current_cfg.top_k_per_strategy,
+                "max_full_bytes": current_cfg.max_full_bytes,
+            },
         },
         "alternative": {
-            "kept": len(alt_full),
+            "kept": len(alt_plan["keep_full"]),
             "demoted": len(alt_plan["demote"]),
             "config": {
                 "keep_last": alt_cfg.keep_last,

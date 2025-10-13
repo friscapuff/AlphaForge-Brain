@@ -127,6 +127,7 @@ class Orchestrator:
                         "ORCH",
                         "RET",
                         "SSE",
+                        "TRUST",
                     }:
                         # Synthesize candles directly; skip registry-driven load path.
                         # Robust timezone handling: pd.Timestamp on an ISO string with 'Z' yields tz-aware UTC already.

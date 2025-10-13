@@ -65,8 +65,8 @@ def apply_risk(
     Ignores direction for now (execution simulator can apply sign in T025).
     """
     model = config.risk.model
-    # Back-compat alias
-    if model == "fixed":
+    # Back-compat aliases
+    if model in {"fixed", "basic"}:
         model = "fixed_fraction"
     params = config.risk.params or {}
     out = signals_df.copy()
@@ -77,7 +77,12 @@ def apply_risk(
         return out
 
     if model == "fixed_fraction":
-        fraction = float(params.get("fraction", 0.1))
+        if "fraction" in params:
+            fraction = float(params["fraction"])
+        elif "max_position_pct" in params:
+            fraction = float(params["max_position_pct"]) / 100.0
+        else:
+            fraction = 0.1
         if not (0 < fraction <= 1):
             raise ValueError("fraction must be in (0,1]")
         prices = out.get("close")

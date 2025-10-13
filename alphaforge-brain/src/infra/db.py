@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -68,18 +69,69 @@ def _apply_migrations(conn: sqlite3.Connection) -> None:
         LOGGER.error("migration.python.failed", error=str(exc))
         raise
 
+    _ensure_legacy_columns(conn)
+
+
+def _ensure_legacy_columns(conn: sqlite3.Connection) -> None:
+    """Ensure legacy governance columns exist for backward compatibility."""
+
+    try:
+        cur = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='runs'"
+        )
+        if cur.fetchone() is None:
+            return
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+        required: dict[str, str] = {
+            "updated_at": "INTEGER",
+            "config_json": "TEXT",
+            "data_hash": "TEXT",
+            "seed_root": "INTEGER",
+            "db_version": "INTEGER",
+            "bootstrap_seed": "INTEGER",
+            "walk_forward_spec_json": "TEXT",
+        }
+        added = False
+        for column, column_type in required.items():
+            if column not in existing:
+                conn.execute(f"ALTER TABLE runs ADD COLUMN {column} {column_type}")
+                added = True
+        if added:
+            conn.commit()
+    except Exception as exc:  # pragma: no cover - defensive
+        LOGGER.warning("runs.legacy_columns.ensure_failed", error=str(exc))
+
 
 @contextmanager
 def get_connection() -> Iterator[sqlite3.Connection]:
-    settings = _config_mod.get_settings()
-    path = settings.sqlite_path
+    path = _resolve_sqlite_path()
     _init_db(path)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
+        if conn.in_transaction:
+            conn.commit()
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
     finally:
         conn.close()
+
+
+def _resolve_sqlite_path() -> Path:
+    env_override = os.getenv("APP_SQLITE_PATH")
+    if env_override:
+        cached = _config_mod.get_settings()
+        override_path = Path(env_override)
+        if override_path != cached.sqlite_path:
+            cache_clear = getattr(_config_mod.get_settings, "cache_clear", None)
+            if callable(cache_clear):
+                cache_clear()
+            return _config_mod.get_settings().sqlite_path
+        return override_path
+    return _config_mod.get_settings().sqlite_path
 
 
 __all__ = ["get_connection"]

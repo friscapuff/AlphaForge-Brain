@@ -86,7 +86,9 @@ def load_local(
     # Reorder columns: required first then extras (stable)
     extras = [c for c in combined.columns if c not in REQUIRED_CANDLE_COLUMNS]
     ordered_cols = REQUIRED_CANDLE_COLUMNS + extras
-    return combined[ordered_cols]
+
+    ordered = {col: combined[col] for col in ordered_cols}
+    return pd.DataFrame(ordered, columns=ordered_cols)
 
 
 __all__ = ["load_local"]

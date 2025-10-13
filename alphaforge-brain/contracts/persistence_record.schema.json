@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://alphaforge.dev/contracts/persistence_record.schema.json",
+  "title": "PersistenceRecord",
+  "type": "object",
+  "required": [
+    "record_id",
+    "schema_version",
+    "payload",
+    "created_at",
+    "source_component",
+    "validation_status"
+  ],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$",
+      "description": "SHA-256 identifier for the persisted artifact."
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the payload schema."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Artifact contents validated against the referenced schema version."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp the artifact was created."
+    },
+    "source_component": {
+      "type": "string",
+      "enum": [
+        "trust_gate",
+        "retention",
+        "masters_validation",
+        "accounting",
+        "cli"
+      ],
+      "description": "Component responsible for generating the artifact."
+    },
+    "validation_status": {
+      "type": "string",
+      "enum": ["accepted", "rejected"],
+      "description": "Result of schema validation before persistence."
+    },
+    "migration_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from_version", "to_version", "applied_at"],
+        "properties": {
+          "from_version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+          },
+          "to_version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+          },
+          "applied_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "script_ref": {
+            "type": "string",
+            "description": "Path to migration script under scripts/migrations/."
+          }
+        }
+      },
+      "description": "History of deterministic migrations applied to this record."
+    }
+  },
+  "additionalProperties": false
+}

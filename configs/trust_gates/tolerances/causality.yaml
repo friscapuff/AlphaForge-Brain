@@ -1,0 +1,27 @@
+schema_version: trust_gate_tolerances.v1
+profile_id: causality-default
+version: "2025.10.12"
+metadata:
+  owner: governance
+  fr_references:
+    - FR-001
+    - FR-002
+  notes:
+    - Derived from institutional_default baseline with stricter leak thresholds.
+    - Updates require governance waiver per WAIVERS.md
+metrics:
+  leakage_score:
+    comparator: "<="
+    threshold: 0.05
+    severity: fail
+    description: Permutation leakage score must not exceed 5%
+  equity_drift:
+    comparator: "<="
+    threshold: 0.01
+    severity: fail
+    description: Equity drift must remain within 1% of baseline
+  sharpe_ratio:
+    comparator: ">="
+    threshold: 1.0
+    severity: fail
+    description: Sharpe ratio must remain above 1.0

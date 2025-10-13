@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import functools
 import hashlib
 import json
 from dataclasses import dataclass
@@ -90,7 +91,8 @@ def _compute_schema_signature(
     dtype_map: dict[str, str] = {header: "" for header in headers}
     nullable_map: dict[str, bool] = {header: False for header in headers}
     total_rows = 0
-    for total_rows, row in enumerate(rows, start=1):
+    for row in rows:
+        total_rows += 1
         for header in headers:
             value = row.get(header)
             dtype = _classify_value(value)
@@ -114,7 +116,8 @@ def _compute_schema_signature(
 def _sha256_file(path: Path) -> str:
     hasher = hashlib.sha256()
     with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+        read_chunk = functools.partial(fh.read, 1024 * 1024)
+        for chunk in iter(read_chunk, b""):
             if not chunk:
                 break
             hasher.update(chunk)

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Mapping
 
 import structlog
-from prometheus_client import CollectorRegistry, Gauge, Histogram
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
 
 logger = structlog.get_logger("trust_gates")
 
@@ -14,10 +15,25 @@ logger = structlog.get_logger("trust_gates")
 class _RegistryMetrics:
     status: Gauge
     duration: Histogram
+    failure: Counter
+    config_error: Counter
 
 
 _REGISTRIES: dict[int, _RegistryMetrics] = {}
 _STATUS_STATES = ("pass", "warn", "fail")
+
+
+class TrustGateRegistry(CollectorRegistry):
+    """CollectorRegistry that gracefully resolves counter base names."""
+
+    def get_sample_value(
+        self, name: str, labels: Mapping[str, str] | None = None
+    ) -> float | None:
+        normalized = dict(labels) if labels is not None else None
+        value = super().get_sample_value(name, normalized)
+        if value is None and not name.endswith("_total"):
+            value = super().get_sample_value(f"{name}_total", normalized)
+        return value
 
 
 def _ensure_metrics(registry: CollectorRegistry) -> _RegistryMetrics:
@@ -38,7 +54,24 @@ def _ensure_metrics(registry: CollectorRegistry) -> _RegistryMetrics:
         registry=registry,
         buckets=(0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
     )
-    metrics = _RegistryMetrics(status=status_gauge, duration=duration_hist)
+    failure_counter = Counter(
+        "trust_gate_failure",
+        "Trust gate failure counter",
+        labelnames=("gate", "profile"),
+        registry=registry,
+    )
+    config_error_counter = Counter(
+        "trust_gate_config_error",
+        "Trust gate configuration error counter",
+        labelnames=("gate", "profile", "reason"),
+        registry=registry,
+    )
+    metrics = _RegistryMetrics(
+        status=status_gauge,
+        duration=duration_hist,
+        failure=failure_counter,
+        config_error=config_error_counter,
+    )
     _REGISTRIES[key] = metrics
     return metrics
 
@@ -46,13 +79,18 @@ def _ensure_metrics(registry: CollectorRegistry) -> _RegistryMetrics:
 def create_registry() -> CollectorRegistry:
     """Return a dedicated CollectorRegistry for trust gate metrics."""
 
-    registry = CollectorRegistry()
+    registry = TrustGateRegistry()
     _ensure_metrics(registry)
     return registry
 
 
 def emit_gate_metrics(
-    *, registry: CollectorRegistry, gate: str, status: str, duration_ms: int
+    *,
+    registry: CollectorRegistry,
+    gate: str,
+    status: str,
+    duration_ms: int,
+    profile: str | None = None,
 ) -> None:
     """Record structlog event and Prometheus samples for a gate result."""
 
@@ -62,12 +100,37 @@ def emit_gate_metrics(
         value = 1.0 if candidate == status else 0.0
         metrics.status.labels(gate=gate, status=candidate).set(value)
     metrics.duration.labels(gate=gate).observe(secs)
+    if status == "fail":
+        metrics.failure.labels(gate=gate, profile=profile or "unknown").inc()
     logger.info(
         "trust_gate.result",
         gate=gate,
         status=status,
         duration_ms=duration_ms,
+        profile=profile,
     )
 
 
-__all__ = ["create_registry", "emit_gate_metrics"]
+def emit_config_error(
+    *,
+    registry: CollectorRegistry,
+    gate: str,
+    profile: str,
+    reason: str,
+) -> None:
+    metrics = _ensure_metrics(registry)
+    metrics.config_error.labels(gate=gate, profile=profile, reason=reason).inc()
+    logger.error(
+        "trust_gate.config_error",
+        gate=gate,
+        profile=profile,
+        reason=reason,
+    )
+
+
+__all__ = [
+    "TrustGateRegistry",
+    "create_registry",
+    "emit_gate_metrics",
+    "emit_config_error",
+]

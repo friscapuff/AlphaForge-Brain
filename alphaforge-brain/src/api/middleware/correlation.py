@@ -9,7 +9,7 @@ from fastapi import Request, Response
 
 async def correlation_middleware(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
-):
+) -> Response:
     start = time.time()
     corr_id = request.headers.get("x-correlation-id") or str(uuid.uuid4())
     request.state.correlation_id = corr_id

@@ -93,6 +93,17 @@ def _ensure_runs_manifest_column(conn: sqlite3.Connection) -> None:
         return
     if not _column_exists(conn, "runs", "trust_gate_manifest"):
         conn.execute("ALTER TABLE runs ADD COLUMN trust_gate_manifest TEXT")
+    required_columns = {
+        "updated_at": "INTEGER",
+        "config_json": "TEXT",
+        "data_hash": "TEXT",
+        "seed_root": "INTEGER",
+        "db_version": "INTEGER",
+        "bootstrap_seed": "INTEGER",
+    }
+    for column, column_type in required_columns.items():
+        if not _column_exists(conn, "runs", column):
+            conn.execute(f"ALTER TABLE runs ADD COLUMN {column} {column_type}")
 
 
 def _ensure_baselines_columns(conn: sqlite3.Connection) -> None:

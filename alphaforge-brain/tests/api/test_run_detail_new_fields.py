@@ -43,3 +43,24 @@ def test_run_detail_includes_new_dataset_fields_and_alias() -> None:
     assert (
         "anomaly_counters" in summary_obj
     ), "anomaly_counters missing when include_anomalies=true"
+
+
+def test_run_detail_includes_persistence_and_accounting_metadata() -> None:
+    p = _payload()
+    r = client.post("/runs", json=p)
+    assert r.status_code == 200
+    run_hash = r.json()["run_hash"]
+
+    detail = client.get(f"/runs/{run_hash}").json()
+
+    persistence_block = detail.get("persistence")
+    assert isinstance(persistence_block, dict)
+    assert persistence_block.get("schema_version")
+    assert persistence_block.get("record_id")
+
+    accounting_block = detail.get("accounting")
+    assert accounting_block is not None
+    assert accounting_block.get("status")
+    # delta/tolerance may be None on perfectly balanced ledger but keys should exist
+    assert "delta" in accounting_block
+    assert "tolerance" in accounting_block

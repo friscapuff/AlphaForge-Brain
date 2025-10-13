@@ -16,6 +16,7 @@ class TrustGateResult:
     status: str
     metrics: Mapping[str, object] = field(default_factory=dict)
     diagnostics: Mapping[str, object] = field(default_factory=dict)
+    tolerance: Mapping[str, object] = field(default_factory=dict)
     artifact: str | None = None
     correlation_id: str | None = None
     duration_ms: int | None = None
@@ -44,6 +45,8 @@ class TrustGateSummary:
     executed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     signature_path: str | None = None
     schema_version: str = "trust_gates.v1"
+    tolerance_profile_version: str | None = None
+    tolerance_profile_hash: str | None = None
 
     def failing_gates(self) -> Iterable[TrustGateResult]:
         """Iterate over gates that did not return a passing status."""
@@ -65,12 +68,15 @@ class TrustGateSummary:
             "config_hash": self.config_hash,
             "executed_at": self.executed_at.isoformat().replace("+00:00", "Z"),
             "enabled_gates": list(self.enabled_gates),
+            "tolerance_profile_version": self.tolerance_profile_version,
+            "tolerance_profile_hash": self.tolerance_profile_hash,
             "gates": [
                 {
                     "name": result.name,
                     "status": result.status,
                     "metrics": dict(result.metrics),
                     "diagnostics": dict(result.diagnostics),
+                    "tolerance": dict(result.tolerance),
                     "artifact": result.artifact,
                     "correlation_id": result.correlation_id,
                     "duration_ms": result.duration_ms,
@@ -96,6 +102,8 @@ class TrustGateSummary:
                 entry["waiver_ref"] = result.waiver_ref
             if result.duration_ms is not None:
                 entry["duration_ms"] = result.duration_ms
+            if result.tolerance:
+                entry["tolerance"] = dict(result.tolerance)
             manifest_results.append(entry)
 
         block: dict[str, object] = {
@@ -106,6 +114,8 @@ class TrustGateSummary:
             "suite_version": self.suite_version,
             "config_hash": self.config_hash,
             "tolerance_profile": self.tolerance_profile,
+            "tolerance_profile_version": self.tolerance_profile_version,
+            "tolerance_profile_hash": self.tolerance_profile_hash,
             "runtime_ms": self.runtime_ms,
             "gates": manifest_results,
         }

@@ -30,3 +30,8 @@ unfixable = []
 
 [lint.per-file-ignores]
 "alphaforge-brain/src/api/routes/runs.py" = ["B008"]
+
+[lint.flake8-tidy-imports]
+banned-modules = {
+  "alphaforge_mind" = "AlphaForge Mind modules must not be imported from Brain runtime (use shared utilities or explicit contracts)."
+}

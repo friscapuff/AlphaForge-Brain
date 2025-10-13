@@ -31,6 +31,11 @@ def _safe_fields_from_validation_errors(
         loc = err.get("loc", []) if isinstance(err, dict) else []
         if isinstance(loc, (list, tuple)) and len(loc) > 1:
             fields.append(str(loc[-1]))
+        elif isinstance(err, dict):
+            msg = str(err.get("msg", ""))
+            for candidate in ("end", "start"):
+                if candidate in msg:
+                    fields.append(candidate)
     # Deduplicate and stable order
     return sorted(set(fields))
 
@@ -180,7 +185,10 @@ def install_error_handlers(app: FastAPI) -> None:
         field_list = ",".join(fields) if fields else "request"
 
         path = request.url.path if hasattr(request, "url") else ""
-        status_code = 422 if path.startswith("/runs") else 400
+        if path.startswith("/runs") or path.startswith("/backtest"):
+            status_code = 422
+        else:
+            status_code = 400
 
         # New contract
         details = (

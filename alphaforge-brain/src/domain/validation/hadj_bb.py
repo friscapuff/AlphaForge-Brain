@@ -8,6 +8,26 @@ import pandas as pd
 from .utils import extract_returns, sample_block_indices
 
 
+def _linear_quantile(values: np.ndarray[Any, Any], q: float) -> float:
+    arr = np.asarray(values, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return 0.0
+    q = float(min(max(q, 0.0), 1.0))
+    if q == 0.0:
+        return float(np.min(arr))
+    if q == 1.0:
+        return float(np.max(arr))
+    sorted_vals = np.sort(arr)
+    pos = q * (sorted_vals.size - 1)
+    lower = int(np.floor(pos))
+    upper = int(np.ceil(pos))
+    if lower == upper:
+        return float(sorted_vals[lower])
+    weight = pos - lower
+    return float(sorted_vals[lower] * (1.0 - weight) + sorted_vals[upper] * weight)
+
+
 def _acf(x: np.ndarray[Any, Any], max_lag: int) -> np.ndarray[Any, Any]:
     """Compute sample autocorrelation for lags 1..max_lag.
 
@@ -62,8 +82,8 @@ def _ci_from_distribution(
     if dist.size == 0:
         return (0.0, 0.0)
     alpha = (1.0 - level) / 2.0
-    low = float(np.quantile(dist, alpha))
-    high = float(np.quantile(dist, 1.0 - alpha))
+    low = _linear_quantile(dist, alpha)
+    high = _linear_quantile(dist, 1.0 - alpha)
     return (low, high)
 
 

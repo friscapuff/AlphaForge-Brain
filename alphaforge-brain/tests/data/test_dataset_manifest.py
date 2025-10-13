@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from scripts.data.generate_manifest import DEFAULT_DATASET, build_manifest
-from scripts.data.generate_manifest import main as generate_main
+from scripts.data.generate_manifest import DEFAULT_DATASET, build_manifest  # noqa: E402
+from scripts.data.generate_manifest import main as generate_main  # noqa: E402
 
 
 def test_build_manifest_produces_expected_fields() -> None:

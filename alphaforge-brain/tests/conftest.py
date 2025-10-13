@@ -28,6 +28,10 @@ for p in (str(_src_dir), str(_repo_root), str(_workspace_root)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+from infra.import_guard import install_import_guard  # noqa: E402
+
+install_import_guard()
+
 _data_fixtures = Path(__file__).parent / "data" / "nvda_fixtures.py"
 spec = importlib.util.spec_from_file_location("_nvda_data_fixtures", _data_fixtures)
 if spec and spec.loader:  # pragma: no cover - import wiring

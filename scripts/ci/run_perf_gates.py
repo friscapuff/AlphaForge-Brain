@@ -2,9 +2,9 @@
 """Performance Benchmark Gates (T020a / FR-113 / FR-010)
 
 Aggregates and enforces performance thresholds:
-    - Trust gate SLA derived from the `perf_run.py` harness (mean runtime ≤ baseline × multiplier)
+    - Trust gate SLA derived from the `perf_run.py` harness (mean runtime <= baseline x multiplier)
     - Observability overhead < 3% (observability_overhead.py)
-    - Bootstrap runtime inflation ≤ 1.2x baseline (measured via perf_run script with and without a flag)
+    - Bootstrap runtime inflation <= 1.2x baseline (measured via perf_run script with and without a flag)
     - Memory sampler overhead < 1% (causality_guard_overhead used as proxy for now)
 
 Outputs:

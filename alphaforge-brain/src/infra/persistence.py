@@ -5,8 +5,13 @@ import json
 import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from time import perf_counter
+from typing import Any, Mapping, Sequence
+
+from services.audit.governance_logger import append_audit_log, record_governance_event
 
 from .db import get_connection
 from .logging import get_logger
@@ -18,6 +23,200 @@ except Exception:  # pragma: no cover - tests guard presence
     _pq = None
 
 LOGGER = get_logger(__name__)
+_PERSISTENCE_LATENCY_LOG = Path("zz_artifacts/governance/persistence_latency.jsonl")
+
+
+# --- Persistence schema enforcement (FR-005/FR-006) ---
+
+
+class PersistenceSchemaError(ValueError):
+    """Raised when a persistence record violates the governance contract."""
+
+
+_PERSISTENCE_SCHEMA_CACHE: dict[str, Any] | None = None
+_PERSISTENCE_VALIDATOR: Any | None = None
+_PERSISTENCE_SCHEMA_VERSION = "1.0.0"
+
+
+def _contracts_root() -> Path:
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parents[2]
+        / "contracts",  # alphaforge-brain/contracts when running from src
+        here.parents[3] / "contracts",  # repository-level fallback
+    ]
+    for root in candidates:
+        if root.exists():
+            return root
+    # pragma: no cover - defensive guard for packaging environments
+    raise FileNotFoundError(
+        f"contracts directory not found (checked: {', '.join(str(p) for p in candidates)})"
+    )
+
+
+def _persistence_schema_path() -> Path:
+    path = _contracts_root() / "persistence_record.schema.json"
+    if not path.exists():
+        raise FileNotFoundError(
+            "persistence_record.schema.json missing - run T021 contract sync"
+        )
+    return path
+
+
+def persistence_schema_version() -> str:
+    """Return the active persistence schema semantic version."""
+
+    return _PERSISTENCE_SCHEMA_VERSION
+
+
+def _load_persistence_schema() -> dict[str, Any]:
+    global _PERSISTENCE_SCHEMA_CACHE
+    if _PERSISTENCE_SCHEMA_CACHE is None:
+        with _persistence_schema_path().open("r", encoding="utf-8") as handle:
+            _PERSISTENCE_SCHEMA_CACHE = json.load(handle)
+    import copy
+
+    return copy.deepcopy(_PERSISTENCE_SCHEMA_CACHE)
+
+
+def _persistence_validator() -> Any:
+    global _PERSISTENCE_VALIDATOR
+    if _PERSISTENCE_VALIDATOR is None:
+        import jsonschema
+
+        _PERSISTENCE_VALIDATOR = jsonschema.Draft7Validator(_load_persistence_schema())
+    return _PERSISTENCE_VALIDATOR
+
+
+def _json_default(value: Any) -> Any:  # pragma: no cover - exercised via validation
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, set):
+        return sorted(list(value))
+    if isinstance(value, Path):
+        return value.as_posix()
+    raise TypeError(f"Unsupported type for JSON serialization: {type(value)!r}")
+
+
+def _sanitize_record(record: Mapping[str, Any]) -> dict[str, Any]:
+    text = json.dumps(
+        record, sort_keys=True, separators=(",", ":"), default=_json_default
+    )
+    return json.loads(text)
+
+
+def validate_persistence_record(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate *record* against the persistence JSON Schema.
+
+    Returns a sanitized mapping suitable for storage when validation succeeds.
+    Raises :class:`PersistenceSchemaError` when the payload violates the contract.
+    """
+
+    candidate = _sanitize_record(record)
+    validator = _persistence_validator()
+    errors = sorted(validator.iter_errors(candidate), key=lambda err: err.path)
+    if errors:
+        first = errors[0]
+        message = first.message
+        if first.path:
+            message = f"{list(first.path)}: {message}"
+        raise PersistenceSchemaError(message.lower())
+    return candidate
+
+
+def persistence_record_id(*, run_hash: str, component: str) -> str:
+    """Return deterministic record identifier for *run_hash*/*component*."""
+
+    digest = hashlib.sha256(f"{run_hash}:{component}".encode()).hexdigest()
+    return digest
+
+
+def persist_persistence_record(
+    *,
+    record_id: str,
+    payload: Mapping[str, Any],
+    source_component: str,
+    schema_version: str | None = None,
+    validation_status: str = "accepted",
+    created_at: datetime | None = None,
+    migration_history: Sequence[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Persist a governance payload after validating against the schema."""
+
+    created = (
+        (created_at or datetime.now(timezone.utc)).isoformat().replace("+00:00", "Z")
+    )
+    record: dict[str, Any] = {
+        "record_id": record_id,
+        "schema_version": schema_version or persistence_schema_version(),
+        "payload": dict(payload),
+        "created_at": created,
+        "source_component": source_component,
+        "validation_status": validation_status,
+    }
+    if migration_history is not None:
+        record["migration_history"] = list(migration_history)
+    start = perf_counter()
+    validated = validate_persistence_record(record)
+
+    payload_json = canonical_json(validated["payload"])
+    migration_history_json = (
+        canonical_json(validated.get("migration_history", []))
+        if "migration_history" in validated
+        else None
+    )
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO persistence_records (
+                record_id, schema_version, payload_json, created_at, source_component,
+                validation_status, migration_history_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(record_id) DO UPDATE SET
+                schema_version=excluded.schema_version,
+                payload_json=excluded.payload_json,
+                created_at=excluded.created_at,
+                source_component=excluded.source_component,
+                validation_status=excluded.validation_status,
+                migration_history_json=excluded.migration_history_json
+            """,
+            (
+                validated["record_id"],
+                validated["schema_version"],
+                payload_json,
+                validated["created_at"],
+                validated["source_component"],
+                validated["validation_status"],
+                migration_history_json,
+            ),
+        )
+        conn.commit()
+
+    duration_ms = int((perf_counter() - start) * 1000)
+    details_payload: dict[str, object] = {
+        "record_id": validated["record_id"],
+        "schema_version": validated["schema_version"],
+        "source_component": validated["source_component"],
+        "validation_status": validated["validation_status"],
+        "duration_ms": duration_ms,
+        "threshold_ms": 1000,
+        "within_sla": duration_ms <= 1000,
+    }
+    latency_payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "message": "persistence.record.persisted",
+        "details": details_payload,
+    }
+    append_audit_log(payload=latency_payload, audit_path=_PERSISTENCE_LATENCY_LOG)
+    record_governance_event(
+        message="persistence.record.persisted",
+        details=details_payload,
+    )
+    return validated
 
 
 # --- Write helpers (FR-100..105) ---
@@ -479,6 +678,11 @@ def validate_manifest_object(manifest: dict[str, Any], schema_path: Path) -> Non
 
 
 __all__ = [
+    "PersistenceSchemaError",
+    "persistence_record_id",
+    "persistence_schema_version",
+    "persist_persistence_record",
+    "validate_persistence_record",
     "RunRow",
     "bulk_insert_equity",
     "bulk_insert_trades",

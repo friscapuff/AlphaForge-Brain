@@ -7,14 +7,18 @@ Multi-symbol capable; integrates with dataset registry entries specifying path &
 from __future__ import annotations
 
 import hashlib
+import math
 import time
 from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import SupportsFloat
 
 import exchange_calendars as xcals
+import numpy as np
 import pandas as pd
-
-from infra.time.timestamps import to_epoch_ms
+from zoneinfo import ZoneInfo
 
 from .adjustments import (
     AdjustmentFactors,
@@ -89,9 +93,7 @@ def _read_csv(path: Path) -> pd.DataFrame:
         mapped["volume"] = pd.to_numeric(
             df["Volume"].astype(str).str.replace(",", "", regex=False), errors="coerce"
         ).astype("Int64")
-        mapped = mapped.dropna(
-            subset=["timestamp"]
-        )  # drop rows where date failed to parse
+        mapped = mapped[mapped["timestamp"].notna()].copy()
         # Coerce volume to plain int where possible (after dropping NaNs)
         if "volume" in mapped.columns:
             try:
@@ -100,12 +102,6 @@ def _read_csv(path: Path) -> pd.DataFrame:
                 pass
         return mapped
     raise ValueError(f"Missing required columns: {missing}")
-
-
-def _parse_timestamps(df: pd.DataFrame, tz: str = "America/New_York") -> pd.DataFrame:
-    out = df.copy()
-    out["ts"] = to_epoch_ms(out["timestamp"], assume_tz=tz)
-    return out
 
 
 def _classify_calendar_gaps(
@@ -128,12 +124,14 @@ def _classify_calendar_gaps(
     return expected_closures, unexpected_gaps
 
 
-def _stable_dataframe_hash(df: pd.DataFrame) -> str:
-    core = df[["ts", "open", "high", "low", "close", "volume", "zero_volume"]].copy()
-    core.sort_values("ts", inplace=True)
-    csv_bytes = core.to_csv(
-        index=False, lineterminator="\n", float_format="%.8f"
-    ).encode()
+def _stable_dataframe_hash(records: list[dict[str, float | int]]) -> str:
+    header = "ts,open,high,low,close,volume,zero_volume"
+    lines = [header]
+    for rec in sorted(records, key=lambda item: item["ts"]):
+        lines.append(
+            f"{int(rec['ts'])},{rec['open']:.8f},{rec['high']:.8f},{rec['low']:.8f},{rec['close']:.8f},{rec['volume']:.8f},{int(rec['zero_volume'])}"
+        )
+    csv_bytes = ("\n".join(lines) + "\n").encode("utf-8")
     return hashlib.sha256(csv_bytes).hexdigest()
 
 
@@ -161,29 +159,135 @@ def load_generic_csv(
         return _DATASET_CACHE[key]
     raw = _read_csv(path)
     row_count_raw = len(raw)
-    df = _parse_timestamps(raw)
-    df = df.sort_values("ts", kind="mergesort").reset_index(drop=True)
-    before_dupes = len(df)
-    df = df[~df["ts"].duplicated(keep="first")].copy()
-    duplicates_dropped = before_dupes - len(df)
-    critical = ["open", "high", "low", "close", "volume"]
-    before_missing = len(df)
-    df = df.dropna(subset=critical)
-    rows_dropped_missing = before_missing - len(df)
-    df["zero_volume"] = (df["volume"] == 0).astype("int8")
-    zero_volume_rows = int(df["zero_volume"].sum())
+    records = raw.to_dict("records")
+    prepared: list[dict[str, float | int]] = []
+    duplicates_dropped = 0
+    rows_dropped_missing = 0
+    zero_volume_rows = 0
+    future_rows_dropped = 0
+    seen_ts: set[int] = set()
     now_ms = int(time.time() * 1000)
-    before_future = len(df)
-    df = df[df["ts"] <= now_ms]
-    future_rows_dropped = before_future - len(df)
-    expected_closures, unexpected_gaps = _classify_calendar_gaps(df, calendar_id)
-    canonical_cols = ["ts", "open", "high", "low", "close", "volume", "zero_volume"]
-    canonical = df[canonical_cols].copy()
+    assume_tz_name = "America/New_York"
+    if calendar_id and calendar_id.upper() not in {"XNYS", "XNAS", "NASDAQ"}:
+        assume_tz_name = "UTC"
+    assume_zone = ZoneInfo(assume_tz_name)
+
+    def _as_float(value: object) -> float | None:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            try:
+                return float(stripped)
+            except ValueError:
+                return None
+        if isinstance(value, SupportsFloat):
+            return float(value)
+        return None
+
+    for rec in records:
+        timestamp_raw = rec.get("timestamp")
+        if timestamp_raw is None or pd.isna(timestamp_raw):
+            rows_dropped_missing += 1
+            continue
+        ts_local: datetime
+        if isinstance(timestamp_raw, pd.Timestamp):
+            if timestamp_raw is pd.NaT:
+                rows_dropped_missing += 1
+                continue
+            ts_local = timestamp_raw.to_pydatetime()
+        elif isinstance(timestamp_raw, datetime):
+            ts_local = timestamp_raw
+        else:
+            try:
+                parsed = pd.to_datetime(timestamp_raw, errors="coerce")
+            except Exception:
+                parsed = pd.NaT
+            if pd.isna(parsed):
+                rows_dropped_missing += 1
+                continue
+            ts_local = parsed.to_pydatetime()
+        if ts_local.tzinfo is None:
+            ts_local = ts_local.replace(tzinfo=assume_zone)
+        ts_ms = int(ts_local.astimezone(ZoneInfo("UTC")).timestamp() * 1000)
+        if ts_ms in seen_ts:
+            duplicates_dropped += 1
+            continue
+        if ts_ms > now_ms:
+            future_rows_dropped += 1
+            continue
+
+        open_val = _as_float(rec.get("open"))
+        high_val = _as_float(rec.get("high"))
+        low_val = _as_float(rec.get("low"))
+        close_val = _as_float(rec.get("close"))
+        volume_val = _as_float(rec.get("volume"))
+        if (
+            open_val is None
+            or high_val is None
+            or low_val is None
+            or close_val is None
+            or volume_val is None
+        ):
+            rows_dropped_missing += 1
+            continue
+        if any(
+            math.isnan(v) for v in (open_val, high_val, low_val, close_val, volume_val)
+        ):
+            rows_dropped_missing += 1
+            continue
+
+        seen_ts.add(ts_ms)
+        zero_flag = 1 if volume_val == 0 else 0
+        zero_volume_rows += zero_flag
+        prepared.append(
+            {
+                "ts": ts_ms,
+                "open": open_val,
+                "high": high_val,
+                "low": low_val,
+                "close": close_val,
+                "volume": volume_val,
+                "zero_volume": zero_flag,
+            }
+        )
+
+    prepared.sort(key=lambda item: item["ts"])
+    canonical = pd.DataFrame.from_records(
+        prepared,
+        columns=["ts", "open", "high", "low", "close", "volume", "zero_volume"],
+    )
+    if not canonical.empty:
+        canonical["ts"] = canonical["ts"].astype("int64")
+        canonical["zero_volume"] = canonical["zero_volume"].astype("int8")
+
+    expected_closures, unexpected_gaps = _classify_calendar_gaps(canonical, calendar_id)
     factors_digest: str | None = None
     if adjustment_policy == "full_adjusted":
         factors_digest = compute_factors_digest(adjustment_policy, adjustment_factors)
         canonical = apply_full_adjustments(canonical, adjustment_factors)  # type: ignore[arg-type]
-    raw_digest = _stable_dataframe_hash(canonical)
+    if adjustment_policy == "none":
+        hash_records = prepared
+    else:
+        hash_records = [
+            {
+                "ts": int(row.ts),
+                "open": float(row.open),
+                "high": float(row.high),
+                "low": float(row.low),
+                "close": float(row.close),
+                "volume": float(row.volume),
+                "zero_volume": int(row.zero_volume),
+            }
+            for row in canonical.itertuples(index=False)
+        ]
+    raw_digest = _stable_dataframe_hash(hash_records)
     data_hash = (
         incorporate_policy_into_hash(raw_digest, adjustment_policy, factors_digest)
         if adjustment_policy != "none"
@@ -231,12 +335,22 @@ def slice_generic(
     if key not in _DATASET_CACHE:
         raise KeyError("Dataset not loaded; call load_generic_csv first")
     canonical = _DATASET_CACHE[key][0]
-    mask = pd.Series(True, index=canonical.index)
+    if canonical.empty:
+        return canonical.copy()
+    ts = canonical["ts"].to_numpy(dtype="int64", copy=False)
+    mask = np.ones(len(ts), dtype=bool)
     if start_ms is not None:
-        mask &= canonical["ts"] >= start_ms
+        mask &= ts >= start_ms
     if end_ms is not None:
-        mask &= canonical["ts"] <= end_ms
-    return canonical.loc[mask].copy().reset_index(drop=True)
+        mask &= ts <= end_ms
+    if not mask.any():
+        return canonical.iloc[0:0].copy()
+    indices = np.flatnonzero(mask)
+    data = {
+        column: canonical[column].to_numpy(copy=True)[indices]
+        for column in canonical.columns
+    }
+    return pd.DataFrame(data, columns=canonical.columns, copy=False)
 
 
 __all__ = ["GenericDatasetMetadata", "load_generic_csv", "slice_generic"]

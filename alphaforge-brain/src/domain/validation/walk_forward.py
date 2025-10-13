@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any, Literal
 
 import numpy as np
@@ -11,14 +12,25 @@ from .utils import extract_returns
 def _fold_metrics(returns: np.ndarray[Any, Any]) -> dict[str, float]:
     if returns.size == 0:
         return {"sharpe": 0.0, "return": 0.0, "max_dd": 0.0}
-    mean = returns.mean()
-    std = returns.std(ddof=0)
+    float_returns = returns.astype(float, copy=False)
+    total = float(sum(float(x) for x in float_returns))
+    mean = total / float_returns.size
+    var = 0.0
+    for x in float_returns:
+        delta = x - mean
+        var += delta * delta
+    var /= float_returns.size if float_returns.size else 1.0
+    std = math.sqrt(var)
     sharpe = float((mean / std) * np.sqrt(252)) if std > 0 else 0.0
-    cum = np.cumprod(1 + returns)
+    cum = np.cumprod(1.0 + float_returns)
     ret = float(cum[-1] - 1)
     running_max = np.maximum.accumulate(cum)
     dd = (cum / running_max) - 1.0
-    max_dd = float(dd.min())
+    if dd.size:
+        min_idx = int(np.argmin(dd))
+        max_dd = float(dd[min_idx])
+    else:
+        max_dd = 0.0
     return {"sharpe": sharpe, "return": ret, "max_dd": max_dd}
 
 

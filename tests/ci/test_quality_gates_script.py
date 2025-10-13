@@ -6,12 +6,12 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 
 def _invoke_quality_gates(
     repo_root: Path, extra_env: dict[str, str] | None = None
-) -> Tuple[subprocess.CompletedProcess[str], Dict[str, Any]]:
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
     script = repo_root / "scripts" / "ci" / "run_quality_gates.py"
     assert script.exists(), "run_quality_gates.py missing"
     env = os.environ.copy()

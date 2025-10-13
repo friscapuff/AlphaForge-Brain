@@ -14,6 +14,7 @@ def build_result(
     status: str,
     metrics: Mapping[str, object],
     diagnostics: Mapping[str, object] | None = None,
+    tolerance: Mapping[str, object] | None = None,
 ) -> TrustGateResult:
     """Create a :class:`TrustGateResult` populated with baseline metadata."""
 
@@ -22,6 +23,7 @@ def build_result(
         status=status,
         metrics=dict(metrics),
         diagnostics=dict(diagnostics or {}),
+        tolerance=dict(tolerance or {}),
         artifact=gate.artifact,
         correlation_id=gate.correlation_id,
     )

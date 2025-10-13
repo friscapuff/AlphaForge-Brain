@@ -190,7 +190,7 @@ def run_strategy(
     # add validation hooks here; currently we just trust implementation.
 
     # Filter out rows where required SMA columns are not fully valid (NaN) if present.
-    if "signal" in result.columns and result["signal"].notna().sum() == 0:
+    if "signal" in result.columns and not result["signal"].notna().any():
         # All NaN -> treat as empty output while preserving columns
         empty_out = result.iloc[0:0].copy()
         stats.rows_out = 0

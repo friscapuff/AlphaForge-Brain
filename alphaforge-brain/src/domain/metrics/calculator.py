@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Callable, Protocol
 
+import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 
 class _MetadataProto(Protocol):  # pragma: no cover - structural typing only
@@ -41,33 +43,62 @@ def build_equity_curve(positions_df: pd.DataFrame) -> pd.DataFrame:
                 out[col] = []
         return out
 
-    if "equity" not in positions_df.columns:
-        raise ValueError("positions_df must contain 'equity' column")
+    required_cols = {"timestamp", "equity"}
+    missing_cols = required_cols.difference(positions_df.columns)
+    if missing_cols:
+        missing = ", ".join(sorted(missing_cols))
+        raise ValueError(f"positions_df missing required columns: {missing}")
 
-    eq = positions_df[["timestamp", "equity"]].copy()
+    timestamps = positions_df["timestamp"]
+    equity = positions_df["equity"]
+    eq = pd.DataFrame(
+        {
+            "timestamp": timestamps.to_numpy(copy=True),
+            "equity": pd.to_numeric(equity, errors="coerce"),
+        }
+    )
     eq.sort_values("timestamp", inplace=True)
-    eq["equity"] = eq["equity"].astype(float)
-    eq["return"] = eq["equity"].pct_change().fillna(0.0)
+    equity_values = eq["equity"].to_numpy(dtype=float)
+    returns = np.zeros_like(equity_values, dtype=float)
+    if equity_values.size > 1:
+        prev = equity_values[:-1]
+        curr = equity_values[1:]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.divide(
+                curr, prev, out=np.ones_like(curr, dtype=float), where=prev != 0.0
+            )
+        returns[1:] = ratio - 1.0
+    eq["return"] = returns
     return eq
 
 
-def _sharpe(returns: pd.Series) -> float:
-    if returns.empty:
+def _sharpe(returns: pd.Series | NDArray[np.float64]) -> float:
+    arr = np.asarray(returns, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
         return 0.0
-    mu = returns.mean()
-    sigma = returns.std(ddof=0)
-    if sigma == 0:
+    mu = float(np.nanmean(arr))
+    sigma = float(np.nanstd(arr, ddof=0))
+    if sigma == 0.0 or np.isnan(sigma):
         return 0.0
     # Assuming returns are per-bar; no annualization (can be added later)
     return float(mu / sigma)
 
 
-def _max_drawdown(equity: pd.Series) -> float:
-    if equity.empty:
+def _max_drawdown(equity: pd.Series | NDArray[np.float64]) -> float:
+    arr = np.asarray(equity, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
         return 0.0
-    running_max = equity.cummax()
-    drawdowns = (equity - running_max) / running_max
-    return float(drawdowns.min())  # negative number
+    running_max = np.maximum.accumulate(arr)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        drawdowns = np.divide(
+            arr - running_max,
+            running_max,
+            out=np.zeros_like(arr),
+            where=running_max != 0.0,
+        )
+    return float(np.min(drawdowns))  # negative number
 
 
 def compute_metrics(
@@ -113,9 +144,12 @@ def compute_metrics(
             base["anomaly_counters"] = counters
         return base
 
-    eq = equity_curve["equity"].astype(float)
-    total_return = float(eq.iloc[-1] / eq.iloc[0] - 1.0) if len(eq) > 0 else 0.0
-    sharpe_raw = _sharpe(equity_curve["return"].astype(float))
+    eq_values = np.asarray(equity_curve["equity"], dtype=float)
+    total_return = (
+        float(eq_values[-1] / eq_values[0] - 1.0) if eq_values.size > 0 else 0.0
+    )
+    returns = np.asarray(equity_curve["return"], dtype=float)
+    sharpe_raw = _sharpe(returns)
     # Attempt timeframe scaling (annualization) only if env flag set and metadata provides bar seconds
     bar_seconds: int | None = None
     if get_dataset_metadata is not None:
@@ -125,7 +159,7 @@ def compute_metrics(
         except Exception:
             bar_seconds = None
     sharpe = maybe_scale(sharpe_raw, bar_seconds)
-    max_dd = _max_drawdown(eq)
+    max_dd = _max_drawdown(eq_values)
     out: dict[str, Any] = {
         "total_return": total_return,
         "sharpe": sharpe,

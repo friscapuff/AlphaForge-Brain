@@ -14,6 +14,12 @@ This guide operationalizes the trust gate framework across ingest → transform 
 | Waiver records referencing trust gates (`WAIVERS.md`, attachments) | Active + 90-day expiry window | Primary repo (git) + cold storage copy within 24 hours | Expiry audit during weekly governance review |
 | Baseline & leak-catcher datasets | Per data governance policy (min 3 years) | Immutable artifact store (hash-addressed) | Regenerate with signed approval |
 
+**Retention Automation Defaults**
+
+- The canonical retention policy is versioned at `configs/retention/policy.yaml` (current version: `2025.10.13`). Use `poetry run alphaforge-brain retention policy inspect` to review limits and waiver requirements before a sweep.
+- Runtime breaches append structured JSON lines to `zz_artifacts/retention_breaches.log` and emit the `governance_event_total{event_type="retention_breach",reason=*}` Prometheus counter. Investigate and file a waiver before promoting affected runs.
+- Pin and unpin sensitive runs via `poetry run alphaforge-brain retention pin --run-hash <hash> --waiver-id <id>` and `poetry run alphaforge-brain retention unpin --run-hash <hash>`; each action records an audit event in `GOVERNANCE_AUDIT_PATH`.
+
 **Encryption Standard**
 - Local storage: BitLocker or LUKS with AES-256.
 - Cloud storage: S3/GCS buckets with default SSE-KMS or CMEK enforcing AES-256.

@@ -10,6 +10,7 @@ from .pipeline import (
     ValidationRuntimeConfig,
     execute_validation_modules,
 )
+from .status import determine_validation_status
 
 __all__ = [
     "BiasAdjustmentsCalculator",
@@ -22,4 +23,5 @@ __all__ = [
     "ValidationRuntimeConfig",
     "execute_validation_modules",
     "build_validation_context",
+    "determine_validation_status",
 ]

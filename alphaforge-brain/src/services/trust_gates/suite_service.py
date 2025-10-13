@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter
-from typing import Iterable, Mapping, MutableSequence, Sequence
+from typing import Callable, Iterable, Mapping, MutableSequence, Sequence, cast
 
+from prometheus_client import CollectorRegistry
+from services.audit.governance_logger import append_audit_log, record_governance_event
+
+from . import telemetry
 from .baseline import TrustGateBaseline, load_baseline
+from .config_loader import (
+    ToleranceConfigError,
+    ToleranceProfile,
+    load_tolerance_profile,
+)
 from .models import TrustGateResult, TrustGateSummary
 
 DEFAULT_GATE_ORDER = (
@@ -30,6 +41,8 @@ _GATE_MODULE_MAP = {
     "equity_reconciliation": "equity",
     "accounting": "accounting",
 }
+
+_TRUST_GATES_LATENCY_LOG = Path("zz_artifacts/governance/trust_gates_latency.jsonl")
 
 
 class UnknownGateError(ValueError):
@@ -65,11 +78,27 @@ class TrustGateSuiteService:
         candidate_manifest: Mapping[str, object] | None = None,
         run_id: str | None = None,
         config_hash: str | None = None,
+        registry: CollectorRegistry | None = None,
     ) -> TrustGateSummary:
+        metrics_registry = registry or telemetry.create_registry()
         gates = tuple(only) if only else DEFAULT_GATE_ORDER
         for gate in gates:
             if gate not in _GATE_MODULE_MAP:
                 raise UnknownGateError(f"Unknown trust gate: {gate}")
+
+        tolerance_profile: ToleranceProfile | None = None
+        try:
+            tolerance_profile = load_tolerance_profile(self._tolerance_profile)
+        except ToleranceConfigError as exc:
+            telemetry.emit_config_error(
+                registry=metrics_registry,
+                gate="causality",
+                profile=self._tolerance_profile,
+                reason=getattr(exc, "reason", "unknown"),
+            )
+            if not dry_run:
+                raise
+        manifest = candidate_manifest or self._baseline.manifest_snapshot
 
         suite_id_override = f"{run_id}:trust_suite" if run_id else None
         if dry_run:
@@ -83,8 +112,14 @@ class TrustGateSuiteService:
                 results=placeholder_results,
                 runtime_ms=0,
                 tolerance_profile=self._tolerance_profile,
+                tolerance_profile_version=(
+                    tolerance_profile.version if tolerance_profile else None
+                ),
+                tolerance_profile_hash=(
+                    tolerance_profile.config_hash if tolerance_profile else None
+                ),
                 report_path=None,
-                config_hash=config_hash,
+                config_hash=config_hash or self._baseline.config_hash,
                 enabled_gates=list(gates),
             )
             if suite_id_override:
@@ -94,23 +129,36 @@ class TrustGateSuiteService:
         results: MutableSequence[TrustGateResult] = []
         start = perf_counter()
 
-        manifest = candidate_manifest or self._baseline.manifest_snapshot
-
         for gate in gates:
             module_name = _GATE_MODULE_MAP[gate]
             module = importlib.import_module(
                 f"services.trust_gates.gates.{module_name}"
             )
-            evaluate = module.evaluate
-            if gate == "golden_run":
-                result = evaluate(candidate_manifest=manifest, baseline=self._baseline)
-            else:
-                result = evaluate(baseline=self._baseline)
+            evaluate = cast(Callable[..., TrustGateResult], module.evaluate)
+            parameters = inspect.signature(evaluate).parameters
+            kwargs: dict[str, object] = {}
+            if "baseline" in parameters:
+                kwargs["baseline"] = self._baseline
+            if "candidate_manifest" in parameters:
+                kwargs["candidate_manifest"] = manifest
+            if "tolerance_profile" in parameters and tolerance_profile is not None:
+                kwargs["tolerance_profile"] = tolerance_profile
+            gate_start = perf_counter()
+            result = evaluate(**kwargs)
             if not isinstance(result, TrustGateResult):
                 raise TypeError(
                     f"Gate '{gate}' returned unexpected type {type(result)!r}; expected TrustGateResult."
                 )
+            gate_duration_ms = int((perf_counter() - gate_start) * 1000)
+            result = replace(result, duration_ms=gate_duration_ms)
             results.append(result)
+            telemetry.emit_gate_metrics(
+                registry=metrics_registry,
+                gate=gate,
+                status=result.status,
+                duration_ms=gate_duration_ms,
+                profile=self._tolerance_profile,
+            )
 
         runtime_ms = int((perf_counter() - start) * 1000)
         status = "pass" if all(not result.is_failure for result in results) else "fail"
@@ -119,10 +167,39 @@ class TrustGateSuiteService:
             results=list(results),
             runtime_ms=runtime_ms,
             tolerance_profile=self._tolerance_profile,
+            tolerance_profile_version=(
+                tolerance_profile.version if tolerance_profile else None
+            ),
+            tolerance_profile_hash=(
+                tolerance_profile.config_hash if tolerance_profile else None
+            ),
             report_path=None,
             config_hash=config_hash or self._baseline.config_hash,
             enabled_gates=list(gates),
         )
         if suite_id_override:
             summary = replace(summary, suite_id=suite_id_override)
+
+        details_payload: dict[str, object] = {
+            "run_id": run_id,
+            "status": status,
+            "runtime_ms": runtime_ms,
+            "threshold_ms": 5000,
+            "within_sla": runtime_ms <= 5000,
+            "tolerance_profile": self._tolerance_profile,
+            "tolerance_profile_version": summary.tolerance_profile_version,
+            "tolerance_profile_hash": summary.tolerance_profile_hash,
+            "config_hash": summary.config_hash,
+            "enabled_gates": summary.enabled_gates,
+        }
+        latency_payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "message": "trust_gates.suite_runtime",
+            "details": details_payload,
+        }
+        append_audit_log(payload=latency_payload, audit_path=_TRUST_GATES_LATENCY_LOG)
+        record_governance_event(
+            message="trust_gates.suite_runtime",
+            details=details_payload,
+        )
         return summary

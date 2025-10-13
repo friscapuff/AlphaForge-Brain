@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2025-01-01T00:00:00+00:00",
+  "run": {
+    "run_hash": "RUN_HASH_0001",
+    "config_hash": "CFG_HASH_0001",
+    "tolerance_profile": "causality-default",
+    "tolerance_profile_version": "1.0.0",
+    "trust_gate": {
+      "gates": [
+        {
+          "name": "causality",
+          "sha256": "dfd2c88c9d98f8e0d8db9437721e3f5eb7e95ad4e6d3568b9db7f91f0c1cd210",
+          "artifact": "zz_artifacts/trust_gates/causality_report.json",
+          "correlation_id": "gate-causality-0001"
+        }
+      ],
+      "metrics": {
+        "trust_gate_failure": 0,
+        "trust_gate_config_error": 0
+      }
+    },
+    "validation": {
+      "permutation_p_value": 0.012,
+      "cpcv_p_value": 0.018,
+      "icc_width": 0.007,
+      "status": "PASSED",
+      "evidence_artifact": "zz_artifacts/validation/RUN_HASH_0001.json"
+    }
+  }
+}

@@ -68,8 +68,7 @@ def load_json_file(path: Path) -> tuple[dict[str, Any], str]:
 def load_baseline_from_git(path: Path, ref: str) -> tuple[dict[str, Any], str]:
     result = subprocess.run(
         ["git", "show", f"{ref}:{path.as_posix()}"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
         check=False,
     )

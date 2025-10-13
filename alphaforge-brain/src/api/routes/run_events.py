@@ -95,16 +95,17 @@ async def _stream(
         trust_gate_summary = rec.get("trust_gate_summary")
         trust_gate_event_bytes = None
         if isinstance(trust_gate_summary, dict):
+            suite_status = trust_gate_summary.get("status")
             failed_gates = []
             for gate in trust_gate_summary.get("gates", []):
                 if not isinstance(gate, dict):
                     continue
-                status_value = gate.get("status")
-                if status_value not in {"fail", "warn"}:
+                gate_status = gate.get("status")
+                if gate_status not in {"fail", "warn"}:
                     continue
                 entry = {
                     "name": gate.get("name"),
-                    "status": status_value,
+                    "status": gate_status,
                     "correlation_id": gate.get("correlation_id"),
                 }
                 diagnostics = gate.get("diagnostics")
@@ -116,19 +117,20 @@ async def _stream(
                 if waiver:
                     entry["waiver_ref"] = waiver
                 failed_gates.append(entry)
-            trust_gate_event_bytes = _event(
-                2,
-                "run.update",
-                {
-                    "run_id": run_hash,
-                    "section": "trust_gate",
-                    "payload": {
-                        "status": trust_gate_summary.get("status"),
-                        "executed_at": trust_gate_summary.get("executed_at"),
-                        "failed_gates": failed_gates,
+            if failed_gates or suite_status not in {None, "pass"}:
+                trust_gate_event_bytes = _event(
+                    2,
+                    "run.update",
+                    {
+                        "run_id": run_hash,
+                        "section": "trust_gate",
+                        "payload": {
+                            "status": suite_status,
+                            "executed_at": trust_gate_summary.get("executed_at"),
+                            "failed_gates": failed_gates,
+                        },
                     },
-                },
-            ).encode()
+                ).encode()
 
         def _yield_snapshot(event_id: int) -> bytes:
             validation_v2_inner = rec.get("validation_v2")
@@ -197,6 +199,9 @@ async def _stream(
                 ),
                 "validation_correlation_id": f"{run_hash}:validation_snapshot",
                 "status": status,
+                "trust_gate_summary": (
+                    trust_gate_summary if isinstance(trust_gate_summary, dict) else None
+                ),
             }
             return _event(event_id, "snapshot", snapshot_inner).encode()
 

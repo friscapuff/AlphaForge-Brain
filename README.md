@@ -175,6 +175,18 @@ Masters permutation, bias adjustments, cross-validation, and execution realism s
 
   The operational runbook, waiver workflow, and attestation templates live in `docs/operations/trust_gates.md`.
 
+### Governance Quickstart Evidence (Phase 6, 2025-10-13)
+
+Phase 6 revalidated the full governance quickstart so contributors can cite concrete SLA evidence without rerunning the suite from scratch. All commands referenced below are catalogued in `specs/013-testing-governance-hardening/quickstart.md`; their latest outputs live under `zz_artifacts/governance/`.
+
+- **Trust gate SLA (SC-001)** — `zz_artifacts/governance/trust_gates_latency.jsonl` recorded 13 suite executions with a **mean 4.15 ms** and **p95 9 ms**, safely under the 5 s ceiling. Metrics stream through the governance logger and Prometheus snapshot `zz_artifacts/trust_gate_metrics.prom`.
+- **Persistence write guard (SC-002)** — `zz_artifacts/governance/persistence_latency.jsonl` captured the schema-validated insert at **57 ms** versus the 1 s limit. The entry includes the validation record ID for replaying the exact payload.
+- **Retention CLI (SC-004)** — `zz_artifacts/governance/retention_cli_latency.jsonl` contains six audited runs (`policy inspect`, `pin`, `unpin`) averaging **21.17 ms** with a 23 ms maximum (<5 s). Each record includes the policy version (`2025.10.13`) and waiver context.
+- **Import guard smoke** — `zz_artifacts/governance/import_guard_smoke.jsonl` shows the runtime block executing in **≈139 ms** (p95 141 ms) against the 1 s floor, with the blocked module prefix normalized per Phase 5 test tweaks.
+- **Benchmark parity** — `zz_artifacts/perf_latest.json` is refreshed from the Phase 6 warmup + five-iteration run. The embedded `perf_sla` stanza reports `trust_gates` mean and p95 spans alongside the baseline multiplier so SC-001 cross-checks stay reproducible.
+
+When onboarding new reviewers, link these artifacts plus the Phase 6 governance checklist in `specs/013-testing-governance-hardening/tasks.md` so they can confirm evidence freshness.
+
 ### Frontend Contract Governance
 
 - **Baseline snapshot**: The frozen OpenAPI reference lives at `contracts/frontend_contract.baseline.json`. Update this file whenever the backend schema intentionally changes and regenerate the TypeScript client in `alphaforge-mind`.

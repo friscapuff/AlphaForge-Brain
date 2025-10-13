@@ -26,6 +26,7 @@ def test_trust_gate_metrics_emit_structlog_and_prometheus() -> None:
             gate="golden_run",
             status="pass",
             duration_ms=1234,
+            profile="institutional_default",
         )
 
     assert any(entry.get("event") == "trust_gate.result" for entry in logs)
@@ -35,3 +36,9 @@ def test_trust_gate_metrics_emit_structlog_and_prometheus() -> None:
         labels={"gate": "golden_run", "status": "pass"},
     )
     assert sample == 1.0
+
+    failure_counter = registry.get_sample_value(
+        "trust_gate_failure_total",
+        labels={"gate": "golden_run", "profile": "institutional_default"},
+    )
+    assert failure_counter == 0.0
