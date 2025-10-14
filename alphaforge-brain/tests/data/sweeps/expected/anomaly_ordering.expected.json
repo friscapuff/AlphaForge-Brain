@@ -1,0 +1,21 @@
+{
+  "scenario_id": "anomaly-ordering-drift",
+  "ticker": "BETA",
+  "input_payload_hash": "cafe2210be",
+  "expected_ordering": [
+    "BETA::001",
+    "BETA::002",
+    "BETA::003"
+  ],
+  "observed_ordering": [
+    "BETA::001",
+    "BETA::003",
+    "BETA::002"
+  ],
+  "cap_status": "pass",
+  "anomaly_flags": [
+    "ordering_mismatch",
+    "unexpected_variance"
+  ],
+  "runbook_link": "https://github.com/alphaforge/docs/operations/trust_gates.md#sweep-anomaly-investigation"
+}

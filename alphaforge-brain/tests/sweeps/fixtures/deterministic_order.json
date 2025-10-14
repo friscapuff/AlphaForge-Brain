@@ -1,0 +1,20 @@
+{
+  "scenario_id": "deterministic-baseline-validation",
+  "ticker": "GAMMA",
+  "input_payload_hash": "0ddc0ffee5",
+  "expected_ordering": [
+    "GAMMA::A",
+    "GAMMA::B",
+    "GAMMA::C"
+  ],
+  "observed": {
+    "ordering": [
+      "GAMMA::A",
+      "GAMMA::B",
+      "GAMMA::C"
+    ],
+    "cap_hit": false,
+    "anomalies": []
+  },
+  "runbook_link": "https://github.com/alphaforge/docs/operations/trust_gates.md#deterministic-ordering"
+}

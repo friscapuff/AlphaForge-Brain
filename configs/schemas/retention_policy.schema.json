@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://alphaforge.dev/schemas/retention_policy.schema.json",
+  "title": "Retention Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policy_version",
+    "max_runs",
+    "per_strategy_top",
+    "pin_expiry_days",
+    "waiver_required",
+    "audit_log_path",
+    "breach_log_path",
+    "metric_labels"
+  ],
+  "properties": {
+    "policy_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "max_runs": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "per_strategy_top": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "pin_expiry_days": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "waiver_required": {
+      "type": "boolean"
+    },
+    "audit_log_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "breach_log_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metric_labels": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    }
+  }
+}

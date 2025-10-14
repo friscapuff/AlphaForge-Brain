@@ -33,6 +33,7 @@ rich = "13.9.2"                # Dev-time pretty logs / CLI (runtime safe)
 python-dotenv = "1.0.1"        # Env file loading
 typing-extensions = "4.12.2"
 prometheus-client = "0.20.0"    # /metrics exposure and counters (FR-012)
+jsonschema = "4.23.0"
 # NOTE: Pin numpy exactly to keep deterministic behavior across environments.
 numpy = "2.2.6"            # Update infra/version_pins.py & tests when changing this pin
 pandas = "2.2.3"            # Aligned with numpy 2.1.x; pandas-ta 0.4.67 requires >=2.2.0 but works with 2.2.3
@@ -63,6 +64,7 @@ Pillow = { version = "10.4.0", optional = true }  # (indicators with image expor
 # pandas-ta requires Python >=3.12 in current releases; gate it so 3.11 users aren't broken.
 # Users on 3.12+ can install via: poetry install --with indicators (see [tool.poetry.extras]).
 "pandas-ta" = { version = "0.4.71b0", python = ">=3.12", optional = true }
+pyyaml = "6.0.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.3.2"
@@ -76,7 +78,6 @@ mypy = "1.11.2"
 types-requests = "2.32.0.20240914"  # Type stubs
 types-python-dateutil = "2.9.0.20240906"
 pre-commit = "3.8.0"
-jsonschema = "4.23.0"
 
 [tool.poetry.scripts]
 api = "api.app:app"            # For uvicorn: poetry run uvicorn api.app:app --reload

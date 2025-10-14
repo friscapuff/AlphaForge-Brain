@@ -1,0 +1,84 @@
+name: Benchmark Guardrails
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark-alerts:
+    runs-on: ubuntu-latest
+    env:
+      POETRY_VIRTUALENVS_CREATE: 'true'
+      POETRY_VIRTUALENVS_IN_PROJECT: 'true'
+      GOVERNANCE_ALERT_ENDPOINT: ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: poetry
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Install dependencies
+        run: |
+          poetry install --no-interaction --no-root
+
+      - name: Run benchmark harness
+        run: |
+          poetry run python scripts/bench/perf_run.py \
+            --iterations 5 \
+            --warmup 1 \
+            --output zz_artifacts/perf_latest.json
+
+      - name: Generate validation profiling report
+        run: |
+          poetry run python scripts/bench/profiling/run_validation_profiling.py \
+            --input zz_artifacts/perf_latest.json \
+            --output zz_artifacts/governance/validation_report.json \
+            --baseline artifacts/perf_baseline.json \
+            --recommendation "Investigate top validation bottlenecks"
+
+      - name: Compare against baseline
+        id: compare
+        run: |
+          CMD="poetry run python scripts/bench/compare_baseline.py \
+            --baseline artifacts/perf_baseline.json \
+            --latest zz_artifacts/perf_latest.json \
+            --alert-log zz_artifacts/governance/benchmark_alert.jsonl"
+          if [ -n "${GOVERNANCE_ALERT_ENDPOINT}" ]; then
+            CMD="$CMD --api-endpoint ${GOVERNANCE_ALERT_ENDPOINT}"
+          fi
+          echo "Running: $CMD"
+          outcome=$($CMD)
+          echo "$outcome"
+          status=$(echo "$outcome" | jq -r '.status // "unknown"')
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-governance
+          path: |
+            zz_artifacts/perf_latest.json
+            zz_artifacts/governance/validation_report.json
+            zz_artifacts/governance/benchmark_alert.jsonl
+
+      - name: Notify on alert without endpoint
+        if: steps.compare.outputs.status == 'alert' && env.GOVERNANCE_ALERT_ENDPOINT == ''
+        run: |
+          echo "Benchmark regression detected but no governance endpoint configured." >&2
+          exit 1

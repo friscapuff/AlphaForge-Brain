@@ -1,27 +1,39 @@
 schema_version: trust_gate_tolerances.v1
 profile_id: causality-default
 version: "2025.10.12"
+updated_at: "2025-10-14"
+description: >-
+  Causality guardrail tolerance profile enforcing stricter leakage, drift, and
+  Sharpe floors for Masters validation runs derived from the institutional
+  default baseline.
 metadata:
-  owner: governance
+  maintained_by: governance
   fr_references:
     - FR-001
     - FR-002
+    - FR-211
   notes:
     - Derived from institutional_default baseline with stricter leak thresholds.
-    - Updates require governance waiver per WAIVERS.md
+    - Updates require governance waiver per WAIVERS.md.
+    - Aligns with Operational Guardrail Remediation (Phase 4) outcomes.
+  gate_defaults:
+    causality_guardrails:
+      max_leakage_score: 0.05
+      max_equity_drift: 0.01
+      sharpe_floor: 1.0
 metrics:
   leakage_score:
     comparator: "<="
     threshold: 0.05
     severity: fail
-    description: Permutation leakage score must not exceed 5%
+    description: Permutation leakage score must not exceed 5%.
   equity_drift:
     comparator: "<="
     threshold: 0.01
     severity: fail
-    description: Equity drift must remain within 1% of baseline
+    description: Equity drift must remain within 1% of baseline.
   sharpe_ratio:
     comparator: ">="
     threshold: 1.0
     severity: fail
-    description: Sharpe ratio must remain above 1.0
+    description: Sharpe ratio must remain above 1.0.

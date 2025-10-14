@@ -23,9 +23,12 @@ Scope: alphaforge-brain/src/services/adapters/trades.py
 Rationale: Retain adapter layer while parity tests (T070/T095) mature and clients migrate.
 Risk: Confusion due to dual trade model paths; drift if adapters receive fixes.
 Mitigations: Mark module deprecated; add tests to ensure non-export of legacy types (T095); roadmap timeline below.
+Opened: 2025-07-01
 Expires: 2026-01-31
 Owner: core
 Status: EXPIRED (2025-10-05)
+
+Next Action: Document post-migration cleanup in governance tracker
 
 Closure: Adapters removed in Phase 7 (T070), legacy exports swept (T095 enforced). Flags hard-enabled (T071); docs updated (T073).
 

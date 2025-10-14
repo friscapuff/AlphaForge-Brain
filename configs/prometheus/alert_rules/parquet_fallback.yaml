@@ -1,0 +1,15 @@
+groups:
+  - name: cache-doctor
+    rules:
+      - alert: ParquetFallbackDetected
+        expr: cache_parquet_fallback_active > 0
+        for: 5m
+        labels:
+          severity: page
+          service: cache-doctor
+        annotations:
+          summary: "CSV fallback detected in cache"
+          description: |
+            Cache doctor observed {{ $value | humanize }} CSV fallback file(s) under root {{ $labels.root }}.
+            Investigate parquet write failures and restore parquet availability.
+          runbook_url: https://github.com/alphaforge/docs/operations/trust_gates.md#parquet-fallback-response

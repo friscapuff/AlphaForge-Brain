@@ -1,0 +1,112 @@
+openapi: 3.0.3
+info:
+  title: Governance Alerting API
+  version: 0.1.0
+paths:
+  /api/internal/governance/benchmark-alerts:
+    post:
+      summary: Submit benchmark trend alert record
+      operationId: createBenchmarkTrendAlert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BenchmarkTrendAlert'
+      responses:
+        '202':
+          description: Alert accepted for processing
+        '400':
+          description: Validation error
+  /api/internal/governance/waiver-cadence:
+    post:
+      summary: Update waiver cadence snapshot
+      operationId: updateWaiverCadence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaiverCadenceSnapshot'
+      responses:
+        '200':
+          description: Snapshot persisted
+        '400':
+          description: Validation error
+components:
+  schemas:
+    BenchmarkTrendAlert:
+      type: object
+      required:
+        - alert_id
+        - generated_at
+        - metric_key
+        - baseline_ms
+        - observed_ms
+        - delta_pct
+        - ticket_url
+        - status
+      properties:
+        alert_id:
+          type: string
+          format: uuid
+        generated_at:
+          type: string
+          format: date-time
+        metric_key:
+          type: string
+        baseline_ms:
+          type: number
+          format: float
+        observed_ms:
+          type: number
+          format: float
+        delta_pct:
+          type: number
+          format: float
+          minimum: 10
+        ticket_url:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [open, acknowledged, resolved]
+    WaiverCadenceSnapshot:
+      type: object
+      required:
+        - generated_at
+        - items
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WaiverCadenceRecord'
+    WaiverCadenceRecord:
+      type: object
+      required:
+        - waiver_id
+        - fr_ids
+        - opened_at
+        - age_days
+        - escalation_status
+      properties:
+        waiver_id:
+          type: string
+        fr_ids:
+          type: array
+          items:
+            type: string
+        opened_at:
+          type: string
+          format: date
+        age_days:
+          type: integer
+          minimum: 0
+        escalation_status:
+          type: string
+          enum: [normal, warning, escalated]
+        next_action:
+          type: string

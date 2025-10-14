@@ -1,0 +1,20 @@
+{
+  "scenario_id": "partial-cap-limit-enforced",
+  "ticker": "ALPHA",
+  "input_payload_hash": "fbad1dadde",
+  "expected_ordering": [
+    "ALPHA::BASE",
+    "ALPHA::TILT"
+  ],
+  "observed": {
+    "ordering": [
+      "ALPHA::BASE",
+      "ALPHA::TILT"
+    ],
+    "cap_hit": true,
+    "anomalies": [
+      "partial_execution"
+    ]
+  },
+  "runbook_link": "https://github.com/alphaforge/docs/operations/validation_backfill.md#partial-cap-remediation"
+}

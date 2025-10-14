@@ -1,0 +1,16 @@
+# Files and directories to exclude from npm package
+node_modules/
+dist/
+build/
+coverage/
+artifacts/
+zz_artifacts/
+.cache/
+.vscode/
+.idea/
+*.log
+*.tmp
+.env
+docs/
+tests/
+playwright-report/

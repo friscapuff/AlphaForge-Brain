@@ -147,6 +147,37 @@ After the reruns complete:
    ```
    Archive the JSON with your runbook notes; it now represents a post-backfill benchmark.
 
+## Sweep Acceptance Evidence (FR-006 / SC-006)
+
+Run the deterministic sweep acceptance suite once Masters validation backfill completes. The suite ensures the mitigation catalogue remains auditable and that sweep behaviour complies with FR-006 (multi-ticker acceptance coverage) and SC-006 (evidence published within one business day).
+
+```powershell
+poetry run pytest alphaforge-brain/tests/sweeps/test_acceptance.py
+poetry run python - <<'PY'
+from services.orchestration import sweep_acceptance
+
+sweep_acceptance.run_acceptance_suite()
+PY
+```
+
+The second command writes `zz_artifacts/governance/sweep_acceptance.json`, a signed-off ledger of `SweepAcceptanceResult` entries. Attach the JSON (or its hash) to the weekly governance packet.
+
+### Partial Cap Remediation
+
+Scenario **`partial-cap-limit-enforced`** demonstrates that combination caps reject excess permutations while preserving deterministic ordering. The acceptance suite verifies:
+
+- `cap_status` resolves to `hit` when the observed manifest records a cap breach.
+- Associated anomaly flag `partial_execution` is routed to the governance dashboard.
+- Runbook reference: https://github.com/alphaforge/docs/operations/validation_backfill.md#partial-cap-remediation (this section) must be cited in post-mortems.
+- Compliance notes: satisfies FR-006 evidence requirement for partial-cap guardrails.
+
+### Deterministic Ordering
+
+Scenario **`deterministic-baseline-validation`** provides the control sample for expected vs observed ordering. Operators should reconfirm that no anomaly flags are emitted and that ordering arrays stay byte-for-byte identical. Any drift requires a baseline refresh or regression analysis before sweeps continue.
+
+The anomaly scenario (**`anomaly-ordering-drift`**) is documented in the trust gate guide (§Sweep Anomaly Investigation) and links back into this playbook through the governance evidence bundle produced above.
+Compliance notes: satisfies SC-006 deterministic ordering requirement for the baseline scenario.
+
 ## Rollback Plan
 - Restore the `studio.db` backup taken in prerequisites.
 - Remove any newly created `artifacts/<RUN_HASH>` directories if they conflict with older copies.

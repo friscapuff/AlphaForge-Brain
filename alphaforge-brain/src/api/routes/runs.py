@@ -7,7 +7,7 @@ from collections.abc import Mapping
 # parameter. We intentionally preserve this canonical style for clarity and
 # tooling compatibility; rule B008 would otherwise flag each endpoint.
 from datetime import datetime, timezone
-from typing import Any, Union
+from typing import Any, Union, cast
 
 from api.errors import sweep_limit_hit_error
 from api.errors_contract import ErrorResponse
@@ -30,7 +30,7 @@ from domain.run.retention_policy import (
     plan_retention,
 )
 from domain.schemas.run_config import RunConfig
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from lib.artifacts import artifact_index
 from models.parameter_definition import (
@@ -98,11 +98,65 @@ def _registry(request: Request) -> InMemoryRunRegistry:
 
 @router.post("/runs", response_model=RunCreateResponse)
 async def post_run(
-    request: Request,
     response: Response,
+    payload_obj: dict[str, Any] | None = Body(
+        None,
+        description="Run submission payload supporting single-run and sweep executions.",
+        examples=cast(
+            Any,
+            {
+                "single_run": {
+                    "summary": "Run a single deterministic configuration",
+                    "value": {
+                        "start": "2024-01-01",
+                        "end": "2024-01-07",
+                        "symbol": "DET",
+                        "timeframe": "1m",
+                        "strategy": {
+                            "name": "dual_sma",
+                            "parameters": {
+                                "fast": {"mode": "single", "value": 5},
+                                "slow": {"mode": "single", "value": 30},
+                            },
+                        },
+                        "risk": {
+                            "model": "fixed_fraction",
+                            "params": {"fraction": 0.1},
+                        },
+                        "execution": {"mode": "sim", "slippage_bps": 0, "fee_bps": 0},
+                    },
+                },
+                "sweep": {
+                    "summary": "Submit a parameter sweep across multiple combinations",
+                    "value": {
+                        "start": "2024-01-01",
+                        "end": "2024-01-07",
+                        "symbol": "DET",
+                        "timeframe": "1m",
+                        "strategy": {
+                            "name": "dual_sma",
+                            "parameters": {
+                                "fast": {"mode": "list", "values": [5, 8]},
+                                "slow": {
+                                    "mode": "range",
+                                    "range": {"start": 30, "stop": 61, "step": 15},
+                                },
+                            },
+                        },
+                        "risk": {
+                            "model": "fixed_fraction",
+                            "params": {"fraction": 0.1},
+                        },
+                        "execution": {"mode": "sim", "slippage_bps": 0, "fee_bps": 0},
+                    },
+                },
+            },
+        ),
+    ),
     registry: InMemoryRunRegistry = Depends(_registry),
 ) -> RunCreateResponse | JSONResponse:  # T050/T009 sweep extension
-    payload_obj = await request.json()
+    if payload_obj is None:
+        raise HTTPException(status_code=422, detail="request body is required")
     if not isinstance(payload_obj, Mapping):  # defensive payload validation
         raise HTTPException(status_code=422, detail="payload must be an object")
 

@@ -1,0 +1,75 @@
+name: Governance Validation
+
+on:
+  pull_request:
+    paths:
+      - 'configs/**'
+      - 'WAIVERS.md'
+      - 'scripts/ci/validate_configs.py'
+      - 'scripts/ci/waiver_cadence.py'
+      - 'scripts/ci/publish_dashboard_metrics.py'
+      - '.github/workflows/governance.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'configs/**'
+      - 'WAIVERS.md'
+      - 'scripts/ci/validate_configs.py'
+      - 'scripts/ci/waiver_cadence.py'
+      - 'scripts/ci/publish_dashboard_metrics.py'
+  schedule:
+    - cron: '30 6 * * 1-5'
+
+permissions:
+  contents: read
+
+jobs:
+  governance:
+    name: Governance safeguards
+    runs-on: ubuntu-latest
+    env:
+      POETRY_VIRTUALENVS_CREATE: 'true'
+      POETRY_VIRTUALENVS_IN_PROJECT: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: poetry
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Install dependencies
+        run: |
+          poetry install --no-interaction --no-root
+
+      - name: Validate governance configurations
+        run: |
+          poetry run python scripts/ci/validate_configs.py --change-log configs/CONFIG_CHANGELOG.md
+
+      - name: Generate waiver cadence snapshot
+        run: |
+          poetry run python scripts/ci/waiver_cadence.py --waivers WAIVERS.md --out zz_artifacts/governance/waiver_cadence.json
+
+      - name: Publish dashboard metrics
+        run: |
+          poetry run python scripts/ci/publish_dashboard_metrics.py --cadence zz_artifacts/governance/waiver_cadence.json --out zz_artifacts/governance/dashboard_metrics.prom
+
+      - name: Upload governance artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-artifacts
+          path: |
+            zz_artifacts/governance/waiver_cadence.json
+            zz_artifacts/governance/dashboard_metrics.prom
+            zz_artifacts/governance/config_validation_summary.json
