@@ -147,6 +147,37 @@ Purpose: Re-validate signed artifacts quarterly and capture diff evidence.
 4. File or update the governance incident ticket referenced by the benchmark alert automation; attach remediation notes and affected run hashes.
 5. Once resolved, annotate the cache doctor alert log with the resolution timestamp and ensure dashboards show the gauge back at 0. Close the alert in Alertmanager and notify the release steward during the next operations standup.
 
+### Runtime Import Guard Troubleshooting *(add before 2025-10-31 per constitution XI)*
+
+The runtime import hook and lint rules enforce the dual-root boundary. When either surface a violation, act immediately to preserve determinism and governance guarantees.
+
+1. **Detect & Classify**
+   - Runtime failures raise `RuntimeImportGuardError` (Brain importing Mind) or `CrossRootImportViolation`. Capture the full traceback and offending module path.
+   - Lint failures originate from `scripts/ci/check_cross_root.py` or Ruff plugin `AFB999` (placeholder). Record the file + import statement.
+   - File an incident ticket with severity `guardrail` and link the failure evidence.
+2. **Verify Guard Configuration**
+   - Ensure `ALPHAFORGE_RUNTIME_IMPORT_GUARD=1` (default via `.env.ci`). For local repro run:
+     ```powershell
+     $env:ALPHAFORGE_RUNTIME_IMPORT_GUARD = "1"
+     poetry run pytest tests/imports/test_cross_root_guard_runtime.py
+     ```
+   - Re-run the static check: `poetry run python scripts/ci/check_cross_root.py --fail-on-warning`.
+3. **Remediate Offending Import**
+   - Relocate shared logic into `shared/` (must remain dependency-light) or publish an explicit contract (OpenAPI/artifact).
+   - Update callers to consume the contract/utility. Verify no residual imports remain across the roots.
+4. **Re-run Guards & Document**
+   - Execute the runtime test again plus the lint script. Confirm zero violations and update the incident ticket with remediation summary.
+   - Append a note to `docs/operations/trust_gates.md` Automation Appendix if artifacts were regenerated and link any waivers if temporary exceptions were required.
+5. **Escalation Path**
+   - If the guard keeps firing or requires a temporary waiver, record it in `WAIVERS.md` with expiry ≤45 days and notify architecture reviewers at the weekly governance standup.
+   - For third-party dependencies causing dynamic imports, coordinate with Platform Engineering to sandbox or shim the behavior before re-enabling the guard.
+
+Checklist before closing the incident:
+- [ ] Static check passes (`scripts/ci/check_cross_root.py`).
+- [ ] Runtime test passes (`tests/imports/test_cross_root_guard_runtime.py`).
+- [ ] No waivers older than 45 days remain open for the guard.
+- [ ] Contract documentation (README, quickstart, runbook) references any new integration paths.
+
 ### Quarterly Maintenance
 1. Execute hash rotation script:
    ```powershell

@@ -15,6 +15,11 @@ The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) a
 ### Benchmark Status
 - `poetry run python scripts/bench/perf_run.py --iterations 5 --warmup 1` (2025-10-14) emitted `trust_gates` mean **2157.6 ms** vs baseline **28.49 ms** (≈75.8× slower), breaching the SC-002 ≤10% overhead target; remediation required before release.
 
+### Phase 6 Polish (2025-10-14)
+- T028 (FR-001, FR-004): Quickstart refreshed with verified commands for the perf harness, profiling report generation, parquet doctor instrumentation, and benchmark delta checks (documented `PYTHONPATH` requirement and `--latest` flag usage).
+- T029 (FR-001, FR-005): Captured fresh governance evidence in `zz_artifacts/profiling/latest.json` and `zz_artifacts/governance/waiver_cadence.json` to seed dashboards and audit trails.
+- T030 (FR-007, FR-008): Logged Operational Guardrail Remediation summary and evidence links here to support release readiness and compliance sign-off.
+
 ## [0.3.2-dev] - 2025-09-25
 ### Phase 7 Updates (2025-10-05)
 - T070: Removed deprecated trade adapters and legacy Trade model usage. Adapters module now raises ImportError; services refactored to duck-type.

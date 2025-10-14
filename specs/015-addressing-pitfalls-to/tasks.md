@@ -115,9 +115,9 @@ description: "Task list for implementing Operational Guardrail Remediation"
 
 **Purpose**: Finalize documentation, artifacts, and release notes.
 
-- [ ] T028 [Polish] Sync `quickstart.md` steps by dry-running new scripts and adjusting commands as needed.
-- [ ] T029 [Polish] Generate sample artifacts (`zz_artifacts/profiling/latest.json`, `zz_artifacts/governance/waiver_cadence.json`) and attach to governance evidence directory.
-- [ ] T030 [Polish] Update `CHANGELOG.md` with summary of operational guardrail remediation work and cite relevant FR IDs.
+- [X] T028 [Polish] Sync `quickstart.md` steps by dry-running new scripts and adjusting commands as needed. (Verified commands for perf harness, profiling report, cache doctor, and baseline diff.)
+- [X] T029 [Polish] Generate sample artifacts (`zz_artifacts/profiling/latest.json`, `zz_artifacts/governance/waiver_cadence.json`) and attach to governance evidence directory. (Artifacts regenerated 2025-10-14 UTC.)
+- [X] T030 [Polish] Update `CHANGELOG.md` with summary of operational guardrail remediation work and cite relevant FR IDs. (Phase 6 polish entry added under 0.3.3-dev.)
 
 ---
 

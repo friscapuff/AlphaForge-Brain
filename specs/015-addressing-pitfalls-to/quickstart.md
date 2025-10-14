@@ -11,17 +11,17 @@
    ```powershell
    poetry install --with dev
    ```
-2. Run profiling instrumentation script:
-   ```powershell
-   poetry run python scripts/bench/profiling/run_validation_profiling.py --iterations 5 --output zz_artifacts/profiling/latest.json
-   ```
-3. Regenerate benchmark baseline trend artifacts:
+2. Regenerate benchmark payload that feeds profiling (full run recommended for evidence; use `--iterations 1 --warmup 0` for a quick smoke):
    ```powershell
    poetry run python scripts/bench/perf_run.py --iterations 5 --warmup 1 --output zz_artifacts/perf_latest.json
    ```
-4. Verify runtime guardrail:
+3. Build the validation performance report from the latest payload (set `--input` if you saved the payload elsewhere; override `--output` to capture under `zz_artifacts/profiling/latest.json`):
    ```powershell
-   poetry run python scripts/bench/compare_baseline.py --baseline artifacts/perf_baseline.json --current zz_artifacts/perf_latest.json
+   poetry run python scripts/bench/profiling/run_validation_profiling.py --input zz_artifacts/perf_latest.json --output zz_artifacts/profiling/latest.json
+   ```
+4. Verify runtime guardrail and capture alert status:
+   ```powershell
+   poetry run python scripts/bench/compare_baseline.py --baseline artifacts/perf_baseline.json --latest zz_artifacts/perf_latest.json
    ```
    Ensure delta ≤ 10%.
 
@@ -34,9 +34,9 @@
 3. Add GitHub Actions step before test jobs to execute the script and check for signed change logs.
 
 ## Step 3: Observability & Alerts
-1. Extend parquet doctor instrumentation:
+1. Extend parquet doctor instrumentation (set `PYTHONPATH` so package-relative imports resolve):
    ```powershell
-   poetry run python infra/cache/doctor.py --root cache/candles --emit-metrics
+   set PYTHONPATH=alphaforge-brain\src; poetry run python -m infra.cache.doctor --root cache/candles
    ```
 2. Confirm Prometheus scrapable metrics are present and Alertmanager rule `ParquetFallbackHigh` is active.
 3. Trigger test fallback alert (simulate or use staging) and verify paging notification within 5 minutes.
@@ -59,7 +59,7 @@
 ## Step 6: Documentation & Runbook Update
 1. Update `docs/operations/trust_gates.md` and `docs/operations/validation_backfill.md` with mitigation references.
 2. Add new runbook section mapping each mitigation to FR/SC IDs.
-3. Attach outputs (profiling report, alert screenshots, cadence summary) to governance artifacts under `zz_artifacts/governance/`.
+3. Attach outputs (profiling report in `zz_artifacts/profiling/latest.json`, alert screenshots, cadence summary in `zz_artifacts/governance/waiver_cadence.json`) to the governance evidence directory.
 
 ## Verification Checklist
 - [ ] Validation runtime ≤ 110% baseline for last 30 days
