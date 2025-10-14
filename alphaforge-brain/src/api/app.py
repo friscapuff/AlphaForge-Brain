@@ -284,6 +284,13 @@ def create_app() -> FastAPI:
         app.include_router(runs_router)
     except Exception:  # pragma: no cover
         pass
+    # Sweep status endpoint (US2)
+    try:  # pragma: no cover - defensive
+        from api.routes.sweeps import router as sweeps_router
+
+        app.include_router(sweeps_router)
+    except Exception:
+        pass
     # Existing SSE routes (run_events) already mounted earlier (legacy). Future refactor will consolidate.
 
     # (Existing artifact endpoints removed here; future T055+ will reintroduce refined versions.)

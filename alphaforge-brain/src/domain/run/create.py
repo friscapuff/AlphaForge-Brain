@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import copy
 import threading
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Mapping
 
 from domain.run.event_buffer import get_global_buffer
 from domain.schemas.run_config import RunConfig
@@ -17,6 +19,54 @@ from infra.persistence import (
 from infra.utils.hash import hash_canonical
 
 from .orchestrator import orchestrate
+
+
+def _build_accounting_ledger(
+    run_hash: str,
+    summary: Mapping[str, Any],
+    *,
+    initial_cash: float = 100_000.0,
+) -> dict[str, Any]:
+    """Synthesize a lightweight accounting ledger snapshot for trust-gate evaluation.
+
+    The baseline simulator always flattens positions, so unrealised PnL is zero and
+    ending cash matches equity. Fees and borrow costs are currently not modelled,
+    therefore we surface them as zero until execution accounting expands.
+    """
+
+    cumulative_pnl = (
+        float(summary.get("cumulative_pnl", 0.0))
+        if isinstance(summary, Mapping)
+        else 0.0
+    )
+    trade_count = (
+        int(summary.get("trade_count", 0)) if isinstance(summary, Mapping) else 0
+    )
+    cash = float(initial_cash + cumulative_pnl)
+    unrealized_pnl = 0.0
+    fees = 0.0
+    equity = cash + unrealized_pnl + fees
+    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    trade_ids: list[str]
+    if trade_count > 0:
+        prefix = run_hash[:8].upper()
+        trade_ids = [f"{prefix}-T{i:03d}" for i in range(1, trade_count + 1)]
+    else:
+        trade_ids = [f"{run_hash[:8].upper()}-T000"]
+
+    return {
+        "run_hash": run_hash,
+        "cash": cash,
+        "unrealized_pnl": unrealized_pnl,
+        "fees": fees,
+        "equity": equity,
+        "tolerance": 1.0,
+        "currency": "USD",
+        "trade_ids": trade_ids,
+        "generated_at": generated_at,
+    }
+
 
 if TYPE_CHECKING:  # pragma: no cover - typing aid only
     from domain.data.ingest_nvda import DatasetMetadata as _RuntimeDatasetMetadata
@@ -236,8 +286,6 @@ def create_or_get(
     except Exception:
         validation_detail = None
 
-    from datetime import datetime, timezone
-
     # Compute validation caution (Phase 4)
     try:
         from services.validation_caution import compute_caution as _compute_caution
@@ -318,6 +366,14 @@ def create_or_get(
         "config_original": config.model_dump(mode="python"),
     }
     record["schema_version"] = persistence_schema_version()
+    ledger_snapshot = _build_accounting_ledger(h, summary)
+    record["accounting_ledger"] = ledger_snapshot
+    record["run_manifest"] = {
+        "run_hash": h,
+        "executed_at": ledger_snapshot["generated_at"],
+        "accounting_ledger": ledger_snapshot,
+        "trade_count": summary.get("trade_count"),
+    }
     if normalized_equity_df is not None:
         scaled = False
         scale_factor = None
@@ -379,6 +435,7 @@ def create_or_get(
         trust_gate_manifest_block: dict[str, Any] | None = None
         telemetry_registry: _CollectorRegistry | None = None
         suite_service: TrustGateSuiteService | None = None
+        candidate_manifest: Mapping[str, Any]
         try:
             from services.trust_gates.config_loader import ToleranceConfigError
             from services.trust_gates.report_writer import write_suite_report
@@ -391,10 +448,25 @@ def create_or_get(
 
             telemetry_registry = create_registry()
             suite_service = TrustGateSuiteService()
+            try:
+                baseline_snapshot = copy.deepcopy(
+                    suite_service.baseline.manifest_snapshot
+                )
+                if isinstance(baseline_snapshot, dict):
+                    run_section = baseline_snapshot.setdefault("run", {})
+                    if isinstance(run_section, dict):
+                        run_section["accounting_ledger"] = copy.deepcopy(
+                            ledger_snapshot
+                        )
+                    candidate_manifest = baseline_snapshot
+                else:
+                    candidate_manifest = suite_service.baseline.manifest_snapshot
+            except Exception:
+                candidate_manifest = suite_service.baseline.manifest_snapshot
             trust_summary_local: _TrustGateSummary = suite_service.run(
                 run_id=h,
                 config_hash=config.deterministic_signature(),
-                candidate_manifest=suite_service.baseline.manifest_snapshot,
+                candidate_manifest=candidate_manifest,
             )
             report_root = base_path / "trust_gates" / "reports"
             trust_summary_local = write_suite_report(

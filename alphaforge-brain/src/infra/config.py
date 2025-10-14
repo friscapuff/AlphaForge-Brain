@@ -4,6 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,6 +49,22 @@ class Settings(BaseSettings):
 
     # Feature flags (future toggles)
     enable_validation: bool = True
+
+    # Optimization / sweep guardrails
+    optimization_max_combinations: int = Field(
+        default=0,
+        ge=0,
+        validation_alias=AliasChoices(
+            "AF_OPTIMIZATION_MAX_COMBINATIONS",
+            "APP_OPTIMIZATION_MAX_COMBINATIONS",
+        ),
+    )
+
+    @property
+    def sweep_combination_cap(self) -> int:
+        """Maximum allowed sweep combinations (0 = unlimited)."""
+
+        return self.optimization_max_combinations
 
 
 @lru_cache(maxsize=1)

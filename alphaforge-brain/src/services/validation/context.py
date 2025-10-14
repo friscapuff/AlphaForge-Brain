@@ -4,6 +4,10 @@ from types import SimpleNamespace
 from typing import Any, Mapping
 
 from domain.schemas.run_config import RunConfig as ApiRunConfig
+from models.parameter_definition import (
+    ParameterCollection,
+    ParameterDefinitionError,
+)
 
 from .pipeline import ValidationRuntimeConfig
 from .seeding import ValidationSeedBundle, derive_seed_bundle
@@ -17,23 +21,33 @@ _DEFAULT_MODULES: tuple[str, ...] = (
     "realism",
 )
 
+_SWEEP_PERMUTATION_DEFAULT = 64
+_SINGLE_RUN_PERMUTATION_DEFAULT = 4
+
 
 def build_validation_context(
     api_config: ApiRunConfig,
 ) -> tuple[SimpleNamespace, ValidationRuntimeConfig, ValidationSeedBundle]:
     """Create runtime validation context from API run configuration."""
 
+    parameter_definitions = _extract_parameter_definitions(api_config)
     validation_cfg = getattr(api_config, "validation", None)
     permutation_cfg = _normalize_mapping_like(
         getattr(validation_cfg, "permutation", None)
     )
     bias_cfg = _normalize_mapping_like(permutation_cfg.get("bias"))
 
+    parameter_definitions = _extract_parameter_definitions(api_config)
+    has_sweep = parameter_definitions.combination_count > 1
+    permutation_default = (
+        _SWEEP_PERMUTATION_DEFAULT if has_sweep else _SINGLE_RUN_PERMUTATION_DEFAULT
+    )
+
     permutation_count = int(
         permutation_cfg.get("count")
         or permutation_cfg.get("n")
         or permutation_cfg.get("samples")
-        or 256
+        or permutation_default
     )
     significance_threshold = float(
         permutation_cfg.get("significance_threshold")
@@ -80,6 +94,9 @@ def build_validation_context(
         api_config=api_config,
         runtime_config=runtime_config,
         seed_bundle=seed_bundle,
+        parameter_definitions=parameter_definitions,
+        has_sweep=has_sweep,
+        walk_forward_cfg=walk_forward_cfg,
     )
     return run_config, runtime_config, seed_bundle
 
@@ -101,10 +118,26 @@ def _build_run_config_adapter(
     api_config: ApiRunConfig,
     runtime_config: ValidationRuntimeConfig,
     seed_bundle: ValidationSeedBundle,
+    parameter_definitions: ParameterCollection,
+    has_sweep: bool,
+    walk_forward_cfg: dict[str, Any],
 ) -> SimpleNamespace:
-    strategy_cfg = getattr(api_config, "strategy", None)
-    strategy_params = _normalize_mapping_like(getattr(strategy_cfg, "params", None))
-    strategy = SimpleNamespace(parameters=strategy_params)
+    strategy_model = getattr(api_config, "strategy", None)
+    raw_strategy_params = _normalize_mapping_like(
+        getattr(strategy_model, "params", None)
+    )
+    strategy_params = {
+        definition.name: definition.representative_value()
+        for definition in parameter_definitions
+    }
+    strategy = SimpleNamespace(
+        parameters=strategy_params,
+        raw_parameters=raw_strategy_params,
+        parameter_definitions=parameter_definitions,
+        parameter_payload=parameter_definitions.as_payload(),
+        combination_count=parameter_definitions.combination_count,
+        has_sweep=parameter_definitions.combination_count > 1,
+    )
     validation = SimpleNamespace(
         permutation_trials=runtime_config.permutation_count,
         permutation_count=runtime_config.permutation_count,
@@ -116,10 +149,6 @@ def _build_run_config_adapter(
         bias_relative_threshold=runtime_config.bias_relative_threshold,
     )
 
-    validation_cfg = getattr(api_config, "validation", None)
-    walk_forward_cfg = _normalize_mapping_like(
-        getattr(validation_cfg, "walk_forward", None)
-    )
     segment_cfg = _normalize_mapping_like(walk_forward_cfg.get("segment"))
     optimization_cfg = _normalize_mapping_like(walk_forward_cfg.get("optimization"))
 
@@ -132,7 +161,11 @@ def _build_run_config_adapter(
         enabled=bool(optimization_cfg.get("enabled", True)),
         param_grid=dict(optimization_cfg.get("param_grid", {})),
     )
-    walk_forward = SimpleNamespace(segment=segment, optimization=optimization)
+    walk_forward_ns: SimpleNamespace | None = SimpleNamespace(
+        segment=segment, optimization=optimization
+    )
+    if not has_sweep and not walk_forward_cfg:
+        walk_forward_ns = None
 
     execution_cfg = getattr(api_config, "execution", None)
     slippage_bps = _coerce_float(getattr(execution_cfg, "slippage_bps", None))
@@ -155,7 +188,7 @@ def _build_run_config_adapter(
     return SimpleNamespace(
         strategy=strategy,
         validation=validation,
-        walk_forward=walk_forward,
+        walk_forward=walk_forward_ns,
         execution=execution,
         cost=cost,
         symbol=api_config.symbol,
@@ -180,6 +213,17 @@ def _normalize_mapping_like(value: Any) -> dict[str, Any]:
         if isinstance(dumped, Mapping):
             return dict(dumped)
     return {}
+
+
+def _extract_parameter_definitions(
+    api_config: ApiRunConfig,
+) -> ParameterCollection:
+    strategy_cfg = getattr(api_config, "strategy", None)
+    raw_params = getattr(strategy_cfg, "params", None) if strategy_cfg else None
+    try:
+        return ParameterCollection.from_raw(raw_params)
+    except ParameterDefinitionError as exc:
+        raise ValueError(f"Invalid strategy parameter definition: {exc}") from exc
 
 
 __all__ = ["build_validation_context"]

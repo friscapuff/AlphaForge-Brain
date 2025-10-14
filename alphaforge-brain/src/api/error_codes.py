@@ -19,6 +19,7 @@ DOMAIN_CODE_STATUS: Final[dict[str, int]] = {
     "NOT_FOUND": 404,
     "CONFLICT": 409,
     "CANCELLED": 400,  # client-driven state change
+    "OPTIMIZATION_SWEEP_LIMIT_HIT": 400,
 }
 
 
@@ -74,6 +75,7 @@ CODE_DESCRIPTIONS: Final[dict[str, str]] = {
     "RANGE_INVALID": "Range is invalid (to must be >= from).",
     "INTERVAL_INVALID": "Interval is invalid.",
     "INVALID_CONFIG": "Invalid configuration.",
+    "OPTIMIZATION_SWEEP_LIMIT_HIT": "Sweep rejected because the optimization combination cap was exceeded.",
     "UNKNOWN_ERROR": "Unknown error.",
     "INTERNAL_ERROR": "Internal server error.",
 }

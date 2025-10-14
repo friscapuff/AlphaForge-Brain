@@ -86,13 +86,25 @@ def to_epoch_ms(
     else:
         parsed_series = parsed  # already Series
 
+    try:
+        raw_values = values.tolist()
+    except AttributeError:  # DatetimeIndex has tolist but typing can complain
+        raw_values = list(values)
+
+    parsed_list = parsed_series.tolist()
+
     # Normalize each element to UTC preserving NaT; mixed tz-aware/naive supported
     norm_list: list[pd.Timestamp] = []
-    for v in parsed_series.tolist():  # iteration size small in tests; acceptable
-        if pd.isna(v):  # NaT
+    for original_value, parsed_value in zip(raw_values, parsed_list):
+        ts = parsed_value
+        if pd.isna(ts):
+            if pd.isna(original_value):
+                norm_list.append(pd.NaT)
+                continue
+            ts = pd.to_datetime(original_value, utc=False, errors="coerce")
+        if pd.isna(ts):  # still NaT after coercion
             norm_list.append(pd.NaT)
             continue
-        ts = v
         if getattr(ts, "tzinfo", None) is None:
             if assume_tz:
                 # mypy: pandas typeshed is conservative; runtime accepts broader ambiguous/nonexistent.

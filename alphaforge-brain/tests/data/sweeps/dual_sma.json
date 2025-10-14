@@ -1,0 +1,35 @@
+{
+  "request_id": "SWEEP_DUAL_SMA_SAMPLE",
+  "tickers": [
+    {"symbol": "AAPL"},
+    {
+      "symbol": "MSFT",
+      "overrides": {
+        "parameters": {
+          "fast": {"mode": "single", "value": 10}
+        }
+      }
+    }
+  ],
+  "strategy": {
+    "name": "dual_sma",
+    "version": "1.0.0",
+    "parameters": {
+      "fast": {"mode": "list", "values": [5, 8, 13]},
+      "slow": {
+        "mode": "range",
+        "range": {"start": 30, "stop": 61, "step": 15},
+        "precision": 0
+      }
+    }
+  },
+  "execution": {
+    "backtest_window": {"start": "2023-01-01", "end": "2023-12-31"},
+    "cash": 100000,
+    "frequency": "1d"
+  },
+  "governance": {
+    "trust_gate_profile": "default",
+    "notes": "Fixture payload for parameter sweep tests; ensures deterministic ordering and multi-ticker partitioning."
+  }
+}

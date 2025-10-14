@@ -38,6 +38,7 @@ class CrossValidationScheduler:
         if not isinstance(bars, pd.DataFrame):
             raise TypeError("bars must be a pandas.DataFrame")
         self._bars = bars.sort_index()
+        self._time_index = self._normalise_index(self._bars)
         self._run_config = run_config
         self._seed_bundle = seed_bundle
         self._purge_span = timedelta(days=_PURGE_DAYS_DEFAULT)
@@ -100,7 +101,7 @@ class CrossValidationScheduler:
         return requested_mode
 
     def _generate_folds(self, folds: int) -> Sequence[_FoldSlice]:
-        index = self._bars.index
+        index = self._time_index
         if index.empty:
             raise ValueError("Cannot schedule cross-validation with empty bars index")
         total = len(index)
@@ -133,6 +134,32 @@ class CrossValidationScheduler:
                 )
             )
         return slices
+
+    def _normalise_index(self, bars: pd.DataFrame) -> pd.DatetimeIndex:
+        index = bars.index
+        if isinstance(index, pd.DatetimeIndex) and not index.isna().any():
+            return index
+
+        timestamp_series = None
+        if "timestamp" in bars.columns:
+            ts_candidate = pd.to_datetime(bars["timestamp"], utc=True, errors="coerce")
+            if ts_candidate.notna().all():
+                timestamp_series = ts_candidate
+
+        if timestamp_series is None:
+            try:
+                index_converted = pd.to_datetime(index, utc=True, errors="coerce")
+                if (
+                    isinstance(index_converted, pd.DatetimeIndex)
+                    and not index_converted.isna().any()
+                ):
+                    return index_converted
+            except Exception:
+                index_converted = None
+        else:
+            return pd.DatetimeIndex(timestamp_series)
+
+        return pd.date_range("1970-01-01", periods=len(bars.index), freq="T", tz="UTC")
 
     def _to_model(self, fold_slice: _FoldSlice, idx: int) -> CrossValidationFold:
         metrics = {

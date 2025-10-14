@@ -699,6 +699,7 @@ __all__ = [
     "record_phase_timing",
     "record_run_error",
     "record_trace_span",
+    "clear_validation_trace_spans",
     "update_run_status",
     "upsert_feature_cache_meta",
     "validate_manifest_object",
@@ -890,6 +891,17 @@ def record_trace_span(
         rows_processed=None,
         extra_json=extra or None,
     )
+
+
+def clear_validation_trace_spans(*, run_hash: str) -> None:
+    """Remove persisted validation trace spans for a run to avoid stale metrics."""
+
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM phase_metrics WHERE run_hash=? AND phase LIKE 'validation.%'",
+            (run_hash,),
+        )
+        conn.commit()
 
 
 def record_run_error(

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) and this project adheres (prospectively) to Semantic Versioning.
 
+## [0.3.3-dev] - 2025-10-14
+### Added
+- Introduced deterministic parameter sweep execution (Feature 014) covering sweep normalization, parent manifest persistence, telemetry guardrails, and governance test coverage across alphaforge-brain.
+- Added sweep status endpoint documentation, parent manifest schema updates, and telemetry assertions for trust-gate checkpoints (`sweep_id`, `ticker`, `checkpoint`, `data_quality_status`, `cap_status`, `initiator`).
+
+### Documentation
+- Expanded README with a parameter sweep quickstart describing CLI submission, artifact review, telemetry expectations, and governance evidence hooks.
+
+### Benchmark Status
+- `poetry run python scripts/bench/perf_run.py --iterations 5 --warmup 1` (2025-10-14) emitted `trust_gates` mean **2157.6 ms** vs baseline **28.49 ms** (≈75.8× slower), breaching the SC-002 ≤10% overhead target; remediation required before release.
+
 ## [0.3.2-dev] - 2025-09-25
 ### Phase 7 Updates (2025-10-05)
 - T070: Removed deprecated trade adapters and legacy Trade model usage. Adapters module now raises ImportError; services refactored to duck-type.

@@ -1,6 +1,6 @@
 # Trust Gate Operations Guide
 
-**Last Updated**: 2025-10-11
+**Last Updated**: 2025-10-13
 **Owner**: Release Steward (AlphaForge Brain)
 
 This guide operationalizes the trust gate framework across ingest → transform → emit, ensuring compliance with constitutional principles and the newly introduced non-functional requirements.
@@ -73,6 +73,10 @@ Refer to `configs/trust_gates/tolerances/institutional_default.yaml` for the aut
    - `trust_gate_suite_runtime_ms`, `trust_gate_suite_pass`, and `trust_gate_suite_limit_ms` to chart SLA drift.
    - `validation_suite_duration_ms` mirroring the Masters validation wall-clock mean (ms).
 - Dashboards should scrape/push this artifact so observability surfaces trust-gate regressions in real time. When the file is missing, rerun `poetry run python scripts/ci/run_perf_gates.py` locally and resolve any dependency errors before promoting.
+- Sweep telemetry emits complementary metrics alongside trust-gate outputs:
+   - `sweep_checkpoint_latency_seconds{sweep_id=...,ticker=...,checkpoint=...,cap_status=...,data_quality_status=...}` histograms map each checkpoint to its latency budget.
+   - `sweep_combinations_total{...}` counts executed combinations per checkpoint, enforcing deterministic evidence.
+   - `sweep_guardrail_events_total{reason="combination_cap",...}` records cap hits and future waiver justifications.
 
 ## 3. Governance Logging Workflow (Solo & Team)
 
@@ -132,13 +136,35 @@ Purpose: Re-validate signed artifacts quarterly and capture diff evidence.
 3. Record the reported hash values in §6 (append manual note or run logging script in dry-run mode) with operator signature.
 
 ## 6. Automation Appendix (Attestations)
-
 This section is auto-appended by the logging script.
 
-```markdown
-## Run Attestation: <RUN_ID>
-- Executed: <timestamp UTC>
-- Suite Version: <version>
+
+## 7. Sweep Prerequisites (Param Sweep Introduction)
+
+Use this checklist before authorizing sweep runs governed by `/specs/014-param-sweep-introduction/`.
+
+1. **Governance Evidence Ready**
+   - Confirm all sweep checklists are complete:
+     - `specs/014-param-sweep-introduction/checklists/data-governance.md`
+     - `specs/014-param-sweep-introduction/checklists/multi-ticker.md`
+     - `specs/014-param-sweep-introduction/checklists/requirements.md`
+   - Review the `/specs/014-param-sweep-introduction/quickstart.md` governance section to ensure telemetry expectations (`cap_status`, `data_quality_status`, latency metrics) are understood.
+2. **Environment Guardrails Set**
+   - Validate `AF_OPTIMIZATION_MAX_COMBINATIONS` matches the intended sweep cap for the run.
+   - Ensure the Brain data-cleansing services are healthy (Decision 6 in `research.md`); sweeps rely on curated inputs.
+3. **Payload & Fixture Prep**
+   - Use the canonical fixture `alphaforge-brain/tests/data/sweeps/dual_sma.json` as a template when crafting new payloads, adjusting tickers/overrides as needed.
+   - For multi-ticker requests, document any per-ticker waivers in `WAIVERS.md` ahead of execution.
+4. **Trust-Gate Checkpoints**
+   - Verify operators know the four sweep checkpoints (`payload_validation`, `normalization`, `orchestrator`, `manifest`) and where manifests store `sanitized_parameters`, `cap_status`, and `data_quality_status` fields (see Spec §Clean Data Propagation Flow).
+   - Confirm monitoring dashboards (Prometheus) are scraping sweep telemetry before initiating the run. Tail `zz_artifacts/governance_audit.log` for `sweep.checkpoint` and `sweep.guardrail` entries and cross-check `/metrics` for the histogram/counter series listed in §2.3; audit timestamps should appear <60 s from execution.
+5. **Documentation Sync**
+   - Update this section and the quickstart if prerequisites change; log revision in the Automation Appendix when sweeps trigger new waiver processes.
+6. **Validation Scripts**
+   - Run `poetry run pytest tests/perf/test_sweep_rejection_latency.py` prior to release to prove cap rejection latency remains <2 seconds.
+   - Execute `poetry run pytest tests/governance/test_sweep_telemetry_latency.py` and `poetry run pytest tests/governance/test_sweep_data_quality_variance.py` to capture telemetry latency (<60 s) and SC-006 variance evidence.
+
+Failing any prerequisite above requires remediation or recorded waiver before sweeps proceed.
 - Tolerance Profile: <profile>
 - Vendor Versions: <list>
 - Dataset Hashes: <hashes>

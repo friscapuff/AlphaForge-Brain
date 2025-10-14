@@ -87,6 +87,34 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 After launch, submit a backtest from the UI; progress & results are powered by the running backend.
 
+## Parameter Sweep Quickstart (Feature 014)
+
+Deterministic parameter sweeps let you batch combinations without scripting. The backend normalizes each parameter, executes one canonical run per combo, and emits telemetry so governance artifacts stay auditable.
+
+### Submit a Sweep
+```powershell
+poetry run python scripts/cli/backtests.py submit-sweep --payload alphaforge-brain/tests/data/sweeps/dual_sma.json
+```
+- Payload schema accepts `mode: single|list|range` per parameter; ranges use inclusive start / exclusive stop semantics.
+- Multi-ticker payloads list tickers under `payload.tickers`; each ticker expands independently (no cross-product).
+
+### Monitor & Inspect
+- Status: `curl http://127.0.0.1:8000/api/v1/sweeps/<sweep_id>`
+- Parent manifest: `zz_artifacts/sweeps/<sweep_id>/manifest.json`
+- Per-ticker manifests: `zz_artifacts/sweeps/<sweep_id>/<ticker>/manifest.json`
+- Telemetry labels: dashboards and audit logs include `sweep_id`, `ticker`, `initiator`, `checkpoint`, `cap_status`, `data_quality_status` for every trust-gate span.
+
+### Governance Evidence
+- Tests: `poetry run pytest tests/governance/test_sweep_guardrails.py` and related suites assert telemetry payloads, combination caps, latency budgets, and clean-data variance (SC-003/004/005/006).
+- Quickstart (`specs/014-param-sweep-introduction/quickstart.md`) outlines reviewer checklist steps and waiver expectations.
+
+### Performance ✅/⚠️
+Run the benchmark harness after sweep integration:
+```powershell
+poetry run python scripts/bench/perf_run.py --iterations 5 --warmup 1 --output zz_artifacts/perf_latest.json
+```
+Compare `validation.total mean_ms` against the baseline from `artifacts/perf_baseline.json` (28.49 ms). The 2025-10-14 run recorded **2157.6 ms** mean (≈75.8× slower), exceeding the SC-002 10% overhead guardrail; remediate before release.
+
 #### Masters Validation Modules Quick Actions (Phase 3.5)
 Masters permutation, bias adjustments, cross-validation, and execution realism ship enabled by default. To exercise the full pipeline:
 

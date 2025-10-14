@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any, Union
 
+from api.errors import sweep_limit_hit_error
 from api.errors_contract import ErrorResponse
 from api.models.runs import (
     ArtifactDescriptor,
@@ -29,14 +30,21 @@ from domain.run.retention_policy import (
     plan_retention,
 )
 from domain.schemas.run_config import RunConfig
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from lib.artifacts import artifact_index
+from models.parameter_definition import (
+    ParameterCollection,
+    ParameterDefinitionError,
+)
 from models.run_validation_status import RunValidationStatus, coerce_validation_status
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+from services.sweeps.expander import expand_parameter_grid
+from services.sweeps.orchestrator import merge_parameter_overrides
 
 from infra.artifacts_root import evicted_dir, run_artifact_dir
 from infra.audit import write_event
+from infra.config import get_settings
 from infra.persistence import persistence_record_id, persistence_schema_version
 
 router = APIRouter(prefix="", tags=["runs"])  # Root mounted
@@ -90,27 +98,191 @@ def _registry(request: Request) -> InMemoryRunRegistry:
 
 @router.post("/runs", response_model=RunCreateResponse)
 async def post_run(
-    cfg: RunConfig, registry: InMemoryRunRegistry = Depends(_registry)
-) -> RunCreateResponse:  # T050
-    run_hash, record, created = create_or_get(cfg, registry, seed=cfg.seed)
-    created_at = datetime.now(timezone.utc)
-    # For now status is SUCCEEDED because orchestration is synchronous & terminal
-    # Contract augmentation (api_version/schema_version/content_hash)
+    request: Request,
+    response: Response,
+    registry: InMemoryRunRegistry = Depends(_registry),
+) -> RunCreateResponse | JSONResponse:  # T050/T009 sweep extension
+    payload_obj = await request.json()
+    if not isinstance(payload_obj, Mapping):  # defensive payload validation
+        raise HTTPException(status_code=422, detail="payload must be an object")
+
+    payload: dict[str, Any] = dict(payload_obj)
+    strategy_raw = payload.get("strategy")
+    strategy_payload: dict[str, Any]
+    if isinstance(strategy_raw, Mapping):
+        strategy_payload = dict(strategy_raw)
+    else:
+        strategy_payload = {}
+    payload["strategy"] = strategy_payload
+
+    risk_raw = payload.get("risk")
+    if isinstance(risk_raw, Mapping):
+        risk_payload = dict(risk_raw)
+        if "model" not in risk_payload and "name" in risk_payload:
+            risk_payload["model"] = risk_payload.pop("name")
+        risk_payload.setdefault("params", {})
+        payload["risk"] = risk_payload
+
+    parameter_payload = strategy_payload.get("parameters")
+    if parameter_payload is None and "params" in strategy_payload:
+        parameter_payload = strategy_payload.get("params")
+
+    try:
+        parameter_definitions = ParameterCollection.from_raw(parameter_payload)
+    except ValidationError as exc:  # malformed range/list definitions
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except (ValueError, ParameterDefinitionError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    expansion = expand_parameter_grid(parameter_definitions)
+    combination_count = expansion.unique_count
+
+    settings = get_settings()
+    combination_cap = settings.sweep_combination_cap
+
+    cap_hit_tickers: set[str] = set()
+    per_ticker_counts: dict[str, int] = {}
+
+    def _fallback_symbol() -> str:
+        base_symbol = payload.get("symbol")
+        if isinstance(base_symbol, str) and base_symbol.strip():
+            return base_symbol.strip()
+        if base_symbol is None:
+            return "UNKNOWN"
+        return str(base_symbol)
+
+    if combination_cap:
+        tickers_payload = payload.get("tickers")
+        if isinstance(tickers_payload, list) and tickers_payload:
+            for ticker_entry in tickers_payload:
+                if not isinstance(ticker_entry, Mapping):
+                    continue
+                raw_symbol = ticker_entry.get("symbol")
+                symbol = (
+                    raw_symbol.strip()
+                    if isinstance(raw_symbol, str) and raw_symbol.strip()
+                    else _fallback_symbol()
+                )
+                overrides_raw = ticker_entry.get("overrides")
+                overrides_mapping: Mapping[str, Any] | None
+                if isinstance(overrides_raw, Mapping):
+                    potential_parameters = overrides_raw.get("parameters")
+                    if isinstance(potential_parameters, Mapping):
+                        overrides_mapping = potential_parameters
+                    else:
+                        overrides_mapping = overrides_raw
+                else:
+                    overrides_mapping = None
+                try:
+                    ticker_parameters = merge_parameter_overrides(
+                        parameter_definitions, overrides_mapping
+                    )
+                except ParameterDefinitionError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
+                ticker_expansion = expand_parameter_grid(ticker_parameters)
+                ticker_count = ticker_expansion.unique_count
+                per_ticker_counts[symbol] = ticker_count
+                if ticker_count > combination_cap:
+                    cap_hit_tickers.add(symbol)
+            if not per_ticker_counts:
+                symbol = _fallback_symbol()
+                per_ticker_counts[symbol] = combination_count
+                if combination_count > combination_cap:
+                    cap_hit_tickers.add(symbol)
+        else:
+            symbol = _fallback_symbol()
+            per_ticker_counts[symbol] = combination_count
+            if combination_count > combination_cap:
+                cap_hit_tickers.add(symbol)
+
+    if cap_hit_tickers:
+        offending_counts = [
+            per_ticker_counts.get(symbol, combination_count)
+            for symbol in cap_hit_tickers
+        ]
+        requested = max(offending_counts) if offending_counts else combination_count
+        error_payload = sweep_limit_hit_error(
+            cap=combination_cap,
+            requested=requested,
+            tickers=sorted(cap_hit_tickers),
+        )
+        return JSONResponse(status_code=400, content=error_payload)
+
+    if combination_count == 0:
+        raise HTTPException(status_code=400, detail="Sweep produced zero combinations")
+
+    normalized_parameters = parameter_definitions.as_payload()
+    strategy_payload["parameters"] = normalized_parameters
+
+    representative_params = (
+        expansion.combinations[0].as_dict() if expansion.combinations else {}
+    )
+
+    if combination_count <= 1:
+        strategy_payload["params"] = representative_params
+        payload["strategy"] = strategy_payload
+
+    try:
+        cfg = RunConfig.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if combination_count <= 1:
+        from infra.utils.hash import hash_canonical
+
+        run_hash, _record, created = create_or_get(cfg, registry, seed=cfg.seed)
+        created_at = datetime.now(timezone.utc)
+
+        schema_version = persistence_schema_version()
+        base_payload = {
+            "run_id": run_hash,
+            "run_hash": run_hash,
+            "status": "SUCCEEDED",
+            "created_at": created_at,
+            "created": created,
+            "api_version": "0.1",
+            "schema_version": schema_version,
+        }
+        base_payload["content_hash"] = hash_canonical(
+            {k: v for k, v in base_payload.items() if k != "content_hash"}
+        )
+        return RunCreateResponse(**base_payload)
+
     from infra.utils.hash import hash_canonical
 
+    created_at = datetime.now(timezone.utc)
+    sweep_fingerprint = {
+        "symbol": payload.get("symbol"),
+        "timeframe": payload.get("timeframe"),
+        "start": payload.get("start"),
+        "end": payload.get("end"),
+        "strategy": {
+            "name": strategy_payload.get("name"),
+            "parameters": normalized_parameters,
+        },
+        "combinations": expansion.as_dicts(),
+    }
+    sweep_id = hash_canonical(sweep_fingerprint)
     schema_version = persistence_schema_version()
     base_payload = {
-        "run_id": run_hash,
-        "run_hash": run_hash,
-        "status": "SUCCEEDED",
+        "run_id": sweep_id,
+        "run_hash": sweep_id,
+        "status": "ACCEPTED",
         "created_at": created_at,
-        "created": created,
+        "created": True,
         "api_version": "0.1",
         "schema_version": schema_version,
+        "sweep_id": sweep_id,
+        "optimization_mode": "sweep",
+        "combination_count": combination_count,
+        "normalized_parameters": normalized_parameters,
+        "warnings": [],
     }
     base_payload["content_hash"] = hash_canonical(
-        {k: str(v) for k, v in base_payload.items() if k != "content_hash"}
+        {k: v for k, v in base_payload.items() if k != "content_hash"}
     )
+    response.status_code = 202
     return RunCreateResponse(**base_payload)
 
 

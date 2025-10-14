@@ -18,6 +18,7 @@ from domain.validation.realism.report import (
 )
 
 from infra.observability import trace_validation_span
+from infra.persistence import clear_validation_trace_spans
 
 from .aggregator import ValidationAggregate, ValidationAggregator
 from .bias_adjustments import BiasAdjustmentsCalculator
@@ -94,6 +95,27 @@ def execute_validation_modules(
 
     fills_df = fills if isinstance(fills, pd.DataFrame) else pd.DataFrame()
     trades_df = trades if isinstance(trades, pd.DataFrame) else pd.DataFrame()
+
+    if not runtime_config.modules:
+        clear_validation_trace_spans(run_hash=run_hash)
+        aggregator = ValidationAggregator(
+            significance_threshold=runtime_config.significance_threshold,
+            leakage_threshold=runtime_config.leakage_threshold,
+        )
+        aggregate = aggregator.aggregate(
+            permutations=(),
+            bias_adjustment=None,
+            cross_validation=None,
+            realism=None,
+        )
+        return ValidationResults(
+            segments=tuple(),
+            permutation=tuple(),
+            bias_adjustment=None,
+            cross_validation=None,
+            execution_realism=None,
+            aggregate=aggregate,
+        )
 
     with trace_validation_span("total", run_hash=run_hash) as total_span:
         with trace_validation_span("permutation", run_hash=run_hash) as perm_span:

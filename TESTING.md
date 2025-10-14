@@ -22,6 +22,7 @@ This document centralizes conventions, fixtures, and patterns for writing and ma
 |---------|------|-------------|
 | `freeze_time` | `tests/conftest.py` | Replaces module-level `datetime` with subclass overriding `now/utcnow` for exact timestamp assertions. |
 | `random_seed_fixture` | `tests/conftest.py` | Seeds `random` and provides canonical seed for engines needing explicit seed parameter. |
+| `fast_validation_stub` | `tests/conftest.py` | Patches both validation entry points with a deterministic, inexpensive stub so tests can exercise persistence without Masters compute overhead. |
 | NVDA dataset fixtures | `tests/data/nvda_fixtures.py` | Canonical NVDA slices & hashes for provenance tests. |
 
 ### freeze_time Details
@@ -198,9 +199,41 @@ If a full-suite run appears to stall:
 ## Coverage Strategy
 `pytest.ini` now includes:
 ```
---cov=alphaforge-brain/src --cov-report=term-missing --cov-report=xml
+--cov=domain --cov=services --cov=api --cov=infra --cov-branch --cov-report=term-missing --cov-report=xml
 ```
-This produces a `coverage.xml` artifact (ignored by VCS) for tooling (quality gates, CI badges). When adding new tests, prefer targeting uncovered branches (use `term-missing` output to locate gaps). Keep fast, focused tests for logic branches; integration tests should avoid unnecessary large data generation.
+This scopes coverage to the migrated source tree and emits `coverage.xml` for follow-up tooling. After running pytest, enforce the diff-aware gate with:
+```
+poetry run python scripts/ci/check_diff_coverage.py --base origin/main
+```
+which requires any touched module under `alphaforge-brain/src` to exceed 80 % line coverage. When adding new tests, prefer targeting uncovered branches (use `term-missing` output to locate gaps). Keep fast, focused tests for logic branches; integration tests should avoid unnecessary large data generation.
+
+### Quick coverage checks for focused tests
+When you only want to execute a narrow slice (for example `tests/run/test_create.py`), scope the coverage collection to the modules under examination so the percentage reflects the work performed:
+
+```powershell
+poetry run pytest --override-ini addopts="-q --maxfail=1 --durations=25" --cov=domain.run --cov=services.trust_gates tests/run/test_create.py
+```
+
+`--override-ini` strips the project-wide `addopts` (which normally injects the full `--cov=domain --cov=services --cov=api --cov=infra` bundle) and replaces it with the minimal options you specify. Add as many `--cov=<package>` arguments as you need for the slice under test so the denominator stays focused. The default settings in `pytest.ini` still apply for CI and any run that doesn’t opt into this override.
+
+### Pragmatic Full-Suite Remediation (2025-10-14)
+Recent suites exposed three structural blockers to achieving a truthful "all green" result. The remediation work is tracked as the following task stream:
+
+1. **Async run creation contract**
+    - `POST /runs` remains asynchronous (`202 Accepted`); contract tests now poll `GET /runs/{hash}` until ready before asserting payload fields.
+    - If product elects to offer a synchronous happy path later, add a dedicated endpoint rather than overloading the existing semantics.
+
+2. **Coverage gate right-sizing**
+    - The fast suite tracks `domain`, `services`, `api`, and `infra` modules only.
+    - `scripts/ci/check_diff_coverage.py` enforces ≥80 % coverage on touched sources against a configurable base ref.
+    - Nightly or manual full-suite runs can still report aggregate coverage without blocking daily work.
+
+3. **Validation hot-path containment**
+    - Tests opt into the `fast_validation_stub` fixture when they need artifact persistence without triggering expensive Masters validation.
+    - Standardize the 7-day synthetic dataset window for contract tests to avoid accidental month-long permutations.
+    - Document the smoke run commands (`scripts/bench/perf_run.py`) alongside the expected artifacts so regressions can still be investigated without blocking the daily suite.
+
+Each task should be logged in the engineering tracker before implementation; once a step is completed, update this section with the link to the merged MR/PR.
 
 ## Future Improvements
 - Auto-mark long-running slices (`> N seconds`) as `slow` in the slice runner output for selective exclusion.

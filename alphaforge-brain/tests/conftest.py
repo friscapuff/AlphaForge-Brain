@@ -32,6 +32,13 @@ from infra.import_guard import install_import_guard  # noqa: E402
 
 install_import_guard()
 
+# Proactively import lightweight packages that coverage tracks so warnings aren't emitted
+# when focused test runs skip exercising them (e.g., --cov=api).
+try:  # pragma: no cover - defensive import
+    import api  # noqa: F401
+except Exception as exc:
+    sys.stderr.write(f"[conftest] Optional import of 'api' failed: {exc}\n")
+
 _data_fixtures = Path(__file__).parent / "data" / "nvda_fixtures.py"
 spec = importlib.util.spec_from_file_location("_nvda_data_fixtures", _data_fixtures)
 if spec and spec.loader:  # pragma: no cover - import wiring
@@ -108,6 +115,81 @@ def random_seed_fixture():
     seed = 1337
     random.seed(seed)
     return seed
+
+
+@pytest.fixture()
+def fast_validation_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[..., dict[str, object]]:
+    """Patch validation runners with a deterministic, lightweight stub.
+
+    The default behaviour orchestrates multiple statistical tests that are slow and
+    sometimes flaky in constrained CI environments. This fixture replaces both the
+    orchestration "validation_run_all" hook and the direct "run_all" entry point so
+    that tests opting in can exercise downstream persistence without invoking heavy
+    compute.
+    """
+
+    from domain.run import orchestrator as run_orchestrator
+    from domain.validation import runner as validation_runner
+
+    def _stub(
+        trades_df,
+        positions_df=None,
+        *,
+        seed=None,
+        config=None,
+    ) -> dict[str, object]:
+        summary = {
+            "permutation_p": 0.5,
+            "block_bootstrap_p": 0.5,
+            "block_bootstrap_ci_width": 0.0,
+            "monte_carlo_p": 0.5,
+            "walk_forward_folds": 0,
+            "block_bootstrap_gate_passed": True,
+        }
+        return {
+            "permutation": {
+                "p_value": 0.5,
+                "distribution": [0.5],
+                "observed": 0.5,
+            },
+            "block_bootstrap": {
+                "p_value": 0.5,
+                "ci": [0.5, 0.6],
+                "observed": 0.5,
+            },
+            "monte_carlo_slippage": {
+                "p_value": 0.5,
+                "distribution": [0.5],
+                "observed": 0.5,
+            },
+            "walk_forward": {
+                "folds": [],
+                "summary": {
+                    "n_folds": 0,
+                    "sharpe_mean": 0.0,
+                    "sharpe_min": 0.0,
+                    "sharpe_max": 0.0,
+                    "max_dd_worst": 0.0,
+                },
+            },
+            "summary": summary,
+            "seed": seed or 0,
+        }
+
+    monkeypatch.setattr(validation_runner, "run_all", _stub)
+    monkeypatch.setattr(run_orchestrator, "validation_run_all", _stub)
+    return _stub
+
+
+@pytest.fixture()
+def _fast_validation_stub(
+    fast_validation_stub: Callable[..., dict[str, object]]
+) -> Callable[..., dict[str, object]]:
+    """Backward-compatible alias for legacy `_fast_validation_stub` usage."""
+
+    return fast_validation_stub
 
 
 def pytest_addoption(parser):  # type: ignore[override]

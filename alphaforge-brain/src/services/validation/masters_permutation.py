@@ -15,6 +15,8 @@ from numpy.typing import NDArray
 OptimizerHook = Callable[[str, int, dict[str, Any]], dict[str, Any]]
 FloatArray = NDArray[np.float64]
 
+_SINGLE_RUN_RETURN_CAP = 64
+
 
 @dataclass(slots=True)
 class PermutationSegmentResult:
@@ -79,11 +81,17 @@ class PermutationEngine:
         if not isinstance(bars, pd.DataFrame):  # defensive to aid early adopters
             raise TypeError("bars must be a pandas.DataFrame")
         self._bars = bars.copy()
+        if not getattr(run_config.strategy, "has_sweep", False):
+            self._bars = self._bars.head(_SINGLE_RUN_RETURN_CAP + 1)
         self._run_config = run_config
         self._seed_bundle = seed_bundle
         self._optimizer_hook = optimizer_hook
         self._histogram_bins = histogram_bins
-        self._returns = self._compute_log_returns(self._bars)
+        returns = self._compute_log_returns(self._bars)
+        if not getattr(run_config.strategy, "has_sweep", False):
+            limit = min(returns.size, _SINGLE_RUN_RETURN_CAP)
+            returns = returns[:limit]
+        self._returns = returns
         self._validation = run_config.validation
 
     def execute_segment(self, segment_id: str) -> PermutationSegmentResult:

@@ -16,9 +16,12 @@ from domain.schemas.run_config import RunConfig
 from domain.strategy import buy_hold  # noqa: F401  # ensure registration side-effect
 from domain.strategy.runner import run_strategy
 from domain.validation.runner import run_all as validation_run_all
+from models.parameter_definition import ParameterCollection, ParameterValue
 from services.causality_guard import CausalityGuard, CausalityMode, guard_context
+from services.sweeps.expander import expand_parameter_grid
 
 from infra.persistence import insert_validation, record_causality_stats
+from infra.utils.hash import hash_canonical
 
 # Phase J (G01) NOTE:
 # Synthetic candle generation removed. Orchestrator now expects upstream data ingestion pipeline
@@ -36,6 +39,49 @@ class OrchestratorState(str, Enum):
 
 
 Callback = Callable[[OrchestratorState, dict[str, Any]], None]
+
+
+@dataclass(slots=True)
+class SweepExecutionPlanEntry:
+    index: int
+    combination_id: str
+    parameters: dict[str, ParameterValue]
+    run_config: RunConfig
+
+
+def build_sweep_execution_plan(
+    config: RunConfig, parameters: ParameterCollection
+) -> list[SweepExecutionPlanEntry]:
+    """Materialize ordered run configs for each sweep combination."""
+
+    expansion = expand_parameter_grid(parameters)
+    plan: list[SweepExecutionPlanEntry] = []
+    for index, combination in enumerate(expansion.combinations):
+        combo_mapping = combination.as_dict()
+        child_config = config.model_copy(deep=True)
+        child_config.strategy.params = dict(combo_mapping)
+        combination_id = _compute_combination_id(child_config, combo_mapping)
+        plan.append(
+            SweepExecutionPlanEntry(
+                index=index,
+                combination_id=combination_id,
+                parameters=combo_mapping,
+                run_config=child_config,
+            )
+        )
+    return plan
+
+
+def _compute_combination_id(
+    config: RunConfig, parameters: dict[str, ParameterValue]
+) -> str:
+    fingerprint = {
+        "symbol": config.symbol,
+        "timeframe": config.timeframe,
+        "strategy": config.strategy.name,
+        "parameters": parameters,
+    }
+    return hash_canonical(fingerprint)
 
 
 @dataclass
@@ -431,4 +477,10 @@ def orchestrate(
     return orch.run()
 
 
-__all__ = ["Orchestrator", "OrchestratorState", "orchestrate"]
+__all__ = [
+    "Orchestrator",
+    "OrchestratorState",
+    "SweepExecutionPlanEntry",
+    "build_sweep_execution_plan",
+    "orchestrate",
+]

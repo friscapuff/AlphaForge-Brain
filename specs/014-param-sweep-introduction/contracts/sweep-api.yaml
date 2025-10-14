@@ -1,0 +1,275 @@
+openapi: 3.1.0
+info:
+  title: AlphaForge Sweep Extensions (Draft)
+  version: 0.1.0-draft
+  description: >-
+    Contract deltas required to support deterministic parameter sweeps. Defines
+    request schema additions for backtests and a sweep status endpoint consumed
+    by future Mind UI surfaces.
+
+paths:
+  /api/v1/backtests:
+    post:
+      summary: Submit a backtest or parameter sweep
+      description: >-
+        Accepts legacy single-run payloads as well as sweep-enabled parameter
+        definitions. When sweep definitions expand to multiple combinations the
+        service schedules one canonical run per combination and returns a
+        `sweep_id` for tracking.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BacktestRequest'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestAccepted'
+        '400':
+          description: Validation error (includes `OPTIMIZATION_SWEEP_LIMIT_HIT` when cap exceeded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/sweeps/{sweep_id}:
+    get:
+      summary: Retrieve sweep status and child runs
+      parameters:
+        - in: path
+          name: sweep_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sweep status payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SweepStatus'
+        '404':
+          description: Sweep not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    BacktestRequest:
+      type: object
+      required:
+        - symbol
+        - strategy
+        - risk
+      properties:
+        symbol:
+          type: string
+        date_range:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date
+            end:
+              type: string
+              format: date
+        strategy:
+          type: object
+          properties:
+            name:
+              type: string
+            parameters:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/ParameterDefinition'
+        risk:
+          type: object
+        validation:
+          type: object
+          properties:
+            walk_forward:
+              type: object
+              properties:
+                optimization:
+                  type: object
+                  properties:
+                    mode:
+                      type: string
+                      enum: [single, sweep]
+                    parameters:
+                      type: object
+                      additionalProperties:
+                        $ref: '#/components/schemas/ParameterDefinition'
+        advanced:
+          type: object
+      additionalProperties: false
+
+    ParameterDefinition:
+      type: object
+      oneOf:
+        - required: [value]
+        - required: [values]
+        - required: [range]
+      properties:
+        mode:
+          type: string
+          enum: [single, list, range]
+        value:
+          description: Scalar value when mode=single
+          oneOf:
+            - type: number
+            - type: string
+        values:
+          description: Ordered, deduplicated list when mode=list
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            oneOf:
+              - type: number
+              - type: string
+        range:
+          description: Inclusive start / exclusive stop range definition when mode=range
+          type: object
+          required: [start, stop, step]
+          properties:
+            start:
+              type: number
+            stop:
+              type: number
+            step:
+              type: number
+              exclusiveMinimum: 0
+        precision:
+          type: integer
+          minimum: 0
+          description: Optional rounding precision applied during expansion
+
+    BacktestAccepted:
+      type: object
+      required:
+        - run_id
+      properties:
+        run_id:
+          type: string
+          description: Present for single-run submissions
+        sweep_id:
+          type: string
+          description: Present when the request expands to multiple combinations
+        optimization_mode:
+          type: string
+          enum: [none, deferred, sweep]
+        warnings:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+
+    SweepStatus:
+      type: object
+      required:
+        - sweep_id
+        - status
+        - combinations
+      properties:
+        sweep_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        combination_cap:
+          type: integer
+        combinations:
+          type: array
+          items:
+            $ref: '#/components/schemas/SweepCombination'
+        aggregates:
+          type: object
+          properties:
+            total:
+              type: integer
+            succeeded:
+              type: integer
+            failed:
+              type: integer
+            average_duration_ms:
+              type: number
+            storage_bytes:
+              type: integer
+        telemetry_reference:
+          type: object
+          properties:
+            manifest_path:
+              type: string
+            metrics_namespace:
+              type: string
+
+    SweepCombination:
+      type: object
+      required:
+        - combination_id
+        - parameters
+        - status
+      properties:
+        combination_id:
+          type: string
+        parameters:
+          type: array
+          items:
+            type: object
+            required:
+              - name
+              - value
+            properties:
+              name:
+                type: string
+              value:
+                oneOf:
+                  - type: number
+                  - type: string
+        run_hash:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, succeeded, failed, skipped]
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        trust_gate_summary:
+          type: object
+          properties:
+            validation_status:
+              type: string
+              enum: [PASSED, FAILED_VALIDATION, CAUTION]
+            failure_reason:
+              type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            retryable:
+              type: boolean
