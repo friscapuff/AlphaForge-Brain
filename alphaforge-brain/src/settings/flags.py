@@ -5,7 +5,8 @@ T016 - Feature Flags Scaffolding
 Environment Variables:
   AF_UNIFIED_TRADES=1             Enable canonical Fill/CompletedTrade emission & adapters
   AF_EQUITY_NORMALIZER_V2=1       Enable unscaled equity normalization path (compare mode)
-  AF_EQUITY_HASH_V2=1             Transitional: hash normalized equity series instead of legacy scaled input (NOT ACTIVE YET)
+    AF_EQUITY_HASH_V2=1             Transitional: hash normalized equity series instead of legacy scaled input (NOT ACTIVE YET)
+    AF_ENRICHED_JOURNALING=1        Enable enriched journaling pipelines and artifact emission
 
 The new ``AF_EQUITY_HASH_V2`` toggle is a placeholder for the upcoming
 transition where the equity hash (and eventually run hash) will switch to
@@ -52,7 +53,15 @@ def is_equity_hash_v2_enabled() -> bool:
     return os.getenv("AF_EQUITY_HASH_V2", "0").lower() in _DEF_TRUE
 
 
+@lru_cache(maxsize=1)
+def is_enriched_journaling_enabled() -> bool:
+    """Return True when enriched journaling artifacts should be emitted."""
+
+    return os.getenv("AF_ENRICHED_JOURNALING", "0").lower() in _DEF_TRUE
+
+
 __all__ = [
+    "is_enriched_journaling_enabled",
     "is_equity_hash_v2_enabled",
     "is_equity_normalizer_v2_enabled",
     "is_unified_trades_enabled",
