@@ -28,6 +28,7 @@ Determinism:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import Field
 
@@ -37,6 +38,7 @@ from .fill import Fill
 
 class CompletedTrade(BaseModelStrict):  # Canonical aggregate FR set
     id: str
+    schema_version: str = Field(default="2025.10.16")
     symbol: str
     entry_ts: datetime
     exit_ts: datetime
@@ -46,6 +48,16 @@ class CompletedTrade(BaseModelStrict):  # Canonical aggregate FR set
     pnl: float
     return_pct: float
     holding_period_secs: float = Field(ge=0)
+    signal_id: str
+    signal_strength: float = Field(ge=-1.0, le=1.0)
+    decision_ts: datetime
+    mae: float = Field(ge=0)
+    mfe: float = Field(ge=0)
+    r_multiple: float
+    expectancy_bucket: Literal["negative", "neutral", "positive"]
+    checklist_status: Literal["passed", "waived", "failed"]
+    risk_flag: str | None = Field(default=None)
+    context_snapshot_id: str | None = Field(default=None)
     fills: list[Fill] | None = Field(
         default=None, description="Optional embedded fills for traceability"
     )

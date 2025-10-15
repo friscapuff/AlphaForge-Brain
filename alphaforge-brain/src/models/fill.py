@@ -13,6 +13,10 @@ Notable Semantics:
   - ts: execution timestamp (UTC naive or aware normalized upstream)
   - order_id: logical grouping identifier (strategy emission linkage)
   - run_id: optional foreign key to parent run for persistence layer
+  - stop_id: optional protective stop reference (Phase 016 enrichment)
+  - target_id: optional profit target reference
+  - risk_tier: categorical position sizing tier ("conservative", "moderate", "aggressive")
+  - expectancy_inputs: numeric inputs for expectancy/R-multiple calculations (e.g., risk unit, spread)
 
 Determinism Considerations:
   - All numeric fields must be exact for hashing; price normalization handled upstream.
@@ -38,8 +42,19 @@ class Fill(BaseModelStrict):  # FR Aggregate Component
     run_id: str | None = Field(
         default=None, description="Optional run linkage (persistence)"
     )
+    stop_id: str | None = Field(default=None, description="Protective stop identifier")
+    target_id: str | None = Field(default=None, description="Profit target identifier")
+    risk_tier: str | None = Field(
+        default=None,
+        description="Risk tier classification (conservative/moderate/aggressive)",
+    )
+    expectancy_inputs: dict[str, float] | None = Field(
+        default=None,
+        description="Expectancy calculation inputs (risk unit, spread, fees)",
+    )
 
-    # Future extension hooks (slippage attribution, fee breakdown) intentionally omitted for initial unification phase.
+
+# Future extension hooks (slippage attribution, fee breakdown) intentionally omitted for initial unification phase.
 
 
 __all__ = ["Fill"]

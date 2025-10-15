@@ -28,6 +28,13 @@ class ArtifactDescriptor(BaseModelStrict):  # FR-030..FR-034 (reporting provenan
     path: str
     content_hash: str = Field(description="SHA-256 of artifact content")
     mime_type: str | None = None
+    schema_version: str | None = Field(
+        default=None, description="Schema version for versioned artifacts"
+    )
+    canonical_hash: str | None = Field(
+        default=None,
+        description="Deterministic hash of serialized payload when applicable",
+    )
 
 
 class TrustGateGateDescriptor(BaseModelStrict):
@@ -37,6 +44,12 @@ class TrustGateGateDescriptor(BaseModelStrict):
     correlation_id: str | None = None
     waiver_ref: str | None = None
     duration_ms: int | None = None
+    schema_version: str | None = None
+    manifest_signature: str | None = None
+    computed_signature: str | None = None
+    hash_match: bool | None = None
+    schema_version_ok: bool | None = None
+    diagnostics: Mapping[str, Any] | None = None
 
 
 class TrustGateManifest(BaseModelStrict):
@@ -47,6 +60,8 @@ class TrustGateManifest(BaseModelStrict):
     suite_version: int = 1
     config_hash: str
     tolerance_profile: str | None = None
+    tolerance_profile_version: str | None = None
+    tolerance_profile_hash: str | None = None
     runtime_ms: int | None = None
     gates: list[TrustGateGateDescriptor] = Field(default_factory=list)
     signature_path: str | None = None
@@ -100,10 +115,18 @@ def compute_composite_hash_from(
     trust_gate: TrustGateManifest | None = None,
 ) -> str:
     # Stable, order-independent canonical payload
-    reduced = [
-        {"name": a.name, "path": a.path, "content_hash": a.content_hash}
-        for a in artifacts
-    ]
+    reduced: list[dict[str, str]] = []
+    for artifact in artifacts:
+        entry: dict[str, str] = {
+            "name": artifact.name,
+            "path": artifact.path,
+            "content_hash": artifact.content_hash,
+        }
+        if artifact.schema_version is not None:
+            entry["schema_version"] = artifact.schema_version
+        if artifact.canonical_hash is not None:
+            entry["canonical_hash"] = artifact.canonical_hash
+        reduced.append(entry)
     reduced.sort(key=lambda d: d["name"])  # order independence
     payload: dict[str, object] = {
         "config_signature": config_signature,
@@ -117,18 +140,64 @@ def compute_composite_hash_from(
             "runtime_ms": trust_gate.runtime_ms,
             "signature_path": trust_gate.signature_path,
             "report_path": trust_gate.report_path,
-            "gates": [
-                {
-                    "name": gate.name,
-                    "status": gate.status,
-                    "waiver_ref": gate.waiver_ref,
-                    "correlation_id": gate.correlation_id,
-                }
-                for gate in trust_gate.gates
-            ],
+            "gates": [_trust_gate_gate_payload(gate) for gate in trust_gate.gates],
         }
+        if trust_gate.tolerance_profile is not None:
+            tg_payload["tolerance_profile"] = trust_gate.tolerance_profile
+        if trust_gate.tolerance_profile_version is not None:
+            tg_payload["tolerance_profile_version"] = (
+                trust_gate.tolerance_profile_version
+            )
+        if trust_gate.tolerance_profile_hash is not None:
+            tg_payload["tolerance_profile_hash"] = trust_gate.tolerance_profile_hash
+        if trust_gate.enabled_gates:
+            tg_payload["enabled_gates"] = list(trust_gate.enabled_gates)
         payload["trust_gate"] = tg_payload
     return sha256_hex(canonical_json(payload).encode("utf-8"))
+
+
+def _trust_gate_gate_payload(gate: TrustGateGateDescriptor) -> dict[str, object]:
+    entry: dict[str, object] = {
+        "name": gate.name,
+        "status": gate.status,
+    }
+    if gate.artifact is not None:
+        entry["artifact"] = gate.artifact
+    if gate.waiver_ref is not None:
+        entry["waiver_ref"] = gate.waiver_ref
+    if gate.correlation_id is not None:
+        entry["correlation_id"] = gate.correlation_id
+    if gate.duration_ms is not None:
+        entry["duration_ms"] = gate.duration_ms
+    if gate.schema_version is not None:
+        entry["schema_version"] = gate.schema_version
+    if gate.manifest_signature is not None:
+        entry["manifest_signature"] = gate.manifest_signature
+    if gate.computed_signature is not None:
+        entry["computed_signature"] = gate.computed_signature
+    if gate.hash_match is not None:
+        entry["hash_match"] = gate.hash_match
+    if gate.schema_version_ok is not None:
+        entry["schema_version_ok"] = gate.schema_version_ok
+    if gate.diagnostics:
+        entry["diagnostics"] = _normalise_trust_gate_mapping(gate.diagnostics)
+    return entry
+
+
+def _normalise_trust_gate_mapping(values: Mapping[str, Any]) -> dict[str, object]:
+    return {str(k): _normalise_trust_gate_value(v) for k, v in values.items()}
+
+
+def _normalise_trust_gate_value(value: Any) -> object:
+    if isinstance(value, Mapping):
+        return _normalise_trust_gate_mapping(value)
+    if isinstance(value, (list, tuple)):
+        return [_normalise_trust_gate_value(item) for item in value]
+    if isinstance(value, set):
+        normalized: list[object] = [_normalise_trust_gate_value(item) for item in value]
+        normalized.sort(key=lambda item: repr(item))
+        return normalized
+    return value
 
 
 class SweepCombinationStatus(str, Enum):
