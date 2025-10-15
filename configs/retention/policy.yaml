@@ -8,3 +8,11 @@ breach_log_path: "zz_artifacts/retention_breaches.log"
 metric_labels:
   policy: default
   environment: production
+full_run_assets:
+  - name: journaling
+    root: zz_artifacts/journaling
+    policy_version: "2025.10.13"
+    decision_ref: "Decision 2"
+    retention:
+      max_runs: 60
+      per_strategy_top: 6

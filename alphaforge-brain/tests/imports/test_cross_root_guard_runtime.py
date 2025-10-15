@@ -57,3 +57,23 @@ def test_guard_allows_shared_module_imports(guard_env):
         ]
         blocked_modules = {entry.get("module") for entry in entries}
         assert module_name not in blocked_modules
+
+
+def test_guard_allows_journaling_prefix(guard_env):
+    placeholder_name = "alphaforge_mind.placeholder"
+    sys.modules[placeholder_name] = ModuleType(placeholder_name)
+
+    test_module_name = "services.journaling._guard_probe"
+    probe_module = ModuleType(test_module_name)
+    exec(
+        "def load_placeholder():\n    import importlib\n    return importlib.import_module('alphaforge_mind.placeholder')\n",
+        probe_module.__dict__,
+    )
+    sys.modules[test_module_name] = probe_module
+
+    try:
+        module = importlib.import_module(test_module_name)
+        module.load_placeholder()
+    finally:
+        sys.modules.pop(placeholder_name, None)
+        sys.modules.pop(test_module_name, None)

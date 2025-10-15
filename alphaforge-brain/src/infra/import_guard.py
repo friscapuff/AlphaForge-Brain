@@ -14,7 +14,12 @@ from typing import Sequence
 from services.audit.governance_logger import record_governance_event
 
 _BANNED_PREFIX = "alphaforge_mind"
-_ALLOWED_IMPORTER_PREFIXES: tuple[str, ...] = ("shared.", "tests.", "alphaforge_mind.")
+_ALLOWED_IMPORTER_PREFIXES: tuple[str, ...] = (
+    "shared.",
+    "tests.",
+    "alphaforge_mind.",
+    "services.journaling.",
+)
 _DISABLE_ENV = "ALPHAFORGE_IMPORT_GUARD_DISABLE"
 _ALLOW_ENV = "ALPHAFORGE_IMPORT_GUARD_ALLOW"
 _LOG_PATH_ENV = "IMPORT_GUARD_LOG_PATH"

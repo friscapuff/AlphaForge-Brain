@@ -128,3 +128,56 @@ def test_retention_defaults_enforce_caps_and_log_breach(retention_policy_env):
         rec = registry.get(run_hash)
         if rec and not rec.get("pinned"):
             assert rec.get("retention_state") == "manifest-only"
+
+
+def test_retention_breach_includes_journaling_assets(tmp_path, monkeypatch):
+    policy_path = tmp_path / "policy.yaml"
+    policy_path.write_text(
+        "\n".join(
+            [
+                'policy_version: "2025.10.13"',
+                "max_runs: 1",
+                "per_strategy_top: 0",
+                "waiver_required: true",
+                "full_run_assets:",
+                "  - name: journaling",
+                "    root: zz_artifacts/journaling",
+                '    policy_version: "2025.10.13"',
+                '    decision_ref: "Decision 2"',
+                "    retention:",
+                "      max_runs: 60",
+                "      per_strategy_top: 6",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("RETENTION_POLICY_PATH", str(policy_path))
+
+    registry = InMemoryRunRegistry()
+    registry.set(
+        "RUN-A",
+        {
+            "created_at": 2.0,
+            "strategy_name": "alpha",
+        },
+    )
+    registry.set(
+        "RUN-B",
+        {
+            "created_at": 1.0,
+            "strategy_name": "beta",
+        },
+    )
+
+    cfg = load_retention_config()
+    plan = plan_retention(registry, cfg=cfg)
+
+    assert plan["breaches"], "Expected breach metadata for journaling assets"
+    assets = plan["breaches"][0].get("assets")
+    assert assets, "Breach should annotate full-run assets"
+    journaling_asset = next(
+        (asset for asset in assets if asset["name"] == "journaling"), None
+    )
+    assert journaling_asset is not None
+    assert journaling_asset["decision_ref"] == "Decision 2"
+    assert journaling_asset["policy_version"] == "2025.10.13"

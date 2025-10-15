@@ -28,7 +28,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
@@ -51,6 +51,57 @@ _DEFAULT_POLICY_PATH = Path("configs/retention/policy.yaml")
 
 
 @dataclass(slots=True)
+class RetentionAsset:
+    name: str
+    root: Path | None = None
+    policy_version: str | None = None
+    decision_ref: str | None = None
+    retention: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> RetentionAsset:
+        name = str(payload.get("name", "")).strip()
+        if not name:
+            raise ValueError("full_run_assets entries must include a 'name'")
+        root_raw = payload.get("root") or payload.get("path")
+        root = Path(str(root_raw)) if root_raw else None
+        policy_version = (
+            str(payload.get("policy_version"))
+            if payload.get("policy_version") is not None
+            else None
+        )
+        decision_ref = (
+            str(payload.get("decision_ref"))
+            if payload.get("decision_ref") is not None
+            else None
+        )
+        retention_payload = payload.get("retention") or {}
+        retention_dict: dict[str, Any] = {}
+        if isinstance(retention_payload, Mapping):
+            for key, value in retention_payload.items():
+                retention_dict[str(key)] = value
+        return cls(
+            name=name,
+            root=root,
+            policy_version=policy_version,
+            decision_ref=decision_ref,
+            retention=retention_dict,
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"name": self.name}
+        if self.root:
+            payload["root"] = self.root.as_posix()
+        if self.policy_version:
+            payload["policy_version"] = self.policy_version
+        if self.decision_ref:
+            payload["decision_ref"] = self.decision_ref
+        if self.retention:
+            payload["retention"] = dict(self.retention)
+        return payload
+
+
+@dataclass(slots=True)
 class RetentionConfig:
     keep_last: int = 50
     top_k_per_strategy: int = 5
@@ -65,6 +116,7 @@ class RetentionConfig:
         default_factory=lambda: Path("zz_artifacts/retention_breaches.log")
     )
     metric_labels: dict[str, str] = field(default_factory=dict)
+    asset_families: tuple[RetentionAsset, ...] = ()
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> RetentionConfig:
@@ -106,6 +158,16 @@ class RetentionConfig:
             for key, value in metric_labels_payload.items():
                 metric_labels[str(key)] = str(value)
 
+        asset_entries = payload.get("full_run_assets") or ()
+        asset_families: list[RetentionAsset] = []
+        if isinstance(asset_entries, Sequence):
+            for entry in asset_entries:
+                if isinstance(entry, Mapping):
+                    try:
+                        asset_families.append(RetentionAsset.from_mapping(entry))
+                    except ValueError:
+                        continue
+
         return cls(
             keep_last=keep_last,
             top_k_per_strategy=top_k,
@@ -116,6 +178,7 @@ class RetentionConfig:
             audit_log_path=audit_log_path,
             breach_log_path=breach_log_path,
             metric_labels=metric_labels,
+            asset_families=tuple(asset_families),
         )
 
     def as_dict(self) -> dict[str, Any]:  # pragma: no cover - convenience helper
@@ -129,6 +192,7 @@ class RetentionConfig:
             "audit_log_path": self.audit_log_path.as_posix(),
             "breach_log_path": self.breach_log_path.as_posix(),
             "metric_labels": dict(self.metric_labels),
+            "asset_families": [asset.as_dict() for asset in self.asset_families],
         }
 
 
@@ -241,6 +305,14 @@ def _log_retention_breach(
         audit_path=_resolve_breach_log_path(cfg, environment),
         environment=environment,
     )
+
+
+def _attach_assets(
+    breach: dict[str, Any], asset_families: Sequence[RetentionAsset]
+) -> dict[str, Any]:
+    if asset_families:
+        breach["assets"] = [asset.as_dict() for asset in asset_families]
+    return breach
 
 
 def _rank_top_k(run_items: Iterable[tuple[str, dict[str, Any]]], k: int) -> set[str]:
@@ -435,14 +507,13 @@ def plan_retention(
     breaches: list[dict[str, Any]] = []
     non_pinned_demoted = sorted(h for h in demote if h not in pinned_hashes)
     if len(all_hashes) > cfg.keep_last and non_pinned_demoted:
-        breaches.append(
-            {
-                "type": "max_runs",
-                "limit": cfg.keep_last,
-                "total_runs": len(all_hashes),
-                "demoted": non_pinned_demoted,
-            }
-        )
+        breach_entry = {
+            "type": "max_runs",
+            "limit": cfg.keep_last,
+            "total_runs": len(all_hashes),
+            "demoted": non_pinned_demoted,
+        }
+        breaches.append(_attach_assets(breach_entry, cfg.asset_families))
 
     for strategy, items in by_strategy.items():
         if len(items) > cfg.top_k_per_strategy:
@@ -450,23 +521,21 @@ def plan_retention(
                 h for h, _ in items if h in demote and h not in pinned_hashes
             )
             if strat_demoted:
-                breaches.append(
-                    {
-                        "type": "per_strategy",
-                        "strategy": strategy,
-                        "limit": cfg.top_k_per_strategy,
-                        "demoted": strat_demoted,
-                    }
-                )
+                breach_entry = {
+                    "type": "per_strategy",
+                    "strategy": strategy,
+                    "limit": cfg.top_k_per_strategy,
+                    "demoted": strat_demoted,
+                }
+                breaches.append(_attach_assets(breach_entry, cfg.asset_families))
 
     if len(pinned_hashes) > cfg.keep_last:
-        breaches.append(
-            {
-                "type": "pinned_overflow",
-                "limit": cfg.keep_last,
-                "pinned": sorted(pinned_hashes),
-            }
-        )
+        breach_entry = {
+            "type": "pinned_overflow",
+            "limit": cfg.keep_last,
+            "pinned": sorted(pinned_hashes),
+        }
+        breaches.append(_attach_assets(breach_entry, cfg.asset_families))
 
     for breach in breaches:
         _log_retention_breach(
@@ -506,6 +575,7 @@ def apply_retention_plan(
 
 
 __all__ = [
+    "RetentionAsset",
     "RetentionConfig",
     "apply_retention_plan",
     "plan_retention",
