@@ -147,6 +147,14 @@ After the reruns complete:
    ```
    Archive the JSON with your runbook notes; it now represents a post-backfill benchmark.
 
+### Journaling Evidence Attachments (Phase 016)
+
+When journaling artifacts are part of the remediation scope, capture the following evidence with your backfill packet:
+
+1. Export the enriched journaling bundle for each rerun via `alphaforge-brain/scripts/journaling/export_to_cold_storage.py`. Store the resulting manifest alongside the original run hash and attach the deterministic hash reported by `services.hashing.journaling_signature`.
+2. Append the export event to `zz_artifacts/retention_audit.log` and include the log excerpt in the waiver notes (if a waiver was required) together with timestamps proving the export occurred within 24 hours of rerun completion.
+3. Validate the exported artifacts against `alphaforge-brain/contracts/journaling_contract.schema.json` and archive the pytest output (see Quickstart §3). Link these artifacts in `WAIVERS.md` whenever a journaling gate waiver is opened or extended.
+
 ## Sweep Acceptance Evidence (FR-006 / SC-006)
 
 Run the deterministic sweep acceptance suite once Masters validation backfill completes. The suite ensures the mitigation catalogue remains auditable and that sweep behaviour complies with FR-006 (multi-ticker acceptance coverage) and SC-006 (evidence published within one business day).

@@ -1,0 +1,91 @@
+{
+  "aggregate": {
+    "run_id": "run-journaling-contract",
+    "schema_version": "2025.10.16",
+    "generated_at": "2025-10-14T16:10:00+00:00",
+    "artifact_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "context_version": "enrichment.context.v1",
+    "expectancy_by_strategy": {
+      "mean_revert_v3": 1.5,
+      "momentum_short": -0.804
+    },
+    "checklist_adherence": {
+      "overall": 1.0,
+      "pre_trade": 1.0,
+      "post_trade": 1.0
+    },
+    "risk_distribution": {
+      "aggressive": 1,
+      "conservative": 1,
+      "moderate": 2
+    },
+    "mae_mfe_stats": {
+      "mae_mean": 0.36,
+      "mae_max": 0.36,
+      "mfe_mean": 1.82,
+      "mfe_max": 1.82
+    },
+    "breach_flags": [
+      "checklist_waived"
+    ],
+    "source_artifacts": [
+      "completed_trades.json",
+      "snapshots/trade-trade-001.json",
+      "snapshots/trade-trade-002.json"
+    ]
+  },
+  "completed_trades": [
+    {
+      "id": "trade-001",
+      "schema_version": "2025.10.16",
+      "symbol": "AAPL",
+      "entry_ts": "2025-10-14T14:30:10+00:00",
+      "exit_ts": "2025-10-14T15:45:05+00:00",
+      "entry_price": 185.12,
+      "exit_price": 186.02,
+      "quantity": 200,
+      "pnl": 180.0,
+      "return_pct": 0.004863,
+      "holding_period_secs": 4500.0,
+      "signal_id": "mean_revert_v3",
+      "signal_strength": 0.72,
+      "decision_ts": "2025-10-14T14:29:55+00:00",
+      "mae": 0.36,
+      "mfe": 1.82,
+      "r_multiple": 1.5,
+      "expectancy_bucket": "positive",
+      "checklist_status": "passed",
+      "risk_flag": "balanced_position",
+      "context_snapshot_id": "ctx-001",
+      "fills": [
+        {
+          "ts": "2025-10-14T14:30:10+00:00",
+          "order_id": "ord-001",
+          "size": 200,
+          "price": 185.12,
+          "run_id": "run-journaling-contract",
+          "stop_id": "stop-mean",
+          "target_id": "target-mean",
+          "risk_tier": "moderate",
+          "expectancy_inputs": {
+            "risk_unit": 120.0,
+            "spread_bps": 3.1
+          }
+        },
+        {
+          "ts": "2025-10-14T14:55:05+00:00",
+          "order_id": "ord-002",
+          "size": -200,
+          "price": 186.02,
+          "run_id": "run-journaling-contract",
+          "risk_tier": "moderate",
+          "stop_id": null,
+          "target_id": null,
+          "expectancy_inputs": null
+        }
+      ],
+      "hash_signature": "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+    }
+  ],
+  "reasons": []
+}

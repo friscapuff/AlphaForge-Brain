@@ -1,7 +1,7 @@
 schema_version: trust_gate_tolerances.v1
 profile_id: institutional-default
-version: "2025.10.11"
-updated_at: "2025-10-11"
+version: "2025.10.17"
+updated_at: "2025-10-17"
 description: >-
   Institutional default tolerance profile enforcing corporate-action reconciliation,
   accounting balance checks, and timezone normalization requirements for the
@@ -18,6 +18,7 @@ metadata:
     - Baseline for institutional deployments; any override requires waiver per WAIVERS.md.
     - Accounting tolerances follow research decision log entry #7.
     - Timezone handling aligns with DST/leap-second research findings.
+    - Journaling tolerances enforce artifact presence, schema version 2025.10.16, canonical hash verification, and manifest reconciliation telemetry counters per Phase 4 governance.
   gate_defaults:
     equity_reconciliation:
       absolute_currency_tolerance: 0.01
@@ -54,6 +55,19 @@ metadata:
       require_artifact_hash_match: true
       require_sqlite_digest_match: true
       allow_baseline_version_mismatch: false
+    journaling:
+      required_artifacts:
+        - completed_trades.json
+      expected_schema_version: "2025.10.16"
+      enforce_manifest_signature: true
+      waiver_reference: journaling.artifact.required
+      diagnostics_surface:
+        - schema_version
+        - manifest_signature
+        - computed_signature
+      metrics:
+        - trust_gate_journaling_manifest_reconciliations
+        - trust_gate_manifest_payload_size_bytes
 metrics:
   leakage_score:
     comparator: "<="

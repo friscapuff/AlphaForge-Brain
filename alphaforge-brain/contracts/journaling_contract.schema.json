@@ -1,0 +1,251 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://alphaforge.dev/contracts/journaling_contract.schema.json",
+  "title": "JournalingArtifactsContract",
+  "$defs": {
+    "FillRecord": {
+      "type": "object",
+      "required": ["ts", "order_id", "size", "price"],
+      "properties": {
+        "ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "order_id": {
+          "type": "string"
+        },
+        "size": {
+          "type": "number"
+        },
+        "price": {
+          "type": "number",
+          "minimum": 0
+        },
+        "run_id": {
+          "type": ["string", "null"]
+        },
+        "stop_id": {
+          "type": ["string", "null"]
+        },
+        "target_id": {
+          "type": ["string", "null"]
+        },
+        "risk_tier": {
+          "type": ["string", "null"],
+          "enum": [
+            "conservative",
+            "moderate",
+            "aggressive",
+            null
+          ]
+        },
+        "expectancy_inputs": {
+          "type": ["object", "null"],
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "CompletedTradeRecord": {
+      "type": "object",
+      "required": [
+        "id",
+        "schema_version",
+        "symbol",
+        "entry_ts",
+        "exit_ts",
+        "entry_price",
+        "exit_price",
+        "quantity",
+        "pnl",
+        "return_pct",
+        "holding_period_secs",
+        "signal_id",
+        "signal_strength",
+        "decision_ts",
+        "mae",
+        "mfe",
+        "r_multiple",
+        "expectancy_bucket",
+        "checklist_status",
+        "risk_flag",
+        "context_snapshot_id",
+        "fills",
+        "hash_signature"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^\\d{4}\\.\\d{2}\\.\\d{2}$"
+        },
+        "symbol": {
+          "type": "string"
+        },
+        "entry_ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "exit_ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "entry_price": {
+          "type": "number",
+          "minimum": 0
+        },
+        "exit_price": {
+          "type": "number",
+          "minimum": 0
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "pnl": {
+          "type": "number"
+        },
+        "return_pct": {
+          "type": "number"
+        },
+        "holding_period_secs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "signal_id": {
+          "type": "string"
+        },
+        "signal_strength": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        },
+        "decision_ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "mae": {
+          "type": "number",
+          "minimum": 0
+        },
+        "mfe": {
+          "type": "number",
+          "minimum": 0
+        },
+        "r_multiple": {
+          "type": "number"
+        },
+        "expectancy_bucket": {
+          "type": "string",
+          "enum": ["negative", "neutral", "positive"]
+        },
+        "checklist_status": {
+          "type": "string",
+          "enum": ["passed", "waived", "failed"]
+        },
+        "risk_flag": {
+          "type": ["string", "null"]
+        },
+        "context_snapshot_id": {
+          "type": ["string", "null"]
+        },
+        "fills": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {"$ref": "#/$defs/FillRecord"}
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hash_signature": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "JournalingAggregate": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "schema_version",
+        "generated_at",
+        "artifact_hash",
+        "context_version",
+        "expectancy_by_strategy",
+        "checklist_adherence",
+        "risk_distribution",
+        "mae_mfe_stats",
+        "breach_flags",
+        "source_artifacts"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^\\d{4}\\.\\d{2}\\.\\d{2}$"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "artifact_hash": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "context_version": {
+          "type": "string"
+        },
+        "expectancy_by_strategy": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "checklist_adherence": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "risk_distribution": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "mae_mfe_stats": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "breach_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source_artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

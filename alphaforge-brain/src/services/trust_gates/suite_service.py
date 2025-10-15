@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import json
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +31,7 @@ DEFAULT_GATE_ORDER = (
     "universe_stamp",
     "equity_reconciliation",
     "accounting",
+    "journaling",
 )
 
 _GATE_MODULE_MAP = {
@@ -40,6 +42,7 @@ _GATE_MODULE_MAP = {
     "universe_stamp": "universe",
     "equity_reconciliation": "equity",
     "accounting": "accounting",
+    "journaling": "journaling",
 }
 
 _TRUST_GATES_LATENCY_LOG = Path("zz_artifacts/governance/trust_gates_latency.jsonl")
@@ -143,6 +146,8 @@ class TrustGateSuiteService:
                 kwargs["candidate_manifest"] = manifest
             if "tolerance_profile" in parameters and tolerance_profile is not None:
                 kwargs["tolerance_profile"] = tolerance_profile
+            if "run_id" in parameters and run_id is not None:
+                kwargs["run_id"] = run_id
             gate_start = perf_counter()
             result = evaluate(**kwargs)
             if not isinstance(result, TrustGateResult):
@@ -179,6 +184,26 @@ class TrustGateSuiteService:
         )
         if suite_id_override:
             summary = replace(summary, suite_id=suite_id_override)
+
+        try:
+            manifest_payload = summary.manifest_block()
+            encoded_manifest = json.dumps(
+                manifest_payload, separators=(",", ":"), sort_keys=True
+            ).encode("utf-8")
+            telemetry.emit_manifest_payload_size(
+                registry=metrics_registry,
+                profile=self._tolerance_profile,
+                size_bytes=len(encoded_manifest),
+            )
+        except Exception:  # pragma: no cover - defensive emission guard
+            struct_payload = {
+                "suite_id": summary.suite_id,
+                "profile": self._tolerance_profile,
+            }
+            record_governance_event(
+                message="trust_gates.manifest_serialization_failure",
+                details=struct_payload,
+            )
 
         details_payload: dict[str, object] = {
             "run_id": run_id,

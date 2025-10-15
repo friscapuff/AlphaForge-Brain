@@ -1,6 +1,6 @@
 # Trust Gate Operations Guide
 
-**Last Updated**: 2025-10-13
+**Last Updated**: 2025-10-15
 **Owner**: Release Steward (AlphaForge Brain)
 
 This guide operationalizes the trust gate framework across ingest → transform → emit, ensuring compliance with constitutional principles and the newly introduced non-functional requirements.
@@ -62,6 +62,16 @@ This guide operationalizes the trust gate framework across ingest → transform 
 | Universe Stamp | Missing symbols fail the suite; additional symbols warned but not blocked; symbol delta limit = 0. |
 | Equity Reconciliation | Absolute currency drift ≤ 0.01; relative drift ≤ 5 bps; corporate-action metadata required. |
 | Accounting Balance | Absolute currency drift ≤ 0.01; relative drift ≤ 5 bps; ledger precision 6 decimals with bankers rounding. |
+| Journaling Evidence | `completed_trades.json` must exist under `zz_artifacts/journaling/<run_id>/`; schema version must equal **2025.10.16**; canonical hash must match the manifest signature; suite emits `trust_gate_journaling_manifest_reconciliations{status=...}` and `trust_gate_manifest_payload_size_bytes` for every execution; failures require waiver `journaling.artifact.required`. |
+
+#### Journaling Gate Diagnostics (Phase 016/Phase 4 refresh)
+
+- **Artifacts enforced**: `completed_trades.json` plus optional `snapshots/*.json` and `reasons.json` located within the journaling run directory. Absence or unreadable payloads fails the gate.
+- **Hash verification**: The gate recomputes the enriched journaling signature via `services.hashing.hash_enriched_journaling_payload`. Manifest entries must supply `canonical_hash`; mismatches surface `hash_mismatch` diagnostics and toggle `hash_match=false`.
+- **Schema discipline**: Manifest schema must equal **2025.10.16**. Drift surfaces `schema_mismatch` diagnostics and requires remediation or signed waiver before promotion.
+- **Metrics surfaced**: `trust_gate_status{gate="journaling"}`, `trust_gate_duration_seconds{gate="journaling"}`, `trust_gate_failures_total{gate="journaling",profile=*}`, `trust_gate_journaling_manifest_reconciliations_total{status=*,profile=*}`, and `trust_gate_manifest_payload_size_bytes{profile=*}`. Additional manifest metadata now includes `schema_version`, `manifest_signature`, `computed_signature`, and tolerance payload to feed governance dashboards.
+- **Waiver policy**: Only waiver ID `journaling.artifact.required` is recognized. Waivers expire within 45 days (see `WAIVERS.md`). Each waiver entry must reference remediation tasks and attach evidence of interim monitoring.
+- **Tolerance profile**: `configs/trust_gates/tolerances/institutional_default.yaml` version **2025.10.17** documents journaling requirements. Update the profile (and `CONFIG_CHANGELOG.md`) before adjusting schema versions or hash semantics.
 
 Refer to `configs/trust_gates/tolerances/institutional_default.yaml` for the authoritative schema and future profile revisions.
 
@@ -69,8 +79,9 @@ Refer to `configs/trust_gates/tolerances/institutional_default.yaml` for the aut
 
 - `scripts/ci/run_perf_gates.py` emits a Prometheus snapshot at `zz_artifacts/trust_gate_metrics.prom` on every scheduled and PR run. The snapshot includes:
    - `trust_gate_status{gate=...,status=...}` gauges (1 when the status was observed during the most recent suite execution).
-   - `trust_gate_duration_ms{gate="<name>"}` and `trust_gate_duration_ratio{gate="<name>"}` for mean runtime and share vs suite total.
+   - `trust_gate_duration_seconds{gate="<name>"}` histogram and the derived ratio series `trust_gate_duration_ratio{gate="<name>"}` for mean runtime and share vs suite total.
    - `trust_gate_suite_runtime_ms`, `trust_gate_suite_pass`, and `trust_gate_suite_limit_ms` to chart SLA drift.
+   - Journaling-specific counters `trust_gate_journaling_manifest_reconciliations_total{status,profile}` and manifest payload size gauge `trust_gate_manifest_payload_size_bytes{profile}` for governance dashboards.
    - `validation_suite_duration_ms` mirroring the Masters validation wall-clock mean (ms).
 - Dashboards should scrape/push this artifact so observability surfaces trust-gate regressions in real time. When the file is missing, rerun `poetry run python scripts/ci/run_perf_gates.py` locally and resolve any dependency errors before promoting.
 - Sweep telemetry emits complementary metrics alongside trust-gate outputs:
@@ -134,6 +145,7 @@ Purpose: Re-validate signed artifacts quarterly and capture diff evidence.
 3. Review appended entry in this document; confirm encryption + cold storage steps succeeded.
 4. If tolerances were arbitrated, ensure reason and waiver details included.
 5. Update `WAIVERS.md` if any new waivers issued; reconfirm expiries and attach the Prometheus snapshot reference (`zz_artifacts/trust_gate_metrics.prom`).
+6. For journaling failures, capture `trust_gate_manifest.gates[*].diagnostics` and include retention pointer (`zz_artifacts/journaling/<run_id>/`) in the attestation entry.
 
 ### Parquet Fallback Response
 

@@ -104,6 +104,24 @@ class TrustGateSummary:
                 entry["duration_ms"] = result.duration_ms
             if result.tolerance:
                 entry["tolerance"] = dict(result.tolerance)
+            if result.diagnostics:
+                entry["diagnostics"] = _serialise_mapping(result.diagnostics)
+            if result.metrics:
+                schema_version = _extract_schema_version(result.metrics)
+                if schema_version:
+                    entry["schema_version"] = schema_version
+                manifest_signature = result.metrics.get("manifest_signature")
+                if isinstance(manifest_signature, str) and manifest_signature:
+                    entry["manifest_signature"] = manifest_signature
+                computed_signature = result.metrics.get("computed_signature")
+                if isinstance(computed_signature, str) and computed_signature:
+                    entry["computed_signature"] = computed_signature
+                hash_match = result.metrics.get("hash_match")
+                if isinstance(hash_match, bool):
+                    entry["hash_match"] = hash_match
+                schema_ok = result.metrics.get("schema_version_ok")
+                if isinstance(schema_ok, bool):
+                    entry["schema_version_ok"] = schema_ok
             manifest_results.append(entry)
 
         block: dict[str, object] = {
@@ -126,3 +144,28 @@ class TrustGateSummary:
         if self.enabled_gates:
             block["enabled_gates"] = list(self.enabled_gates)
         return block
+
+
+def _extract_schema_version(metrics: Mapping[str, object]) -> str | None:
+    manifest_schema = metrics.get("manifest_schema_version")
+    if isinstance(manifest_schema, str) and manifest_schema:
+        return manifest_schema
+    expected_schema = metrics.get("expected_schema_version")
+    if isinstance(expected_schema, str) and expected_schema:
+        return expected_schema
+    return None
+
+
+def _serialise_mapping(values: Mapping[str, object]) -> dict[str, object]:
+    return {str(key): _serialise_value(value) for key, value in values.items()}
+
+
+def _serialise_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return _serialise_mapping(value)
+    if isinstance(value, (list, tuple)):
+        return [_serialise_value(item) for item in value]
+    if isinstance(value, set):
+        serialised = [_serialise_value(item) for item in value]
+        return sorted(serialised, key=lambda item: repr(item))
+    return value

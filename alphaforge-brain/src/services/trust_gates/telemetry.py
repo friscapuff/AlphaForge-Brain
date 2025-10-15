@@ -16,6 +16,8 @@ class _RegistryMetrics:
     status: Gauge
     duration: Histogram
     failure: Counter
+    manifest_size: Gauge
+    journaling_reconciliations: Counter
     config_error: Counter
 
 
@@ -55,9 +57,21 @@ def _ensure_metrics(registry: CollectorRegistry) -> _RegistryMetrics:
         buckets=(0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
     )
     failure_counter = Counter(
-        "trust_gate_failure",
+        "trust_gate_failures_total",
         "Trust gate failure counter",
         labelnames=("gate", "profile"),
+        registry=registry,
+    )
+    journaling_counter = Counter(
+        "trust_gate_journaling_manifest_reconciliations",
+        "Journaling manifest reconciliation outcomes",
+        labelnames=("status", "profile"),
+        registry=registry,
+    )
+    manifest_size_gauge = Gauge(
+        "trust_gate_manifest_payload_size_bytes",
+        "Trust gate manifest payload size in bytes",
+        labelnames=("profile",),
         registry=registry,
     )
     config_error_counter = Counter(
@@ -70,6 +84,8 @@ def _ensure_metrics(registry: CollectorRegistry) -> _RegistryMetrics:
         status=status_gauge,
         duration=duration_hist,
         failure=failure_counter,
+        manifest_size=manifest_size_gauge,
+        journaling_reconciliations=journaling_counter,
         config_error=config_error_counter,
     )
     _REGISTRIES[key] = metrics
@@ -102,6 +118,10 @@ def emit_gate_metrics(
     metrics.duration.labels(gate=gate).observe(secs)
     if status == "fail":
         metrics.failure.labels(gate=gate, profile=profile or "unknown").inc()
+    if gate == "journaling":
+        metrics.journaling_reconciliations.labels(
+            status=status, profile=profile or "unknown"
+        ).inc()
     logger.info(
         "trust_gate.result",
         gate=gate,
@@ -128,9 +148,17 @@ def emit_config_error(
     )
 
 
+def emit_manifest_payload_size(
+    *, registry: CollectorRegistry, profile: str | None, size_bytes: int
+) -> None:
+    metrics = _ensure_metrics(registry)
+    metrics.manifest_size.labels(profile=profile or "unknown").set(float(size_bytes))
+
+
 __all__ = [
     "TrustGateRegistry",
     "create_registry",
     "emit_gate_metrics",
     "emit_config_error",
+    "emit_manifest_payload_size",
 ]

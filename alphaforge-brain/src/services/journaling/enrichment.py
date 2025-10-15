@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Iterable, Mapping, Sequence
+from datetime import datetime, timezone
+from statistics import mean
+from typing import Iterable, Mapping, Sequence
 
 from models.completed_trade import CompletedTrade
 from models.fill import Fill
+from models.journaling_aggregate import JournalingAggregate
 from models.trade_context_snapshot import TradeContextSnapshot
 from services.hashing import hash_enriched_journaling_payload
-
-if TYPE_CHECKING:  # pragma: no cover - introduced in Phase 5
-    from models.journaling_aggregate import JournalingAggregate
-else:  # lightweight placeholder until aggregate model lands
-    JournalingAggregate = Any  # type: ignore[assignment]
 
 _JOURNALING_SCHEMA_VERSION = "2025.10.16"
 
@@ -102,12 +101,20 @@ def prepare_enriched_payload(
         ordered_snapshots,
         sorted_reasons,
     )
+    aggregate = _build_aggregate(
+        run_id=run_id,
+        trades=enriched_trades,
+        signature=signature,
+        source_artifacts=source_artifacts,
+        reasons=sorted_reasons,
+    )
     return JournalingArtifacts(
         run_id=run_id,
         trades=enriched_trades,
         snapshots=ordered_snapshots,
         reasons=sorted_reasons,
         signature=signature,
+        aggregate=aggregate,
         source_artifacts=source_artifacts,
     )
 
@@ -230,6 +237,81 @@ def _compute_source_artifacts(
     if reasons:
         paths.append("reasons.json")
     return paths
+
+
+def _build_aggregate(
+    *,
+    run_id: str,
+    trades: Sequence[CompletedTrade],
+    signature: str | None,
+    source_artifacts: Sequence[str],
+    reasons: Sequence[dict[str, str]],
+) -> JournalingAggregate:
+    now = datetime.now(timezone.utc)
+
+    expectancy_tracker: dict[str, list[float]] = defaultdict(list)
+    checklist_counter: Counter[str] = Counter()
+    risk_counter: Counter[str] = Counter()
+    mae_values: list[float] = []
+    mfe_values: list[float] = []
+    breach_flags: set[str] = set()
+
+    for trade in trades:
+        expectancy_tracker[trade.signal_id].append(trade.r_multiple)
+        checklist_counter[trade.checklist_status] += 1
+        if trade.risk_flag:
+            risk_counter[trade.risk_flag] += 1
+        mae_values.append(trade.mae)
+        mfe_values.append(trade.mfe)
+        if trade.checklist_status == "waived":
+            breach_flags.add("checklist_waived")
+        if trade.checklist_status == "failed":
+            breach_flags.add("checklist_failed")
+
+    if reasons:
+        breach_flags.update(reason["code"] for reason in reasons if "code" in reason)
+
+    expectancy_by_strategy = {
+        signal: round(mean(values), 3)
+        for signal, values in expectancy_tracker.items()
+        if values
+    }
+
+    total_trades = len(trades) or 1
+    checklist_adherence = {
+        "overall": round(
+            (checklist_counter.get("passed", 0) + checklist_counter.get("waived", 0))
+            / total_trades,
+            3,
+        ),
+        "passed": round(checklist_counter.get("passed", 0) / total_trades, 3),
+        "waived": round(checklist_counter.get("waived", 0) / total_trades, 3),
+    }
+
+    if not risk_counter:
+        risk_distribution = {"unclassified": total_trades}
+    else:
+        risk_distribution = dict(risk_counter)
+
+    mae_stats = {
+        "mae_mean": round(mean(mae_values), 3) if mae_values else 0.0,
+        "mae_max": round(max(mae_values), 3) if mae_values else 0.0,
+        "mfe_mean": round(mean(mfe_values), 3) if mfe_values else 0.0,
+        "mfe_max": round(max(mfe_values), 3) if mfe_values else 0.0,
+    }
+
+    aggregate = JournalingAggregate(
+        run_id=run_id,
+        generated_at=now,
+        artifact_hash=signature or "",
+        expectancy_by_strategy=expectancy_by_strategy,
+        checklist_adherence=checklist_adherence,
+        risk_distribution=risk_distribution,
+        mae_mfe_stats=mae_stats,
+        breach_flags=sorted(breach_flags),
+        source_artifacts=list(source_artifacts),
+    )
+    return aggregate
 
 
 __all__ = ["JournalingArtifacts", "prepare_enriched_payload"]

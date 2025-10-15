@@ -6,19 +6,21 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, MutableMapping
 
 from prometheus_client import CollectorRegistry, Counter
 
 DEFAULT_LOGGER_NAME = "governance"
 DEFAULT_METRIC_PREFIX = "governance"
 DEFAULT_AUDIT_PATH = Path("zz_artifacts/governance_audit.log")
+_JOURNALING_RETENTION_ROOT = Path("zz_artifacts/journaling")
 
 __all__ = [
     "emit_governance_metric",
     "append_audit_log",
     "record_governance_event",
     "resolve_default_audit_path",
+    "log_journaling_validation_failure",
 ]
 
 
@@ -99,3 +101,50 @@ def record_governance_event(
         audit_path=audit_path,
         environment=environment,
     )
+
+
+def log_journaling_validation_failure(
+    *,
+    run_id: str,
+    diagnostics: Mapping[str, Any],
+    tolerance_profile: str | None = None,
+    waiver_ref: str | None = None,
+    retention_pointer: str | Path | None = None,
+    audit_path: Path | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> None:
+    """Record a journaling validation failure with retention evidence pointers."""
+
+    pointer_path = (
+        Path(retention_pointer)
+        if retention_pointer
+        else (_JOURNALING_RETENTION_ROOT / run_id)
+    )
+    payload: MutableMapping[str, Any] = {
+        "run_id": run_id,
+        "retention_pointer": str(pointer_path),
+        "diagnostics": _serialise_value(diagnostics),
+    }
+    if tolerance_profile:
+        payload["tolerance_profile"] = tolerance_profile
+    if waiver_ref:
+        payload["waiver_ref"] = waiver_ref
+
+    record_governance_event(
+        message="journaling.validation.failure",
+        details=payload,
+        audit_path=audit_path,
+        environment=environment,
+    )
+
+
+def _serialise_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(k): _serialise_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_serialise_value(v) for v in value]
+    if isinstance(value, set):
+        return sorted(_serialise_value(v) for v in value)
+    if isinstance(value, Path):
+        return str(value)
+    return value

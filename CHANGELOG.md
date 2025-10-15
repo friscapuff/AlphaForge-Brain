@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/) and this project adheres (prospectively) to Semantic Versioning.
 
+## [0.3.4-dev] - 2025-10-18
+### Added
+- Phase 4 journaling trust gate governance: manifest payload tolerance surfaced with enriched diagnostics, Prometheus counters (`trust_gate_journaling_manifest_reconciliations_total`, `trust_gate_manifest_payload_size_bytes`) and updated failure tracking (`trust_gate_failures_total`).
+- Regression coverage for journaling gate happy path and telemetry expectations, including manifest hash reconciliation and waiver metadata assertions.
+
+### Changed
+- Journaling trust gate now enriches tolerance payloads, emits deterministic manifest signatures, and logs governance events with resolved retention pointers on failure.
+- Institutional tolerance profile bumped to version 2025.10.17 documenting journaling metrics; operations guide refreshed with telemetry and waiver evidence requirements.
+
 ## [0.3.3-dev] - 2025-10-14
 ### Added
 - Introduced deterministic parameter sweep execution (Feature 014) covering sweep normalization, parent manifest persistence, telemetry guardrails, and governance test coverage across alphaforge-brain.

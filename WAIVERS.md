@@ -49,6 +49,14 @@ Closure: Adapters removed in Phase 7 (T070), legacy exports swept (T095 enforced
 - Log each waiver-backed pin in this document with the associated run hashes, expiry date, and breach reference from `zz_artifacts/retention_breaches.log`.
 - When a retention breach is logged, update the corresponding waiver entry and attach the CLI audit record emitted to `GOVERNANCE_AUDIT_PATH`.
 
+## Journaling Waiver Discipline (Phase 016)
+
+- Journaling trust-gate failures (gate id `journaling`) require a waiver entry before promotion when enriched artifacts are missing or stale. Reference the failing run hash, attach the gate report emitted under `zz_artifacts/governance/trust_gates_latency.jsonl`, and include the signature from `services.hashing.journaling_signature`.
+- Waivers that defer aggregate generation must link to the latest contract artifact bundle (`zz_artifacts/journaling/<run_id>/aggregates.json` and `completed_trades.json`) and cite the deterministic hash recorded in the run manifest. If the bundle is absent, explicitly mark `Source artifacts: missing` and describe the remediation plan.
+- Record the Prometheus counter snapshot for `trust_gate_journaling_manifest_reconciliations_total{status="fail",profile=*}` and the gauge `trust_gate_manifest_payload_size_bytes{profile=*}` in the waiver evidence to confirm observability coverage during the exemption window.
+- Any waiver extending the 24-hour export deadline for cold storage must attach the retention evidence in `zz_artifacts/retention_audit.log` alongside the timestamped export manifest (see `alphaforge-brain/scripts/journaling/export_to_cold_storage.py`).
+- Review journaling waivers weekly. If the waiver remains active past two review cycles, escalate to the Quality Council and document the status in this file under a new `Next Action` bullet.
+
 ## Phase 6 Governance Notes (2025-10-13)
 
 - Trust gate (SC-001) latency sampling (`zz_artifacts/governance/trust_gates_latency.jsonl`) confirmed the suite completes within 9 ms max; no SLA waiver required.
