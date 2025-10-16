@@ -11,8 +11,6 @@ description: "Task list template for feature implementation"
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
-**Governance Hooks**: Ensure tasks explicitly cover trust-gate tolerance profile validation (schema + signed change log), retention policy enforcement steps, coverage ≥90% gate verification, and runtime import guard checks (lint + runtime hook) wherever relevant.
-
 ## Format: `[ID] [P?] [Story] Description`
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
@@ -67,8 +65,6 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T007 Create base models/entities that all stories depend on
 - [ ] T008 Configure error handling and logging infrastructure
 - [ ] T009 Setup environment configuration management
-- [ ] T00G Validate trust-gate tolerance profile schema + change-log signature (block if missing)
-- [ ] T00H Configure runtime import guard (lint + runtime hook) and document enforcement strategy
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 

@@ -1,18 +1,18 @@
-<!--
-Sync Impact Report
-Version: 1.3.0 → 1.4.0 (MINOR)
-Modified Principles: II. Test-First & Traceability (embedded 90% coverage + fail-closed gates), V. Observability & Forensic Auditability (codified trust-gate metrics + signed artifacts), VI. Performance Discipline (profiling harness + regression alerts), VII. Data Integrity & Causality Safety (schema_version, tolerance SLAs, retention enforcement), IX. Multi-Project Architecture (runtime import guard), X. Contract Versioning & Backward Compatibility (schema IDs), NEW XI. Automated Governance & Waiver Discipline.
-Added Sections: XI. Automated Governance & Waiver Discipline.
-Removed Sections: None.
-Templates Requiring Updates:
-	.specify/templates/plan-template.md (⚠ reference tolerance SLA + retention checkpoints in acceptance tasks)
-	.specify/templates/spec-template.md (⚠ require coverage ≥90% + signed config change notes)
-	.specify/templates/tasks-template.md (⚠ include waiver cadence + trust gate artifact deliverables)
-	.specify/templates/agent-file-template.md (⚠ mention runtime import guard checks during analysis)
-Follow-up TODOs:
-	- Wire schematized tolerance/retention validation CI step into plan/spec templates.
-	- Document runtime import guard troubleshooting flow in docs/operations/trust_gates.md by 2025-10-31.
--->
+**Sync Impact Report**
+
+- Version: 1.4.0 → 1.5.0 (MINOR)
+- Modified Principles: IX. Multi-Project Architecture (prototype isolation mandate), Additional Constraints (reference-only prototype policy).
+- Added Sections: None.
+- Removed Sections: None.
+- Templates Requiring Updates:
+  - `.specify/templates/plan-template.md` (✅ reference-only prototype guidance documented)
+  - `.specify/templates/spec-template.md` (✅ prototype duplication-not-linking rule reflected in governance checklist)
+  - `.specify/templates/tasks-template.md` (✅ tasks template calls out prototype copy requirements)
+  - `.specify/templates/agent-file-template.md` (✅ analysis guidance flags prototype linkage attempts)
+- Follow-up TODOs:
+  - Wire schematized tolerance/retention validation CI step into plan/spec templates.
+  - Document runtime import guard troubleshooting flow in `docs/operations/trust_gates.md` by 2025-10-31.
+  - Update templates listed above with prototype isolation language by 2025-10-20. ✅ Completed 2025-10-16.
 
 # AlphaForge Constitution
 
@@ -60,7 +60,7 @@ alphaforge-mind/
 	src/
 	tests/
 ```
-Shared utilities (if any) live under `shared/` with pure, dependency-light modules. Cross-root code movement requires governance review. Brain never imports Mind; Mind consumes Brain via published interfaces (Python API boundary, REST/OpenAPI, or artifact schema). Version negotiation MUST be explicit (semantic version on contract layer). Integrity checks guard against drift.
+Shared utilities (if any) live under `shared/` with pure, dependency-light modules. Cross-root code movement requires governance review. Brain never imports Mind; Mind consumes Brain via published interfaces (Python API boundary, REST/OpenAPI, or artifact schema). Version negotiation MUST be explicit (semantic version on contract layer). Integrity checks guard against drift. Prototype or sandbox directories (e.g., `Prototype/`) MAY be referenced for scaffolding inspiration but MUST NOT be imported, symlinked, or wired into build/runtime pipelines; any borrowed assets MUST be duplicated into the appropriate project root and pass lint/contracts/trust-gate gates.
 
 ### X. Contract Versioning & Backward Compatibility
 Breaking changes to public Brain interfaces or artifact schemas MUST bump MAJOR version. Mind adopts new versions via upgrade path documented in migrations. Deprecations include sunset date & fallback strategy. Frontend contract verification artifacts (`zz_artifacts/frontend_contract.json`) are treated as release blockers when drift is detected.
@@ -109,6 +109,7 @@ During the transition, Constitution rules treating dual roots as mandatory are i
 - Coverage Floors: CI enforces ≥90% line, branch, integration, and function coverage; `quality_gates_summary.json` records failures with actionable diagnostics.
 - Retention Policy: `configs/retention/policy.yaml` defines storage budgets; automated sweeps respect pins, log breaches, and require waivers for policy overrides.
 - Trust Gate Artifacts: `trust_gate_report.json`, `ingest_vendor_metadata.json`, and Masters `perf_sla` records MUST persist under `zz_artifacts/` with SHA-256 hashes for compliance review.
+- Prototype Artifacts: Reference-only directories (e.g., `Prototype/` or vendor sample labs) MUST stay detached from build, dependency, and runtime graphs. Teams MAY duplicate source files into `alphaforge-mind/` when establishing new UI scaffolds, but they MUST remove any lingering import paths, tooling scripts, or asset links that point back to the prototype location before merging.
 
 ## Workflow & Quality Gates
 1. Lifecycle: Specify → Clarify → Plan → Tasks → Analyze → Implement → Validate → Release.
@@ -139,7 +140,7 @@ During the transition, Constitution rules treating dual roots as mandatory are i
 - Config Ledger: Signed tolerance/retention change-log entries are mandatory for merges affecting `configs/trust_gates/` or `configs/retention/`; CI enforces signature + schema validation.
 - Audit Trail: Release steward logs lineage/provenance attestations (dataset versions, waiver IDs, arbitration notes) in `docs/operations/trust_gates.md` and links to `WAIVERS.md` within 48 hours of each run. Runbook entries MUST map each mitigation to governing FR/SC IDs and the latest evidence artifact.
 
-**Version**: 1.4.0 | **Ratified**: 2025-10-14 | **Last Amended**: 2025-10-14
+**Version**: 1.5.0 | **Ratified**: 2025-10-14 | **Last Amended**: 2025-10-16
 
 ---
 ## Governance Record (Architecture Migration)

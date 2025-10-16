@@ -33,12 +33,6 @@
 
 [Gates determined based on constitution file]
 
-**Minimum Governance Checklist** (update/remove items as satisfied):
-- Confirm trust-gate tolerance profiles (e.g., `configs/trust_gates/tolerances/*.yaml`) have schema coverage, signed change-log entries, and fail-closed behaviors documented in the research phase.
-- Outline retention enforcement touchpoints (policy inspection, pin/unpin audit trail, breach logging) and plan for evidence artifacts (`zz_artifacts/` paths).
-- Capture runtime import guard enforcement (static lint + runtime hook expectations) within risk analysis and remediation tasks.
-- Record coverage ≥90% quality-gate targets and negative-path fixtures needed to keep fail-closed automation intact.
-
 ## Project Structure
 
 ### Documentation (this feature)
